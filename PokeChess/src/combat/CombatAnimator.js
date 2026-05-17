@@ -1,16 +1,30 @@
-// Gère les animations Phaser en lisant le log du CombatEngine
-// Ne contient aucune logique de jeu — uniquement du visuel
+// ─────────────────────────────────────────────────────────────────────────────
+// CombatAnimator.js
+// Gère les animations Phaser en lisant le log du CombatEngine.
+// Ne contient aucune logique de jeu — uniquement du visuel.
+//
+// Compatibilité clés sprites :
+//   - Ancien système : 'player_25'        (side_id)
+//   - Nouveau système : 'player_25_0_1'   (side_uid avec col/row)
+//   _findSprite() gère les deux automatiquement.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { HP_BAR_OFFSET } from '../board.js';
 
 export class CombatAnimator {
   constructor(scene) {
-    this.scene        = scene;
-    this.isPlaying    = false;
-    this.onComplete   = null;   // callback appelé quand tout est animé
+    this.scene      = scene;
+    this.isPlaying  = false;
+    this.onComplete = null;
+    this.log        = [];
+    this.sprites    = {};
+    this.hpBars     = {};
   }
 
-  // ── Lance l'animation d'un log de combat ──────────────────────────────
-  // sprites = { 'player_id': phaserImage, 'enemy_id': phaserImage, ... }
+  // ─────────────────────────────────────────────────────────────────────────
+  // play() — lance l'animation du log de combat
+  // sprites : { 'side_uid': PhaserImage, ... }
+  // ─────────────────────────────────────────────────────────────────────────
   play(log, sprites, onComplete) {
     this.log        = log;
     this.sprites    = sprites;
@@ -19,7 +33,9 @@ export class CombatAnimator {
     this._playEvent(0);
   }
 
-  // ── Joue les événements un par un avec un délai entre chaque ──────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // _playEvent() — joue les événements un par un avec délai
+  // ─────────────────────────────────────────────────────────────────────────
   _playEvent(index) {
     if (index >= this.log.length) {
       this.isPlaying = false;
@@ -28,46 +44,50 @@ export class CombatAnimator {
     }
 
     const event = this.log[index];
-    const delay  = this._handleEvent(event);
+    const delay = this._handleEvent(event);
 
     this.scene.time.delayedCall(delay, () => this._playEvent(index + 1));
   }
 
-  // ── Traite un événement et retourne le délai avant le suivant ────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // _handleEvent() — traite un événement et retourne le délai suivant
+  // ─────────────────────────────────────────────────────────────────────────
   _handleEvent(event) {
     switch (event.type) {
 
       case 'turn_start':
-        return 100;  // petite pause entre les tours
+        return 100;
 
       case 'attack': {
-        const attackerKey = `${event.attackerSide}_${event.attackerId}`;
-        const targetKey   = `${event.targetSide}_${event.targetId}`;
-        const attSprite   = this.sprites[attackerKey];
-        const tgtSprite   = this.sprites[targetKey];
+        const { sprite: attSprite, key: attackerKey } =
+          this._findSprite(event.attackerSide, event.attackerId);
+        const { sprite: tgtSprite, key: targetKey } =
+          this._findSprite(event.targetSide, event.targetId);
 
-        if (attSprite) this._flash(attSprite, 0xffd700);
+        // Flash jaune sur l'attaquant
+        if (attSprite?.active) this._flash(attSprite, 0xffd700);
 
-        if (tgtSprite) {
+        // Flash rouge + barre de vie + texte dégâts sur la cible
+        if (tgtSprite?.active) {
           this.scene.time.delayedCall(100, () => {
-            this._flash(tgtSprite, 0xff4444);
-            this._updateHpBar(targetKey, event.targetHpLeft, event.targetMaxHp);
-            this._showDamageText(tgtSprite, event.damage, event.typeMult);
+            if (tgtSprite.active) {
+              this._flash(tgtSprite, 0xff4444);
+              this._updateHpBar(targetKey, event.targetHpLeft, event.targetMaxHp);
+              this._showDamageText(tgtSprite, event.damage, event.typeMult);
+            }
           });
         }
         return 500;
       }
 
       case 'unit_fainted': {
-        const key    = `${event.unitSide}_${event.unitId}`;
-        const sprite = this.sprites[key];
-        if (sprite) {
-          // Fade out du sprite
+        const { sprite } = this._findSprite(event.unitSide, event.unitId);
+        if (sprite?.active) {
           this.scene.tweens.add({
-            targets: sprite,
-            alpha:   0,
+            targets:  sprite,
+            alpha:    0,
             duration: 400,
-            ease:    'Power2'
+            ease:     'Power2',
           });
         }
         return 300;
@@ -81,21 +101,62 @@ export class CombatAnimator {
     }
   }
 
-  // ── Flash coloré sur un sprite ────────────────────────────────────────
-  _flash(sprite, color) {
-    sprite.setTint(color);
-    this.scene.time.delayedCall(200, () => sprite.clearTint());
+  // ─────────────────────────────────────────────────────────────────────────
+  // _findSprite() — cherche un sprite par side + id
+  // Compatible avec les deux systèmes de clés (id simple ou uid composite)
+  // ─────────────────────────────────────────────────────────────────────────
+  _findSprite(side, id) {
+    // 1. Clé directe : 'player_25' (ancien système)
+    const directKey = `${side}_${id}`;
+    if (this.sprites[directKey]) {
+      return { sprite: this.sprites[directKey], key: directKey };
+    }
+
+    // 2. Clé uid : 'player_25_0_1' ou 'player_25_starter' (nouveau système)
+    // Cherche une clé qui commence par 'side_' et dont la partie après
+    // le préfixe commence par l'id suivi d'un underscore ou de fin de chaîne
+    const prefix   = `${side}_`;
+    const idStr    = String(id);
+    const uidKey   = Object.keys(this.sprites).find(k => {
+      if (!k.startsWith(prefix)) return false;
+      const rest = k.slice(prefix.length);
+      // Correspond à 'id_...' ou exactement 'id'
+      return rest === idStr || rest.startsWith(`${idStr}_`);
+    });
+
+    if (uidKey) {
+      return { sprite: this.sprites[uidKey], key: uidKey };
+    }
+
+    // Sprite introuvable
+    return { sprite: null, key: directKey };
   }
 
-  // ── Texte de dégâts flottant ─────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // _flash() — teinte colorée temporaire sur un sprite
+  // ─────────────────────────────────────────────────────────────────────────
+  _flash(sprite, color) {
+    if (!sprite?.active) return;
+    sprite.setTint(color);
+    this.scene.time.delayedCall(200, () => {
+      if (sprite?.active) sprite.clearTint();
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // _showDamageText() — texte de dégâts flottant
+  // Couleur et suffixe selon l'efficacité du type
+  // ─────────────────────────────────────────────────────────────────────────
   _showDamageText(sprite, damage, typeMult) {
-    const color = typeMult >= 2   ? '#ff4444' :   // super efficace → rouge vif
-                  typeMult <= 0.5 ? '#aaaaaa' :   // pas très efficace → gris
-                  typeMult === 0  ? '#555555' :   // immunité → gris foncé
-                  '#ffffff';                       // normal → blanc
+    if (!sprite?.active) return;
+
+    const color  = typeMult >= 2   ? '#ff4444' :  // super efficace
+                   typeMult <= 0.5 ? '#aaaaaa' :  // pas très efficace
+                   typeMult === 0  ? '#555555' :  // immunité
+                   '#ffffff';                      // normal
 
     const suffix = typeMult >= 2   ? ' !!' :
-                  typeMult <= 0.5 ? ' …'  : '';
+                   typeMult <= 0.5 ? ' …'  : '';
 
     const text = this.scene.add.text(
       sprite.x + Phaser.Math.Between(-10, 10),
@@ -105,54 +166,68 @@ export class CombatAnimator {
     ).setOrigin(0.5, 1).setDepth(50);
 
     this.scene.tweens.add({
-      targets:  text,
-      y:        text.y - 40,
-      alpha:    0,
-      duration: 800,
-      ease:     'Power2',
-      onComplete: () => text.destroy()
+      targets:    text,
+      y:          text.y - 40,
+      alpha:      0,
+      duration:   800,
+      ease:       'Power2',
+      onComplete: () => text.destroy(),
     });
   }
 
-  // ── Met à jour la barre de vie d'une unité ───────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // _updateHpBar() — met à jour la barre de vie d'une unité
+  // ─────────────────────────────────────────────────────────────────────────
   _updateHpBar(key, hpLeft, maxHp) {
     const bar = this.hpBars?.[key];
-    if (!bar?.fill?.active) return;  // ignore si détruit
+    if (!bar?.fill?.active) return;
+
     const ratio = Math.max(0, hpLeft / maxHp);
     bar.fill.scaleX = ratio;
-    const color = ratio > 0.5 ? 0x44cc44 : ratio > 0.25 ? 0xffaa00 : 0xff4444;
+
+    const color = ratio > 0.5  ? 0x44cc44 :
+                  ratio > 0.25 ? 0xffaa00 : 0xff4444;
     bar.fill.setFillStyle(color);
   }
 
-  // ── Crée les barres de vie pour tous les sprites ──────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // createHpBars() — crée les barres de vie pour tous les sprites
+  // Détruit les anciennes barres avant d'en créer de nouvelles
+  // ─────────────────────────────────────────────────────────────────────────
   createHpBars(sprites, units) {
-    // Détruit les anciennes barres avant d'en créer de nouvelles
+    // Détruit les anciennes barres
     if (this.hpBars) {
       Object.values(this.hpBars).forEach(bar => {
-        if (bar?.fill)       bar.fill.destroy();
-        if (bar?.background) bar.background.destroy();
+        if (bar?.fill?.active)       bar.fill.destroy();
+        if (bar?.background?.active) bar.background.destroy();
       });
     }
 
     this.hpBars = {};
 
     Object.entries(sprites).forEach(([key, sprite]) => {
-      if (!sprite?.active) return;  // ignore les sprites détruits
+      if (!sprite?.active) return;
 
-      const unit = units.find(u => `${u.side}_${u.uid ?? u.id}` === key
-                                || `${u.side}_${u.id}` === key);
+      // Cherche l'unité correspondante par clé directe ou uid
+      const unit = units.find(u => {
+        const directMatch = `${u.side}_${u.id}` === key;
+        const uidMatch    = `${u.side}_${u.uid}` === key;
+        return directMatch || uidMatch;
+      });
+
       if (!unit) return;
 
-      const barW = 50, barH = 6;
+      const barW = 50;
+      const barH = 6;
       const x    = sprite.x - barW / 2;
       const y    = sprite.y + HP_BAR_OFFSET;
 
-      // Fond gris — stocké pour pouvoir être détruit
+      // Fond gris
       const background = this.scene.add.rectangle(
         x + barW / 2, y, barW, barH, 0x333333
       ).setDepth(20);
 
-      // Barre de vie — stockée pour pouvoir être détruite et mise à jour
+      // Barre de vie verte
       const fill = this.scene.add.rectangle(x, y, barW, barH, 0x44cc44)
         .setOrigin(0, 0.5).setDepth(21);
 
