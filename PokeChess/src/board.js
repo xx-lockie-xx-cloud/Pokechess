@@ -3,7 +3,9 @@
 export const GRID_COLS  = 3;
 export const GRID_ROWS  = 2;    // rangées joueur
 export const CELL_SIZE  = 72;   // pixels par cellule
-export const GRID_GAP   = 4;    // espace entre cellules
+export const GRID_GAP   = 12;    // espace entre cellules
+export const HP_BAR_OFFSET  = -24;  // distance depuis sprite.y jusqu'à la barre de vie
+export const HP_TEXT_OFFSET = -24.5;  // distance depuis sprite.y jusqu'au texte HP
 
 export class Board {
   constructor(scene, offsetX, offsetY) {
