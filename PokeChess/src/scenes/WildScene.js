@@ -1,8 +1,11 @@
 import { POKEMONS, TYPE_COLORS } from '../data/pokemons.js';
 import { CELL_SIZE, GRID_GAP }   from '../board.js';
 import {
-  getRunState, setRunState, addToBank,
-  addCoins, removeCoins, getWildPool, BANK_MAX_SIZE
+  getRunState, setRunState,
+  addToBank, addCoins, removeCoins,
+  getPokeballs, addPokeballs, removePokeball,
+  getWildPool,
+  BANK_MAX_SIZE
 } from '../data/runState.js';
 
 const CARD_W   = 100;
@@ -51,74 +54,84 @@ export class WildScene extends Phaser.Scene {
 
     this.add.rectangle(0, 0, W, H, 0x1a1a2e).setOrigin(0);
 
-    // ── Titre ─────────────────────────────────────────────────────────
     this.add.text(W / 2, 14, 'PokeChess', {
-      fontSize: '20px', fill: '#e2e8f0', fontFamily: 'sans-serif'
+        fontSize: '20px', fill: '#e2e8f0', fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0);
 
     this.add.text(W / 2, 42, '🌿 Rencontre Sauvage !', {
-      fontSize: '15px', fill: '#78c850', fontFamily: 'sans-serif'
+        fontSize: '15px', fill: '#78c850', fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0);
 
-    this.add.text(W / 2, 66, 'Choisissez un pokémon à ajouter à votre banque', {
-      fontSize: '12px', fill: '#a0aec0', fontFamily: 'sans-serif'
+    this.add.text(W / 2, 66, 'Choisissez un pokémon à capturer', {
+        fontSize: '12px', fill: '#a0aec0', fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0);
 
-    // ── Monnaie & banque ──────────────────────────────────────────────
-    const state   = getRunState(this.registry);
-    const coins   = state.coins ?? 0;
-    const bank    = state.playerBank ?? [];
+    // ── Stock pokéballs (haut gauche) ─────────────────────────────────────
+    const state    = getRunState(this.registry);
+    const pokeballs = state.pokeballs ?? 0;
+    const coins     = state.coins     ?? 0;
+    const bank      = state.playerBank ?? [];
 
-    this.coinText = this.add.text(W - 16, 16, `💰 ${coins}`, {
-      fontSize: '14px', fill: '#ffd700', fontFamily: 'sans-serif'
-    }).setOrigin(1, 0).setDepth(10);
-
-    this.bankText = this.add.text(16, 16, `🎒 ${bank.length}/${BANK_MAX_SIZE}`, {
-      fontSize: '14px', fill: '#a0aec0', fontFamily: 'sans-serif'
+    this.pokeballText = this.add.text(16, 16, `🔴 ${pokeballs}`, {
+        fontSize: '14px', fill: '#ff6b6b', fontFamily: 'sans-serif',
+        backgroundColor: '#1a1a2e', padding: { x: 8, y: 4 }
     }).setOrigin(0, 0).setDepth(10);
 
-    // ── Cartes ────────────────────────────────────────────────────────
-    const totalW = 3 * CARD_W + 2 * CARD_GAP;
-    const startX = Math.round((W - totalW) / 2);
-    const cardY  = Math.round(H / 2 - CARD_H / 2) - 10;
+    this.coinText = this.add.text(W - 16, 16, `💰 ${coins}`, {
+        fontSize: '14px', fill: '#ffd700', fontFamily: 'sans-serif',
+        backgroundColor: '#1a1a2e', padding: { x: 8, y: 4 }
+    }).setOrigin(1, 0).setDepth(10);
+
+    this.bankText = this.add.text(W / 2, 16, `🎒 ${bank.length}/${BANK_MAX_SIZE}`, {
+        fontSize: '14px', fill: '#a0aec0', fontFamily: 'sans-serif',
+        backgroundColor: '#1a1a2e', padding: { x: 8, y: 4 }
+    }).setOrigin(0.5, 0).setDepth(10);
+
+    // ── Cartes ────────────────────────────────────────────────────────────
+    const totalW  = 3 * CARD_W + 2 * CARD_GAP;
+    const startX  = Math.round((W - totalW) / 2);
+    const cardY   = Math.round(H / 2 - CARD_H / 2) - 10;
 
     this.offered.forEach((pokemon, i) => {
-      this._createCard(pokemon, i, startX + i * (CARD_W + CARD_GAP), cardY);
+        this._createCard(pokemon, i, startX + i * (CARD_W + CARD_GAP), cardY);
     });
 
-    // ── Bouton reroll ─────────────────────────────────────────────────
+    // ── Bouton reroll ─────────────────────────────────────────────────────
     this.rerollBtn = this.add.text(W / 2, cardY + CARD_H + 28,
-      '[ 🔄 Reroll — 1 💰 ]', {
-      fontSize: '13px', fill: '#ffd700', fontFamily: 'sans-serif'
+        '[ 🔄 Reroll — 1 💰 ]', {
+        fontSize: '13px', fill: '#ffd700', fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0).setDepth(10).setInteractive({ cursor: 'pointer' });
 
     this.rerollBtn.on('pointerover', () => this.rerollBtn.setStyle({ fill: '#fff' }));
     this.rerollBtn.on('pointerout',  () => this.rerollBtn.setStyle({ fill: '#ffd700' }));
     this.rerollBtn.on('pointerdown', () => this._reroll());
 
-    // ── Bouton passer ─────────────────────────────────────────────────
+    // ── Bouton passer ─────────────────────────────────────────────────────
     this.add.text(W / 2, cardY + CARD_H + 56, '[ Passer sans capturer ]', {
-      fontSize: '12px', fill: '#718096', fontFamily: 'sans-serif'
+        fontSize: '12px', fill: '#718096', fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0).setDepth(10)
-      .setInteractive({ cursor: 'pointer' })
-      .on('pointerover', function() { this.setStyle({ fill: '#a0aec0' }); })
-      .on('pointerout',  function() { this.setStyle({ fill: '#718096' }); })
-      .on('pointerdown', () => this._proceed());
+        .setInteractive({ cursor: 'pointer' })
+        .on('pointerover', function() { this.setStyle({ fill: '#a0aec0' }); })
+        .on('pointerout',  function() { this.setStyle({ fill: '#718096' }); })
+        .on('pointerdown', () => this._proceed());
 
-    // ── Info text ─────────────────────────────────────────────────────
+    // ── Info text ─────────────────────────────────────────────────────────
     this.infoText = this.add.text(W / 2, H - 48, '', {
-      fontSize: '12px', fill: '#fc5c65', fontFamily: 'sans-serif'
+        fontSize: '12px', fill: '#fc5c65', fontFamily: 'sans-serif'
     }).setOrigin(0.5, 1).setDepth(10);
 
-    // ── Bouton confirmer (inactif au départ) ──────────────────────────
+    // ── Bouton capturer ───────────────────────────────────────────────────
+    // Actif uniquement si pokéballs disponibles
+    const hasBalls = pokeballs > 0;
     this.confirmBtn = this.add.text(W / 2, H - 20,
-      '[ ✅ Ajouter à la banque ]', {
-      fontSize: '14px', fill: '#4a5568', fontFamily: 'sans-serif'
+        hasBalls
+        ? '[ 🔴 Capturer ]'
+        : '[ Pas de Poké Ball ! ]', {
+        fontSize: '14px',
+        fill: hasBalls ? '#4a5568' : '#718096',
+        fontFamily: 'sans-serif'
     }).setOrigin(0.5, 1).setDepth(10);
-    if (!this.scene.isActive('UIScene')) {
-        this.scene.launch('UIScene');
     }
-  }
 
   // ── Tire 3 pokémons selon le budget ───────────────────────────────
   _rollOffered() {
@@ -232,18 +245,51 @@ export class WildScene extends Phaser.Scene {
       .on('pointerdown', () => this._capture(pokemon));
   }
 
-  // ── Capture ───────────────────────────────────────────────────────
-  _capture(pokemon) {
+  // ── Capture avec pokéball ─────────────────────────────────────────────
+_capture(pokemon) {
+    // Vérifie les pokéballs
+    const hasBall = removePokeball(this.registry);
+    if (!hasBall) {
+        this.infoText.setText('Plus de Poké Balls ! Achetez-en au Shop.');
+        return;
+    }
+
+    // Vérifie la banque
     const added = addToBank(this.registry, pokemon);
     if (!added) {
-      this.infoText.setText(`Banque pleine ! (${BANK_MAX_SIZE} pokémons max)`);
-      return;
+        // Rembourse la pokéball si banque pleine
+        addPokeballs(this.registry, 1);
+        this.infoText.setText(`Banque pleine ! (${BANK_MAX_SIZE} max)`);
+        return;
     }
-    // Met à jour l'affichage de la banque
+
+    // Met à jour les affichages
     const state = getRunState(this.registry);
-    this.bankText.setText(`🎒 ${state.playerBank.length}/${BANK_MAX_SIZE}`);
-    this._proceed();
-  }
+    this.pokeballText.setText(`🔴 ${state.pokeballs}`);
+    this.bankText.setText(`🎒 ${(state.playerBank ?? []).length}/${BANK_MAX_SIZE}`);
+
+    // Si plus de pokéballs → désactive le bouton
+    if ((state.pokeballs ?? 0) <= 0) {
+        this.confirmBtn
+        .setText('[ Pas de Poké Ball ! ]')
+        .setStyle({ fill: '#718096' })
+        .disableInteractive();
+    }
+
+    // Si banque pleine → passe automatiquement
+    if ((state.playerBank ?? []).length >= BANK_MAX_SIZE) {
+        this.infoText.setText(`${pokemon.name} capturé ! Banque pleine.`);
+        this.time.delayedCall(1000, () => this._proceed());
+        return;
+    }
+
+    this.infoText.setText(`${pokemon.name} capturé ! 🔴 ${state.pokeballs} ball(s) restante(s)`);
+
+    // Ne passe PAS automatiquement → le joueur peut encore capturer
+    // Il doit cliquer "Passer" ou sélectionner un autre pokémon
+    this.selectedIdx = null;
+    this.confirmBtn.setStyle({ fill: '#4a5568' }).disableInteractive();
+    }
 
   // ── Reroll ────────────────────────────────────────────────────────
   _reroll() {
@@ -284,10 +330,39 @@ export class WildScene extends Phaser.Scene {
 
   // ── Passe à la résolution du nœud ────────────────────────────────
   _proceed() {
-    this.scene.start('CombatScene', {
-        ...this.nextNodeData,
-        nodeType:           this.nextNodeData.nodeType          ?? 'combat',
-        trainerArchetypeId: this.nextNodeData.trainerArchetypeId ?? null,
-    });
+    const data     = this.nextNodeData;
+    const nodeType = data.nodeType ?? 'combat';
+
+    switch (nodeType) {
+        case 'shop':
+        this.scene.start('ShopScene', data);
+        break;
+        
+        case 'item':
+        // À implémenter plus tard — pour l'instant redirige vers shop
+        this.scene.start('ShopScene', data);
+        break;
+
+        case 'random': {
+        // Redirige aléatoirement vers combat, shop ou objet
+        const roll = Math.random();
+        if (roll < 0.40) {
+            // Combat contre un dresseur aléatoire
+            this.scene.start('CombatScene', data);
+        } else if (roll < 0.70) {
+            // Shop
+            this.scene.start('ShopScene', data);
+        } else {
+            // Objet gratuit
+            this.scene.start('ItemScene', data);
+        }
+        break;
+        }
+        case 'boss':
+        case 'combat':
+        default:
+        this.scene.start('CombatScene', data);
+        break;
+    }
     }
 }

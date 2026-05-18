@@ -14,7 +14,7 @@ export class UIScene extends Phaser.Scene {
     const btn = this.add.text(W - 12, H - 12, '[ ⚔ Équipe ]', {
       fontSize: '13px', fill: '#ffd700',
       fontFamily: 'sans-serif',
-      backgroundColor: '#0004ff',
+      backgroundColor: '#4d4d61',
       padding: { x: 8, y: 4 }
     }).setOrigin(1, 1).setDepth(9999).setInteractive({ cursor: 'pointer' });
 

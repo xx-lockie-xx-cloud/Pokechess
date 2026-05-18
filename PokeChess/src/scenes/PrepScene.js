@@ -161,6 +161,16 @@ export class PrepScene extends Phaser.Scene {
     // ── Banque ────────────────────────────────────────────────────────────
     this._drawAllBankSlots();
 
+    // ── Stock Pokéballs ───────────────────────────────────────────────────
+    const state     = getRunState(this.registry);
+    const pokeballs = state.pokeballs ?? 0;
+
+    this.pokeballText = this.add.text(
+    panelX + PANEL_W - 16, panelY + 36,
+    `🔴 ${pokeballs} Poké Ball${pokeballs > 1 ? 's' : ''}`,
+    { fontSize: '11px', fill: '#ff6b6b', fontFamily: 'sans-serif' }
+    ).setOrigin(1, 0).setDepth(2);
+
     // ── Conteneurs dynamiques ─────────────────────────────────────────────
     this.synergyContainer = this.add.container(0, 0).setDepth(3);
     this.spiderContainer  = this.add.container(0, 0).setDepth(3);
@@ -895,6 +905,12 @@ export class PrepScene extends Phaser.Scene {
 
     // Met à jour synergies
     this._drawSynergies();
+
+    // Met à jour le nombre de pokéballs
+    const freshState = getRunState(this.registry);
+    this.pokeballText?.setText(
+    `🔴 ${freshState.pokeballs ?? 0} Poké Ball${(freshState.pokeballs ?? 0) > 1 ? 's' : ''}`
+    );
 
     // Met à jour barre d'action
     this._drawActionBar();

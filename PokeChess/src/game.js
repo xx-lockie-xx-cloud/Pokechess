@@ -9,6 +9,7 @@ import { CombatScene } from './scenes/CombatScene.js';
 import { MapScene }   from './map/MapScene.js';
 import { StarterScene } from './scenes/StarterScene.js';
 import { ArenaVictoryScene } from './scenes/ArenaVictoryScene.js';
+import { ShopScene } from './scenes/ShopScene.js';
 
 class GameScene extends Phaser.Scene {
   constructor() {
@@ -344,7 +345,7 @@ const config = {
   input: {
     mouse: { preventDefaultWheel: true }
   },
-  scene: [MenuScene, StarterScene, MapScene, UIScene, PrepScene, WildScene, CombatScene, ArenaVictoryScene]
+  scene: [MenuScene, StarterScene, MapScene, UIScene, PrepScene, WildScene, ShopScene, CombatScene, ArenaVictoryScene]
 };
 
 new Phaser.Game(config);

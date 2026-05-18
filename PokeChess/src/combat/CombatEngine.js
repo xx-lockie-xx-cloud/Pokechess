@@ -10,33 +10,33 @@ export class CombatEngine {
     this.log         = [];
   }
 
+  // Dans CombatEngine._copyUnit()
   _copyUnit(unit, side) {
-    const atk     = unit.stats.atk     ?? 0;
-    const spa     = unit.stats.spa     ?? atk;  // fallback si spa absent
-    const def     = unit.stats.def     ?? 0;
-    const spd_def = unit.stats.spd_def ?? def;
-
-    // attackType automatique : special si spa > atk, sinon physical
+    const atk     = unit.stats?.atk     ?? unit.atk     ?? 0;
+    const spa     = unit.stats?.spa     ?? unit.spa     ?? atk;
+    const def     = unit.stats?.def     ?? unit.def     ?? 0;
+    const spd_def = unit.stats?.spd_def ?? unit.spd_def ?? def;
     const attackType = spa > atk ? 'special' : 'physical';
 
     return {
-        id:         unit.id,
-        name:       unit.name,
-        types:      unit.types,
-        attackType,             // ← calculé automatiquement
-        side,
-        row:        unit.row,
-        col:        unit.col,
-        hp:         unit.stats.hp,
-        maxHp:      unit.stats.hp,
-        atk,
-        spa,
-        def,
-        spd_def,
-        spd:        unit.stats.spd,
-        attributes: unit.attributes ?? [],
+      id:          unit.id,
+      uid:         unit.uid ?? `${unit.id}_${unit.col}_${unit.row}`, // ← conserve uid
+      name:        unit.name,
+      types:       unit.types,
+      attackType,
+      side,
+      row:         unit.row,
+      col:         unit.col,
+      hp:          unit.stats?.hp ?? unit.hp,
+      maxHp:       unit.stats?.hp ?? unit.hp,
+      atk,
+      spa,
+      def,
+      spd_def,
+      spd:         unit.stats?.spd ?? unit.spd,
+      attributes:  unit.attributes ?? [],
     };
-    }
+  }
 
   resolve() {
     let turn = 0;
@@ -139,7 +139,7 @@ export class CombatEngine {
     const defStat = attacker.attackType === 'special' ? target.spd_def  : target.def;
 
     // Base damage
-    let damage = ((LEVEL_FACTOR * atkStat * ATTACK_POWER / defStat) / 50) + 2;
+    let damage = (((LEVEL_FACTOR * atkStat * ATTACK_POWER / defStat) / 50) + 2)/3;
 
     // STAB : +10% si l'attaquant partage un type avec son attaque
     // On considère que l'attaquant attaque avec son premier type

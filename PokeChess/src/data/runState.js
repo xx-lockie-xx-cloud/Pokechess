@@ -8,7 +8,9 @@ export function initRun(registry, starterPokemon) {
   const uid = `${starterPokemon.id}_starter`;
   registry.set('runState', {
     currentMap:  0,
-    coins:       5,
+    coins:       5,          // 5 pièces pour démarrer
+    pokeballs:   2,          // ← 2 pokéballs de départ
+    inventory:   [],         // objets consommables en stock
     playerBank:  [{ ...starterPokemon, uid, isInTeam: true }],
   });
 }
@@ -23,6 +25,46 @@ export function setRunState(registry, updates) {
   registry.set('runState', { ...current, ...updates });
 }
 
+// ── PokéBalls ──────────────────────────────────────────────────────────────
+export function getPokeballs(registry) {
+  return getRunState(registry).pokeballs ?? 0;
+}
+
+export function addPokeballs(registry, amount) {
+  const state = getRunState(registry);
+  setRunState(registry, { pokeballs: (state.pokeballs ?? 0) + amount });
+}
+
+export function removePokeball(registry) {
+  const state = getRunState(registry);
+  const current = state.pokeballs ?? 0;
+  if (current <= 0) return false;
+  setRunState(registry, { pokeballs: current - 1 });
+  return true;
+}
+
+// ── Inventaire (objets consommables) ──────────────────────────────────────
+export function addToInventory(registry, itemId) {
+  const state = getRunState(registry);
+  const inv   = [...(state.inventory ?? [])];
+  inv.push(itemId);
+  setRunState(registry, { inventory: inv });
+}
+
+export function removeFromInventory(registry, itemId) {
+  const state = getRunState(registry);
+  const inv   = [...(state.inventory ?? [])];
+  const idx   = inv.indexOf(itemId);
+  if (idx === -1) return false;
+  inv.splice(idx, 1);
+  setRunState(registry, { inventory: inv });
+  return true;
+}
+
+export function getInventory(registry) {
+  return getRunState(registry).inventory ?? [];
+}
+// ──────────────────────────────────────
 export function addCoins(registry, amount) {
   const state = getRunState(registry);
   setRunState(registry, { coins: (state.coins ?? 0) + amount });

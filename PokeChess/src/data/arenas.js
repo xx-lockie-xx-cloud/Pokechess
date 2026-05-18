@@ -7,6 +7,7 @@ export const ARENAS = [
   {
     id: 1, city: 'Argenta', champion: 'Pierre', type: 'Roche',
     badgeName: 'Badge Pierre', badgeEmoji: '🪨',
+    badgeSprite:          'assets/badges/pierre_b.png',
     championSprite:       'assets/trainers/map/champions/pierre.png',
     championSpriteCombat: 'assets/trainers/combat/champions/pierre_c.png',
     // Pokémons de l'arène (plus forts que les dresseurs normaux de map 1)
@@ -22,6 +23,7 @@ export const ARENAS = [
   {
     id: 2, city: 'Azuria', champion: 'Misty', type: 'Eau',
     badgeName: 'Badge Cascade', badgeEmoji: '💧',
+    badgeSprite:          'assets/badges/misty_b.png',
     championSprite:       'assets/trainers/map/champions/misty.png',
     championSpriteCombat: 'assets/trainers/combat/champions/misty_c.png',
     team: [
@@ -36,6 +38,7 @@ export const ARENAS = [
   {
     id: 3, city: 'Carmin-sur-Mer', champion: 'Lt. Surge', type: 'Électrik',
     badgeName: 'Badge Tonnerre', badgeEmoji: '⚡',
+    badgeSprite:          'assets/badges/surge_b.png',
     championSprite:       'assets/trainers/map/champions/surge.png',
     championSpriteCombat: 'assets/trainers/combat/champions/surge_c.png',
     team: [
@@ -50,6 +53,7 @@ export const ARENAS = [
   {
     id: 4, city: 'Céladopole', champion: 'Erika', type: 'Plante',
     badgeName: 'Badge Arc-en-ciel', badgeEmoji: '🌿',
+    badgeSprite:          'assets/badges/erika_b.png',
     championSprite:       'assets/trainers/map/champions/erika.png',
     championSpriteCombat: 'assets/trainers/combat/champions/erika_c.png',
     team: [
@@ -64,6 +68,7 @@ export const ARENAS = [
   {
     id: 5, city: 'Parmanie', champion: 'Koga', type: 'Poison',
     badgeName: 'Badge Âme', badgeEmoji: '☠️',
+    badgeSprite:          'assets/badges/koga_b.png',
     championSprite:       'assets/trainers/map/champions/koga.png',
     championSpriteCombat: 'assets/trainers/combat/champions/koga_c.png',
     team: [
@@ -78,6 +83,7 @@ export const ARENAS = [
   {
     id: 6, city: 'Safrania', champion: 'Sabrina', type: 'Psy',
     badgeName: 'Badge Marais', badgeEmoji: '🔮',
+    badgeSprite:          'assets/badges/sabrina_b.png',
     championSprite:       'assets/trainers/map/champions/sabrina.png',
     championSpriteCombat: 'assets/trainers/combat/champions/sabrina_c.png',
     team: [
@@ -92,6 +98,7 @@ export const ARENAS = [
   {
     id: 7, city: 'Cramois\'île', champion: 'Auguste', type: 'Feu',
     badgeName: 'Badge Volcan', badgeEmoji: '🔥',
+    badgeSprite:          'assets/badges/auguste_b.png',
     championSprite:       'assets/trainers/map/champions/auguste.png',
     championSpriteCombat: 'assets/trainers/combat/champions/auguste_c.png',
     team: [
@@ -123,6 +130,7 @@ export const ARENAS = [
   {
     id: 9, city: 'Indigo', champion: 'Ligue Pokémon', type: 'Mixte',
     badgeName: 'Champion Pokémon', badgeEmoji: '🏆',
+    badgeSprite:          'assets/badges/giovanni_b.png',
     championSprite:       null,
     championSpriteCombat: null,
     team:         [],      // généré dynamiquement

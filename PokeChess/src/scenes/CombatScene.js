@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CombatScene.js
-// Scène de combat avec affichage du sprite du dresseur en arrière-plan.
+// Scène de combat — affiche les deux équipes et anime le combat automatique.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { CombatEngine }   from '../combat/CombatEngine.js';
@@ -11,7 +11,8 @@ import { TYPE_COLORS }    from '../data/pokemons.js';
 import { GRID_COLS, CELL_SIZE, GRID_GAP } from '../board.js';
 
 // ── Offsets verticaux des rangées depuis H/2 ──────────────────────────────────
-const ROW_NEAR_OFFSET = 5;
+// ⚙️  Modifie ces valeurs pour ajuster le placement
+const ROW_NEAR_OFFSET    =   5;
 const ENEMY_ROW0_OFFSET  = -(ROW_NEAR_OFFSET + CELL_SIZE);
 const ENEMY_ROW1_OFFSET  = -(ROW_NEAR_OFFSET + 2 * CELL_SIZE);
 const PLAYER_ROW0_OFFSET =   ROW_NEAR_OFFSET;
@@ -21,29 +22,33 @@ export class CombatScene extends Phaser.Scene {
   constructor() {
     super({ key: 'CombatScene' });
 
-    this.playerUnits       = [];
-    this.enemyUnits        = [];
-    this.trainerName       = 'Dresseur';
-    this.mapNodes          = null;
-    this.startNode         = null;
-    this.mapIndex          = 0;
-    this.nodeType          = 'combat';
+    this.playerUnits        = [];
+    this.enemyUnits         = [];
+    this.trainerName        = 'Dresseur';
+    this.mapNodes           = null;
+    this.startNode          = null;
+    this.mapIndex           = 0;
+    this.nodeType           = 'combat';
     this.trainerArchetypeId = null;
 
-    // Sprite du dresseur
-    this.trainerSpriteKey  = null;
-    this.trainerSpritePath = null;
+    // Sprite du dresseur ennemi
+    this.trainerSpriteKey   = null;
+    this.trainerSpritePath  = null;
 
-    // Champs Phaser
-    this.playerField   = null;
-    this.enemyField    = null;
-    this.animator      = null;
-    this.combatStarted = false;
-    this.phaseText     = null;
+    // Terrains
+    this.playerField        = null;
+    this.enemyField         = null;
 
-    // Anti-rebond sync
-    this._syncEnabled = false;
-    this._syncTimeout = null;
+    // Animateur
+    this.animator           = null;
+
+    // État du combat
+    this.combatStarted      = false;
+    this.phaseText          = null;
+
+    // Anti-rebond sync PrepScene
+    this._syncEnabled       = false;
+    this._syncTimeout       = null;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -82,13 +87,13 @@ export class CombatScene extends Phaser.Scene {
   // preload()
   // ─────────────────────────────────────────────────────────────────────────
   preload() {
-    // Sprites ennemis
+    // Sprites pokémons ennemis
     this.enemyUnits.forEach(u => {
       const key = `monster_${u.id}`;
       if (!this.textures.exists(key)) this.load.image(key, u.spriteUrl);
     });
 
-    // Sprite du dresseur (grand, pour l'arrière-plan)
+    // Sprite du dresseur (arrière-plan)
     if (this.trainerSpriteKey && this.trainerSpritePath &&
         !this.textures.exists(this.trainerSpriteKey)) {
       this.load.image(this.trainerSpriteKey, this.trainerSpritePath);
@@ -105,7 +110,7 @@ export class CombatScene extends Phaser.Scene {
     // ── Fond ─────────────────────────────────────────────────────────────
     this.add.rectangle(0, 0, W, H, 0x1a1a2e).setOrigin(0);
 
-    // ── Sprite du dresseur en arrière-plan (côté ennemi, gauche) ──────────
+    // ── Sprite du dresseur en arrière-plan ────────────────────────────────
     if (this.trainerSpriteKey && this.textures.exists(this.trainerSpriteKey)) {
       this.add.image(W * 0.14, H * 0.38, this.trainerSpriteKey)
         .setOrigin(0.5)
@@ -141,9 +146,8 @@ export class CombatScene extends Phaser.Scene {
     // ── Terrains ──────────────────────────────────────────────────────────
     this._spawnUnits(W, H);
 
-    // ── Animateur ─────────────────────────────────────────────────────────
+    // ── Animateur (sans barres de vie — créées au lancement du combat) ────
     this.animator = new CombatAnimator(this);
-    this._rebuildHpBars();
 
     // ── Bouton lancer le combat ───────────────────────────────────────────
     this._createButton(W / 2, H - 36, 'Lancer le combat', () => this._startCombat());
@@ -154,7 +158,7 @@ export class CombatScene extends Phaser.Scene {
     }
     this.scene.bringToTop('UIScene');
 
-    // ── Sync depuis PrepScene (avant le combat uniquement) ────────────────
+    // ── Sync depuis PrepScene avec anti-rebond ────────────────────────────
     this._syncEnabled = true;
     this.registry.events.on('changedata-playerUnits', () => {
       if (!this._syncEnabled) return;
@@ -190,20 +194,22 @@ export class CombatScene extends Phaser.Scene {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // _createField() — crée un terrain avec rangées à Y fixes
+  // _createField() — terrain avec rangées à Y fixes
+  // Retourne un objet avec getSpriteMap() et destroy()
   // ─────────────────────────────────────────────────────────────────────────
   _createField(startX, units, row0Y, row1Y, borderColor) {
-    const scene      = this;
-    const cellSize   = CELL_SIZE;
-    const cellGap    = GRID_GAP;
+    const scene       = this;
+    const cellSize    = CELL_SIZE;
+    const cellGap     = GRID_GAP;
     const cellObjects = {};
-    const sprites    = {};
+    const sprites     = {};   // uid → PhaserImage
 
     const drawUnit = (unit) => {
       const col = unit.col;
       const row = unit.row;
       const key = `${col}_${row}`;
 
+      // Détruit l'ancien si existe
       if (cellObjects[key]) {
         Object.values(cellObjects[key]).forEach(o => {
           if (o && typeof o.destroy === 'function') o.destroy();
@@ -240,7 +246,7 @@ export class CombatScene extends Phaser.Scene {
       corners.fillStyle(c2, 0.9);
       corners.fillTriangle(x, y + cellSize, x + s, y + cellSize, x, y + cellSize - s);
 
-      // Sprite
+      // Sprite pokémon
       const texKey = `monster_${unit.id}`;
       const sprite = scene.add.image(
         Math.round(x + cellSize / 2),
@@ -257,31 +263,32 @@ export class CombatScene extends Phaser.Scene {
       ).setOrigin(0.5, 1).setDepth(11);
 
       cellObjects[key] = { bg, corners, sprite, nameTag };
+
+      // Clé unique par unité : uid si disponible, sinon construit depuis id+col+row
+      const uid = unit.uid ?? `${unit.id}_${col}_${row}`;
+      sprites[uid] = sprite;
+
       return sprite;
     };
 
     // Dessine toutes les unités
-    units.forEach(unit => {
-      const sprite = drawUnit(unit);
-      const uid    = unit.uid ?? `${unit.id}_${unit.col}_${unit.row}`;
-      sprites[uid] = sprite;
-    });
+    units.forEach(unit => drawUnit(unit));
 
     return {
       units,
       sprites,
       cellObjects,
 
+      // Retourne { 'side_uid': sprite } pour CombatAnimator
       getSpriteMap(side) {
         const map = {};
-        units.forEach(u => {
-          const uid    = u.uid ?? `${u.id}_${u.col}_${u.row}`;
-          const sprite = sprites[uid];
-          if (sprite) map[`${side}_${uid}`] = sprite;
+        Object.entries(sprites).forEach(([uid, sprite]) => {
+          map[`${side}_${uid}`] = sprite;
         });
         return map;
       },
 
+      // Détruit tous les objets Phaser
       destroy() {
         Object.values(cellObjects).forEach(obj => {
           Object.values(obj).forEach(o => {
@@ -294,6 +301,7 @@ export class CombatScene extends Phaser.Scene {
 
   // ─────────────────────────────────────────────────────────────────────────
   // _syncPlayerUnits() — recharge le terrain joueur depuis le registre
+  // Appelé quand PrepScene modifie l'équipe avant le combat
   // ─────────────────────────────────────────────────────────────────────────
   _syncPlayerUnits() {
     const newUnits = this.registry.get('playerUnits') ?? [];
@@ -315,31 +323,11 @@ export class CombatScene extends Phaser.Scene {
       mid + PLAYER_ROW1_OFFSET,
       0x4a90d9
     );
-
-    this._rebuildHpBars();
+    // Pas de _rebuildHpBars ici — les barres sont créées uniquement dans _startCombat
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // _rebuildHpBars()
-  // ─────────────────────────────────────────────────────────────────────────
-  _rebuildHpBars() {
-    if (!this.animator) return;
-
-    const sprites = {
-      ...this.playerField.getSpriteMap('player'),
-      ...this.enemyField.getSpriteMap('enemy'),
-    };
-
-    const allUnits = [
-      ...this.playerUnits.map(u => ({ ...u, side: 'player', uid: u.uid ?? `${u.id}_${u.col}_${u.row}` })),
-      ...this.enemyUnits.map(u  => ({ ...u, side: 'enemy',  uid: u.uid ?? `${u.id}_${u.col}_${u.row}` })),
-    ];
-
-    this.animator.createHpBars(sprites, allUnits);
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // _createButton()
+  // _createButton() — bouton texte générique
   // ─────────────────────────────────────────────────────────────────────────
   _createButton(x, y, label, onClick) {
     const btn = this.add.text(x, y, `[ ${label} ]`, {
@@ -353,7 +341,7 @@ export class CombatScene extends Phaser.Scene {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // _startCombat()
+  // _startCombat() — résout le combat et lance les animations
   // ─────────────────────────────────────────────────────────────────────────
   _startCombat() {
     // Désactive la sync depuis PrepScene
@@ -362,6 +350,7 @@ export class CombatScene extends Phaser.Scene {
     this.combatStarted = true;
     this.phaseText.setText('Combat en cours...');
 
+    // Prépare les copies pour le moteur
     const playerForEngine = this.playerUnits.map(u => ({
       ...u, attributes: u.attributes ?? []
     }));
@@ -369,25 +358,41 @@ export class CombatScene extends Phaser.Scene {
       ...u, attributes: u.attributes ?? []
     }));
 
+    // Résolution complète (instantanée)
     const engine          = new CombatEngine(playerForEngine, enemyForEngine);
     const { log, winner } = engine.resolve();
 
+    // ── Sprites depuis les terrains ───────────────────────────────────────
     const sprites = {
       ...this.playerField.getSpriteMap('player'),
       ...this.enemyField.getSpriteMap('enemy'),
     };
 
+    // ── allUnits : reconstruit avec uid depuis les unités originales ──────
+    // Le CombatEngine préserve le uid grâce à _copyUnit() corrigé,
+    // mais on le force depuis les unités originales par sécurité
     const allUnits = [
-      ...engine.playerUnits.map(u => ({ ...u, side: 'player', uid: u.uid ?? `${u.id}_${u.col}_${u.row}` })),
-      ...engine.enemyUnits.map(u  => ({ ...u, side: 'enemy',  uid: u.uid ?? `${u.id}_${u.col}_${u.row}` })),
+      ...engine.playerUnits.map((u, i) => ({
+        ...u,
+        side: 'player',
+        uid:  this.playerUnits[i]?.uid ?? u.uid ?? `${u.id}_${u.col}_${u.row}`,
+      })),
+      ...engine.enemyUnits.map((u, i) => ({
+        ...u,
+        side: 'enemy',
+        uid:  this.enemyUnits[i]?.uid ?? u.uid ?? `${u.id}_${u.col}_${u.row}`,
+      })),
     ];
 
+    // ── Crée les barres de vie UNE SEULE FOIS ici ────────────────────────
     this.animator.createHpBars(sprites, allUnits);
+
+    // Lance les animations
     this.animator.play(log, sprites, () => this._onCombatEnd(winner));
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // _onCombatEnd()
+  // _onCombatEnd() — affiche le résultat et propose la navigation
   // ─────────────────────────────────────────────────────────────────────────
   _onCombatEnd(winner) {
     const W     = this.scale.width;
@@ -406,14 +411,18 @@ export class CombatScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(50);
 
       this.tweens.add({
-        targets: reward, y: 20, alpha: 0,
-        duration: 1500, ease: 'Power2',
+        targets:    reward,
+        y:          20,
+        alpha:      0,
+        duration:   1500,
+        ease:       'Power2',
         onComplete: () => reward.destroy(),
       });
     }
 
     this.phaseText.setText(isWin ? 'Victoire !' : 'Défaite');
 
+    // Overlay semi-transparent
     this.add.rectangle(0, 0, W, H, 0x000000, 0.55)
       .setOrigin(0).setDepth(40);
 
@@ -426,7 +435,7 @@ export class CombatScene extends Phaser.Scene {
       const isBoss = this.nodeType === 'boss';
 
       if (isBoss) {
-        // Victoire sur l'arène → écran de transition
+        // Victoire sur l'arène → écran de transition avec badge
         this._createButton(W / 2, H / 2 + 40, '🏆 Badge obtenu !', () => {
           this.scene.stop('UIScene');
           this.scene.start('ArenaVictoryScene', { mapIndex: this.mapIndex });
@@ -443,6 +452,7 @@ export class CombatScene extends Phaser.Scene {
         });
       }
     } else {
+      // Défaite → menu principal
       this._createButton(W / 2, H / 2 + 40, 'Retour au menu', () => {
         this.scene.stop('UIScene');
         this.scene.stop('PrepScene');

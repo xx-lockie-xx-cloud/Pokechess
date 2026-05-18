@@ -28,6 +28,13 @@ export class ArenaVictoryScene extends Phaser.Scene {
         this.load.image(key, this.arenaData.championSprite);
       }
     }
+    // Badge de l'arène vaincue
+    if (this.arenaData?.badgeSprite) {
+    const key = `badge_victory_${this.mapIndex}`;
+    if (!this.textures.exists(key)) {
+        this.load.image(key, this.arenaData.badgeSprite);
+    }
+    }
   }
 
   create() {
@@ -44,86 +51,99 @@ export class ArenaVictoryScene extends Phaser.Scene {
     // ── Sprite champion ───────────────────────────────────────────────────
     const champKey = `champion_${this.mapIndex}`;
     if (arena?.championSprite && this.textures.exists(champKey)) {
-      const champ = this.add.image(W * 0.28, H * 0.52, champKey)
+        const champ = this.add.image(W * 0.28, H * 0.52, champKey)
         .setOrigin(0.5).setAlpha(0).setScale(2.5);
-
-      this.tweens.add({ targets: champ, alpha: 1, duration: 600, ease: 'Power2' });
-      this.tweens.add({
+        this.tweens.add({ targets: champ, alpha: 1, duration: 600, ease: 'Power2' });
+        this.tweens.add({
         targets: champ, y: H * 0.52 - 8,
         duration: 1800, yoyo: true, repeat: -1,
         ease: 'Sine.easeInOut', delay: 600,
-      });
+        });
     } else {
-      // Fallback si pas de sprite
-      this.add.text(W * 0.28, H * 0.52,
+        this.add.text(W * 0.28, H * 0.52,
         arena?.badgeEmoji ?? '🏆', {
         fontSize: '80px', fontFamily: 'sans-serif'
-      }).setOrigin(0.5);
+        }).setOrigin(0.5);
     }
 
     // ── Textes en cascade ─────────────────────────────────────────────────
     const items = [];
 
     items.push(this.add.text(W * 0.62, H * 0.20,
-      `Arène ${this.mapIndex + 1} vaincue !`, {
-      fontSize: '22px', fill: '#ffd700', fontFamily: 'sans-serif',
-      fontStyle: 'bold', stroke: '#000', strokeThickness: 4,
+        `Arène ${this.mapIndex + 1} vaincue !`, {
+        fontSize: '22px', fill: '#ffd700', fontFamily: 'sans-serif',
+        fontStyle: 'bold', stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5).setAlpha(0));
 
     if (arena) {
-      items.push(this.add.text(W * 0.62, H * 0.32,
+        items.push(this.add.text(W * 0.62, H * 0.32,
         `Champion ${arena.champion} défait`, {
         fontSize: '14px', fill: '#e2e8f0', fontFamily: 'sans-serif',
-      }).setOrigin(0.5).setAlpha(0));
+        }).setOrigin(0.5).setAlpha(0));
 
-      items.push(this.add.text(W * 0.62, H * 0.40,
+        items.push(this.add.text(W * 0.62, H * 0.40,
         arena.city, {
         fontSize: '12px', fill: '#718096', fontFamily: 'sans-serif',
-      }).setOrigin(0.5).setAlpha(0));
+        }).setOrigin(0.5).setAlpha(0));
 
-      // Badge
-      const badgeG = this.add.graphics().setAlpha(0);
-      const bx = W * 0.62 - 100;
-      const by = H * 0.50;
-      badgeG.fillStyle(0x1a2e4a, 0.9);
-      badgeG.fillRoundedRect(bx, by, 200, 64, 10);
-      badgeG.lineStyle(2, 0xffd700, 1);
-      badgeG.strokeRoundedRect(bx, by, 200, 64, 10);
-      items.push(badgeG);
+        // ── Boîte du badge ────────────────────────────────────────────────
+        // Coordonnées définies ici pour être accessibles partout dans le bloc
+        const bx = W * 0.62 - 100;
+        const by = H * 0.50;
 
-      items.push(this.add.text(bx + 36, by + 32,
-        arena.badgeEmoji, {
-        fontSize: '28px', fontFamily: 'sans-serif',
-      }).setOrigin(0.5).setAlpha(0));
+        const badgeG = this.add.graphics().setAlpha(0);
+        badgeG.fillStyle(0x1a2e4a, 0.9);
+        badgeG.fillRoundedRect(bx, by, 200, 64, 10);
+        badgeG.lineStyle(2, 0xffd700, 1);
+        badgeG.strokeRoundedRect(bx, by, 200, 64, 10);
+        items.push(badgeG);
 
-      items.push(this.add.text(bx + 110, by + 22,
+        // Sprite du badge ou fallback emoji
+        const badgeVictoryKey = `badge_victory_${this.mapIndex}`;
+        if (this.textures.exists(badgeVictoryKey)) {
+        items.push(
+            this.add.image(bx + 36, by + 32, badgeVictoryKey)
+            .setDisplaySize(40, 40)
+            .setOrigin(0.5)
+            .setAlpha(0)
+        );
+        } else {
+        items.push(
+            this.add.text(bx + 36, by + 32, arena.badgeEmoji, {
+            fontSize: '28px', fontFamily: 'sans-serif',
+            }).setOrigin(0.5).setAlpha(0)
+        );
+        }
+
+        items.push(this.add.text(bx + 110, by + 22,
         arena.badgeName, {
-        fontSize: '13px', fill: '#ffd700', fontFamily: 'sans-serif', fontStyle: 'bold',
-      }).setOrigin(0.5).setAlpha(0));
+        fontSize: '13px', fill: '#ffd700',
+        fontFamily: 'sans-serif', fontStyle: 'bold',
+        }).setOrigin(0.5).setAlpha(0));
 
-      items.push(this.add.text(bx + 110, by + 42,
+        items.push(this.add.text(bx + 110, by + 42,
         'obtenu !', {
         fontSize: '11px', fill: '#a0aec0', fontFamily: 'sans-serif',
-      }).setOrigin(0.5).setAlpha(0));
+        }).setOrigin(0.5).setAlpha(0));
     }
 
-    // Animation cascade
+    // ── Animation cascade ─────────────────────────────────────────────────
     items.forEach((item, i) => {
-      this.tweens.add({
+        this.tweens.add({
         targets:  item,
         alpha:    1,
         duration: 400,
         delay:    400 + i * 200,
         ease:     'Power2',
-      });
+        });
     });
 
     // ── Bouton continuer ──────────────────────────────────────────────────
     const btnDelay = 400 + items.length * 200 + 300;
     const btn = this.add.text(W / 2, H * 0.85,
-      '[ ➡ Continuer vers la prochaine route ]', {
-      fontSize: '14px', fill: '#ffd700', fontFamily: 'sans-serif',
-      backgroundColor: '#0d1a2e', padding: { x: 12, y: 6 },
+        '[ ➡ Continuer vers la prochaine route ]', {
+        fontSize: '14px', fill: '#ffd700', fontFamily: 'sans-serif',
+        backgroundColor: '#0d1a2e', padding: { x: 12, y: 6 },
     }).setOrigin(0.5).setAlpha(0).setDepth(10).setInteractive({ cursor: 'pointer' });
 
     btn.on('pointerover', () => btn.setStyle({ fill: '#fff' }));
@@ -131,7 +151,7 @@ export class ArenaVictoryScene extends Phaser.Scene {
     btn.on('pointerdown', () => this._goToNextMap());
 
     this.tweens.add({ targets: btn, alpha: 1, duration: 400, delay: btnDelay });
-  }
+    }
 
   // ── Particules étoiles ────────────────────────────────────────────────
   _spawnParticles(W, H) {

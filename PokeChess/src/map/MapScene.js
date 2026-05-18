@@ -92,6 +92,22 @@ export class MapScene extends Phaser.Scene {
         this.load.image(key, arena.championSprite);
       }
     }
+
+    if (this.startNode?.prevArena) {
+    const prev = this.startNode.prevArena;
+
+      // Sprite map du champion (réutilise la clé déjà chargée si disponible)
+      const champKey = `champion_map_${prev.id - 1}`;
+      if (prev.championSprite && !this.textures.exists(champKey)) {
+        this.load.image(champKey, prev.championSprite);
+      }
+
+      // Badge
+      const badgeKey = `badge_${prev.id}`;
+      if (prev.badgeSprite && !this.textures.exists(badgeKey)) {
+        this.load.image(badgeKey, prev.badgeSprite);
+      }
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -316,10 +332,37 @@ export class MapScene extends Phaser.Scene {
 
     } else if (isStart && node.prevArena) {
       // ── Badge de l'arène précédente ────────────────────────────────────
-      const emoji = this.add.text(x, y - 4, node.prevArena.badgeEmoji, {
-        fontSize: '20px', fontFamily: 'sans-serif'
-      }).setOrigin(0.5).setDepth(4).setAlpha(nodeAlpha);
-      this.mapContainer.add(emoji);
+      const prev      = node.prevArena;
+      const champKey  = `champion_map_${prev.id - 1}`;
+      const badgeKey  = `badge_${prev.id}`;
+
+      // Sprite du champion vaincu (petit, centré dans le nœud)
+      if (this.textures.exists(champKey)) {
+        const champImg = this.add.image(x, y - 4, champKey)
+          .setDisplaySize(NODE_RADIUS * 1.5, NODE_RADIUS * 1.5)
+          .setDepth(4).setAlpha(0.9);
+        this.mapContainer.add(champImg);
+      }
+
+      // Badge dans le coin supérieur droit du nœud
+      if (this.textures.exists(badgeKey)) {
+        const badgeImg = this.add.image(
+          x + NODE_RADIUS * 0.6,
+          y - NODE_RADIUS * 0.6,
+          badgeKey
+        ).setDisplaySize(16, 16).setDepth(5);
+        this.mapContainer.add(badgeImg);
+      } else {
+        // Fallback emoji badge
+        const badgeEmoji = this.add.text(
+          x + NODE_RADIUS * 0.5,
+          y - NODE_RADIUS * 0.5,
+          prev.badgeEmoji,
+          { fontSize: '12px', fontFamily: 'sans-serif' }
+        ).setOrigin(0.5).setDepth(5);
+        this.mapContainer.add(badgeEmoji);
+      }
+
       return;
     }
 
