@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MapScene.js
-// Affiche la map de progression style Slay the Spire.
-// Nœuds avec sprites de dresseurs HGSS pour les combats et champions d'arène.
+// MapScene.js — Scène Phaser de la map de progression
+//
+// Fonctionne en mode hybride : le canvas Phaser est rendu dans #map-container
+// et notifie UIManager (HTML) via window.UIManager.onNodeSelected().
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { MapGenerator, NODE_TYPES } from './MapGenerator.js';
-import { ParallaxBackground }       from '../utils/ParallaxBackground.js';
+import { MapGenerator, NODE_TYPES } from '../map/MapGenerator.js';
 import { getRunState }              from '../data/runState.js';
 import { TRAINER_ARCHETYPES }       from '../data/trainers.js';
 import { getArenaForMap }           from '../data/arenas.js';
@@ -32,7 +32,6 @@ export class MapScene extends Phaser.Scene {
     this.mapNodes     = [];
     this.startNode    = null;
     this.mapIndex     = 0;
-    this.parallax     = null;
     this.mapContainer = null;
     this.isDragging   = false;
     this.dragStartX   = 0;
@@ -41,124 +40,81 @@ export class MapScene extends Phaser.Scene {
     this.maxScrollX   = 0;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // init()
-  // ─────────────────────────────────────────────────────────────────────────
   init(data) {
     this.cameras.main.setZoom(1);
     this.cameras.main.setScroll(0, 0);
-    this.mapIndex = 0;
+    this.isDragging = false;
+
+    // Utilise le registre global exposé par game.js
+    const registry = window.gameRegistry;
 
     if (data?.mapNodes) {
       this.mapNodes  = data.mapNodes;
       this.startNode = data.startNode ?? null;
       this.mapIndex  = data.mapIndex  ?? 0;
     } else {
-      const state     = getRunState(this.registry);
+      const state     = getRunState(registry);
       this.mapIndex   = data?.mapIndex ?? state.currentMap ?? 0;
       const prevArena = data?.prevArena ?? null;
-
-      const gen      = new MapGenerator(5, 3);
-      this.mapNodes  = gen.generate(this.mapIndex, prevArena);
-      this.startNode = gen._startNode;
+      const gen       = new MapGenerator(5, 3);
+      this.mapNodes   = gen.generate(this.mapIndex, prevArena);
+      this.startNode  = gen._startNode;
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // preload() — charge le parallaxe + sprites dresseurs
-  // ─────────────────────────────────────────────────────────────────────────
   preload() {
-    // Parallaxe
-    if (!this.textures.exists('map_back'))
-      this.load.image('map_back',   'assets/backgrounds/map/back.png');
-    if (!this.textures.exists('map_middle'))
-      this.load.image('map_middle', 'assets/backgrounds/map/middle.png');
-    if (!this.textures.exists('map_front'))
-      this.load.image('map_front',  'assets/backgrounds/map/front.png');
-
-    // Sprites dresseurs génériques (nœuds combat)
     TRAINER_ARCHETYPES.forEach(a => {
       const key = `trainer_map_${a.id}`;
-      if (a.spriteMap && !this.textures.exists(key)) {
+      if (a.spriteMap && !this.textures.exists(key))
         this.load.image(key, a.spriteMap);
-      }
     });
 
-    // Sprite du champion d'arène (nœud boss)
     const arena = getArenaForMap(this.mapIndex);
     if (arena?.championSprite) {
       const key = `champion_map_${this.mapIndex}`;
-      if (!this.textures.exists(key)) {
+      if (!this.textures.exists(key))
         this.load.image(key, arena.championSprite);
-      }
     }
 
     if (this.startNode?.prevArena) {
-    const prev = this.startNode.prevArena;
-
-      // Sprite map du champion (réutilise la clé déjà chargée si disponible)
+      const prev     = this.startNode.prevArena;
       const champKey = `champion_map_${prev.id - 1}`;
-      if (prev.championSprite && !this.textures.exists(champKey)) {
-        this.load.image(champKey, prev.championSprite);
-      }
-
-      // Badge
       const badgeKey = `badge_${prev.id}`;
-      if (prev.badgeSprite && !this.textures.exists(badgeKey)) {
+      if (prev.championSprite && !this.textures.exists(champKey))
+        this.load.image(champKey, prev.championSprite);
+      if (prev.badgeSprite && !this.textures.exists(badgeKey))
         this.load.image(badgeKey, prev.badgeSprite);
-      }
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // create()
-  // ─────────────────────────────────────────────────────────────────────────
   create() {
     const W = this.scale.width;
     const H = this.scale.height;
 
-    // ── Parallaxe ─────────────────────────────────────────────────────────
-    this.parallax = new ParallaxBackground(this, [
-      { key: 'map_back',   scrollFactor: 0.05, alpha: 1   },
-      { key: 'map_middle', scrollFactor: 0.15, alpha: 0.9 },
-      { key: 'map_front',  scrollFactor: 0.3,  alpha: 1   },
-    ]);
-
-    this.add.rectangle(0, 0, W, H, 0x000000, 0.45)
+    // ── Fond uni (remplace le parallax supprimé) ──────────────────────────
+    this.add.rectangle(0, 0, W, H, 0x1a1a2e, 1)
+      .setOrigin(0).setDepth(-10).setScrollFactor(0);
+    this.add.rectangle(0, 0, W, H, 0x000000, 0.3)
       .setOrigin(0).setDepth(-9).setScrollFactor(0);
 
-    // ── Bandeau titre fixe ────────────────────────────────────────────────
-    this.add.rectangle(0, 0, W, TITLE_H, 0x000000, 0.65)
-      .setOrigin(0).setDepth(19).setScrollFactor(0);
-
-    this.add.text(W / 2, 14, 'PokeChess', {
-      fontSize: '20px', fill: '#e2e8f0', fontFamily: 'sans-serif'
+    // ── Titre ─────────────────────────────────────────────────────────────
+    this.add.text(W / 2, 14, `Route ${this.mapIndex + 1}`, {
+      fontSize: '14px', fill: '#a0aec0', fontFamily: 'sans-serif'
     }).setOrigin(0.5, 0).setDepth(20).setScrollFactor(0);
 
-    this.add.text(W / 2, 40,
-      `Route ${this.mapIndex + 1} — Choisissez votre prochain événement`, {
-      fontSize: '12px', fill: '#a0aec0', fontFamily: 'sans-serif'
-    }).setOrigin(0.5, 0).setDepth(20).setScrollFactor(0);
-
-    // ── Calcul scroll ─────────────────────────────────────────────────────
+    // ── Scroll bounds ─────────────────────────────────────────────────────
     const totalCols = this.mapNodes.length + 2;
     const mapW      = totalCols * (NODE_RADIUS * 2 + COL_GAP) + MARGIN_X;
     this.minScrollX = 0;
     this.maxScrollX = Math.max(0, mapW - W);
     this.cameras.main.setBounds(0, 0, Math.max(mapW, W), H);
 
-    // ── Conteneur map ─────────────────────────────────────────────────────
+    // ── Contenu ───────────────────────────────────────────────────────────
     this.mapContainer = this.add.container(0, 0).setDepth(5);
-
     this._drawConnections();
     this._drawNodes();
 
-    // ── UIScene ───────────────────────────────────────────────────────────
-    if (!this.scene.isActive('UIScene')) {
-      this.scene.launch('UIScene');
-    }
-
-    // ── Navigation molette ────────────────────────────────────────────────
+    // ── Scroll molette + drag ─────────────────────────────────────────────
     this.input.on('wheel', (ptr, objs, dx, dy) => {
       const newX = Phaser.Math.Clamp(
         this.cameras.main.scrollX + dy * 1.5,
@@ -167,7 +123,6 @@ export class MapScene extends Phaser.Scene {
       this.cameras.main.setScroll(newX, 0);
     });
 
-    // ── Navigation clic-glisser ───────────────────────────────────────────
     this.input.on('pointerdown', ptr => {
       this.isDragging = true;
       this.dragStartX = ptr.x;
@@ -181,36 +136,27 @@ export class MapScene extends Phaser.Scene {
       );
       this.cameras.main.setScroll(newX, 0);
     });
-    this.input.on('pointerup', () => { this.isDragging = false; });
+    this.input.on('pointerup',   () => { this.isDragging = false; });
+    this.input.on('pointerout',  () => { this.isDragging = false; });
   }
 
-  update(time, delta) {
-    if (this.parallax) this.parallax.update(delta, 15);
-  }
-
-  // ═════════════════════════════════════════════════════════════════════════
-  //  EMPREINTES DE PAS
-  // ═════════════════════════════════════════════════════════════════════════
-
+  // ── Connexions / empreintes ───────────────────────────────────────────────
   _drawConnections() {
-    // Depuis le nœud de départ
     if (this.startNode) {
       this.startNode.connections.forEach(targetId => {
         const [tc, tr] = targetId.split('_').map(Number);
         const target   = this.mapNodes[tc]?.[tr];
-        if (!target) return;
-        this._drawFootprints(this._nodePos(this.startNode), this._nodePos(target), true);
+        if (target)
+          this._drawFootprints(this._nodePos(this.startNode), this._nodePos(target), true);
       });
     }
-
-    // Entre colonnes normales
     this.mapNodes.forEach(col => {
       col.forEach(node => {
         node.connections.forEach(targetId => {
           const [tc, tr] = targetId.split('_').map(Number);
           const target   = this.mapNodes[tc]?.[tr];
           if (!target) return;
-          const active = node.visited || (node.available && !node.visited);
+          const active = node.visited || node.available;
           this._drawFootprints(this._nodePos(node), this._nodePos(target), active);
         });
       });
@@ -227,8 +173,7 @@ export class MapScene extends Phaser.Scene {
       const offset = (i % 2 === 0 ? 5 : -5);
       const px     = x + Math.cos(angle + Math.PI / 2) * offset;
       const py     = y + Math.sin(angle + Math.PI / 2) * offset;
-
-      const foot = this.add.graphics().setDepth(2).setAlpha(active ? 0.9 : 0.5);
+      const foot   = this.add.graphics().setDepth(2).setAlpha(active ? 0.9 : 0.5);
       foot.fillStyle(active ? 0xf5e642 : 0xaab0c4, 1);
       foot.fillEllipse(px, py, 8, 5);
       foot.fillEllipse(px - Math.cos(angle) * 5, py - Math.sin(angle) * 5, 6, 4);
@@ -236,10 +181,7 @@ export class MapScene extends Phaser.Scene {
     }
   }
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  NŒUDS
-  // ═════════════════════════════════════════════════════════════════════════
-
+  // ── Nœuds ─────────────────────────────────────────────────────────────────
   _drawNodes() {
     if (this.startNode) this._drawNode(this.startNode);
     this.mapNodes.forEach(col => col.forEach(node => this._drawNode(node)));
@@ -254,14 +196,12 @@ export class MapScene extends Phaser.Scene {
     const isVisited   = node.visited;
     const nodeAlpha   = isAvailable || isStart ? 1 : 0.35;
 
-    // ── Cercle de fond ────────────────────────────────────────────────────
     const circle = this.add.graphics().setDepth(3);
 
     if (isAvailable) {
       circle.fillStyle(style.glowColor, 0.18);
       circle.fillCircle(x, y, NODE_RADIUS + 9);
     }
-
     circle.fillStyle(0x000000, 0.35);
     circle.fillCircle(x + 3, y + 3, NODE_RADIUS);
 
@@ -290,26 +230,19 @@ export class MapScene extends Phaser.Scene {
     }
 
     this.mapContainer.add(circle);
-
-    // ── Contenu du nœud (sprite ou emoji) ─────────────────────────────────
     this._drawNodeContent(node, x, y, isBoss, isStart, isAvailable, nodeAlpha);
-
-    // ── Label sous le nœud ────────────────────────────────────────────────
     this._drawNodeLabel(node, x, y, isBoss, isStart, isAvailable, isVisited);
 
-    // ── Zone de clic ──────────────────────────────────────────────────────
     if (isAvailable) {
       this._addClickZone(node, x, y, circle, style, isBoss);
     }
   }
 
-  // ── Contenu : sprite dresseur ou emoji selon le type ─────────────────
   _drawNodeContent(node, x, y, isBoss, isStart, isAvailable, nodeAlpha) {
     const spriteSize     = NODE_RADIUS * 1.7;
     const spriteSizeBoss = NODE_RADIUS * 1.9;
 
     if (node.type === NODE_TYPES.COMBAT && node.trainer?.archetypeId) {
-      // ── Sprite dresseur générique ──────────────────────────────────────
       const key = `trainer_map_${node.trainer.archetypeId}`;
       if (this.textures.exists(key)) {
         const img = this.add.image(x, y, key)
@@ -318,9 +251,7 @@ export class MapScene extends Phaser.Scene {
         this.mapContainer.add(img);
         return;
       }
-
     } else if (isBoss) {
-      // ── Sprite champion d'arène ────────────────────────────────────────
       const key = `champion_map_${this.mapIndex}`;
       if (this.textures.exists(key)) {
         const img = this.add.image(x, y, key)
@@ -329,44 +260,33 @@ export class MapScene extends Phaser.Scene {
         this.mapContainer.add(img);
         return;
       }
-
     } else if (isStart && node.prevArena) {
-      // ── Badge de l'arène précédente ────────────────────────────────────
-      const prev      = node.prevArena;
-      const champKey  = `champion_map_${prev.id - 1}`;
-      const badgeKey  = `badge_${prev.id}`;
+      const prev     = node.prevArena;
+      const champKey = `champion_map_${prev.id - 1}`;
+      const badgeKey = `badge_${prev.id}`;
 
-      // Sprite du champion vaincu (petit, centré dans le nœud)
       if (this.textures.exists(champKey)) {
         const champImg = this.add.image(x, y - 4, champKey)
           .setDisplaySize(NODE_RADIUS * 1.5, NODE_RADIUS * 1.5)
           .setDepth(4).setAlpha(0.9);
         this.mapContainer.add(champImg);
       }
-
-      // Badge dans le coin supérieur droit du nœud
       if (this.textures.exists(badgeKey)) {
         const badgeImg = this.add.image(
-          x + NODE_RADIUS * 0.6,
-          y - NODE_RADIUS * 0.6,
-          badgeKey
+          x + NODE_RADIUS * 0.6, y - NODE_RADIUS * 0.6, badgeKey
         ).setDisplaySize(16, 16).setDepth(5);
         this.mapContainer.add(badgeImg);
       } else {
-        // Fallback emoji badge
-        const badgeEmoji = this.add.text(
-          x + NODE_RADIUS * 0.5,
-          y - NODE_RADIUS * 0.5,
-          prev.badgeEmoji,
-          { fontSize: '12px', fontFamily: 'sans-serif' }
+        const fallback = this.add.text(
+          x + NODE_RADIUS * 0.5, y - NODE_RADIUS * 0.5,
+          prev.badgeEmoji ?? '🏅', { fontSize: '12px', fontFamily: 'sans-serif' }
         ).setOrigin(0.5).setDepth(5);
-        this.mapContainer.add(badgeEmoji);
+        this.mapContainer.add(fallback);
       }
-
       return;
     }
 
-    // ── Fallback emoji pour tous les autres cas ────────────────────────
+    // Fallback emoji
     const style     = NODE_STYLE[node.type] ?? NODE_STYLE.combat;
     const emojiSize = isBoss ? '22px' : '18px';
     const emoji     = this.add.text(x, y - 4, style.emoji, {
@@ -375,36 +295,27 @@ export class MapScene extends Phaser.Scene {
     this.mapContainer.add(emoji);
   }
 
-  // ── Label sous le cercle ─────────────────────────────────────────────
   _drawNodeLabel(node, x, y, isBoss, isStart, isAvailable, isVisited) {
     const labelColor = isAvailable ? '#ffffff' :
                        isVisited   ? '#4a5568' :
                        isStart     ? '#a0aec0' : '#555577';
 
     let labelTxt;
-
-    if (isVisited && !isStart) {
-      labelTxt = '✓';
-    } else if (isStart && node.prevArena) {
-      labelTxt = node.prevArena.city;
-    } else if (isBoss && node.trainer) {
-      labelTxt = node.trainer.name ?? 'Arène';
-    } else {
-      const style = NODE_STYLE[node.type] ?? NODE_STYLE.combat;
-      labelTxt    = style.label;
-    }
+    if (isVisited && !isStart)          labelTxt = '✓';
+    else if (isStart && node.prevArena) labelTxt = node.prevArena.city;
+    else if (isBoss && node.trainer)    labelTxt = node.trainer.name ?? 'Arène';
+    else                                labelTxt = (NODE_STYLE[node.type] ?? NODE_STYLE.combat).label;
 
     const label = this.add.text(x, y + NODE_RADIUS + 6, labelTxt, {
-      fontSize: '10px', fill: labelColor,
+      fontSize:   '10px',
+      fill:       labelColor,
       fontFamily: 'sans-serif',
       fontStyle:  isAvailable ? 'bold' : 'normal',
       align:      'center',
     }).setOrigin(0.5, 0).setDepth(4);
-
     this.mapContainer.add(label);
   }
 
-  // ── Zone de clic interactive ─────────────────────────────────────────
   _addClickZone(node, x, y, circle, style, isBoss) {
     const hitArea = this.add.circle(x, y, NODE_RADIUS, 0xffffff, 0)
       .setDepth(6).setInteractive({ cursor: 'pointer' });
@@ -449,44 +360,37 @@ export class MapScene extends Phaser.Scene {
     this.mapContainer.add(hitArea);
   }
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  SÉLECTION D'UN NŒUD
-  // ═════════════════════════════════════════════════════════════════════════
-
+  // ── Sélection nœud → notifie UIManager HTML ───────────────────────────────
   _selectNode(node) {
     if (node.col >= 0 && this.mapNodes[node.col]) {
       this.mapNodes[node.col].forEach(n => { n.available = false; });
     }
-
     node.visited = true;
-
     node.connections.forEach(targetId => {
       const [tc, tr] = targetId.split('_').map(Number);
       const target   = this.mapNodes[tc]?.[tr];
       if (target) target.available = true;
     });
 
-    const units = this.registry.get('playerUnits') ?? [];
+    const units = (window.gameRegistry?.get('playerUnits')) ?? [];
 
-    this.scene.start('WildScene', {
-      playerUnits:        units,
-      enemyUnits:         node.trainer?.units        ?? [],
-      trainerName:        node.trainer?.name         ?? 'Dresseur',
-      trainerArchetypeId: node.trainer?.archetypeId  ?? null,
-      mapNodes:           this.mapNodes,
-      startNode:          this.startNode,
-      mapIndex:           this.mapIndex,
-      nodeId:             node.id,
-      nodeType:           node.type,
-    });
+    if (window.UIManager) {
+      window.UIManager.onNodeSelected({
+        playerUnits:        units,
+        enemyUnits:         node.trainer?.units        ?? [],
+        trainerName:        node.trainer?.name         ?? 'Dresseur',
+        trainerArchetypeId: node.trainer?.archetypeId  ?? null,
+        mapNodes:           this.mapNodes,
+        startNode:          this.startNode,
+        mapIndex:           this.mapIndex,
+        nodeId:             node.id,
+        nodeType:           node.type,
+      });
+    }
   }
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  POSITION D'UN NŒUD
-  // ═════════════════════════════════════════════════════════════════════════
-
   _nodePos(node) {
-    const colOffset = node.col + 1;  // col -1 → 0, col 0 → 1, etc.
+    const colOffset = node.col + 1;
     return {
       x: MARGIN_X + colOffset * (NODE_RADIUS * 2 + COL_GAP) + NODE_RADIUS,
       y: MARGIN_Y + node.row  * (NODE_RADIUS * 2 + ROW_GAP) + NODE_RADIUS + TITLE_H,

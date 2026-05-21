@@ -1,0 +1,297 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// PokedexUI.js — Encyclopédie in-game (Synergies · Types · Capacités)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { SYNERGIES }          from '../data/synergies.js';
+import { TYPE_CHART }         from '../data/typeChart.js';
+import { MOVES, POKEMON_MOVES } from '../data/moves.js';
+import { getSeenPokemon }     from '../data/runState.js';
+import { POKEMONS }           from '../data/pokemons.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+const TYPES = [
+  'Normal','Feu','Eau','Électrik','Plante','Glace','Combat','Poison',
+  'Sol','Vol','Psy','Insecte','Roche','Spectre','Dragon','Ténèbres','Acier','Fée',
+];
+
+const TYPE_COLORS = {
+  Normal:'#a8a878',   Feu:'#f08030',     Eau:'#6890f0',    Électrik:'#f8d030',
+  Plante:'#78c850',   Glace:'#98d8d8',   Combat:'#c03028', Poison:'#a040a0',
+  Sol:'#e0c068',      Vol:'#a890f0',     Psy:'#f85888',    Insecte:'#a8b820',
+  Roche:'#b8a038',    Spectre:'#705898', Dragon:'#7038f8', Ténèbres:'#705848',
+  Acier:'#b8b8d0',    Fée:'#ee99ac',
+};
+
+const STAT_EMOJIS = {
+  hp:'❤️', atk:'⚔️', def:'🛡️', spa:'🔮', spd_def:'💎', spd:'👟',
+};
+
+const EFFECT_DESC = {
+  burn:'🔥 Brûlure : -10% ATK + 5% HP/tour sur les ennemis',
+  regen:'💧 Régénération : +8% HP/tour pour les unités Eau alliées',
+  poison:'☠️ Poison : -8% HP/tour sur les ennemis',
+  paralyze:'⚡ Paralysie : 25% de chance de skip/tour',
+  confuse:'😵 Confusion : 20% de chance de frapper un allié',
+  freeze:'❄️ Gel : 30% de chance de skip, se dissipe sur coup reçu',
+  dodge:'🦅 Esquive : 20% d\'esquive pour les unités Vol',
+  crit:'🎯 Coup Critique : +30% chances de crit (×1.5 dégâts)',
+  swarm:'🦋 Essaim : 50% qu\'un autre Insecte enchaîne (max 2/tour)',
+  quake:'🏔 Tremblement : -5% HP max sur tous les ennemis au début',
+  curse:'👻 Malédiction : l\'ennemi avec + de HP perd 10% HP/tour',
+  intimidate:'🌑 Intimidation : -15% ATK + SP.ATK ennemies au début',
+  armor:'🛡 Armure : le premier coup reçu est absorbé',
+  charm:'🧚 Charme : les ennemis ciblent toujours le + défensif',
+  rage:'🐉 Rage : +10% dégâts par allié Dragon KO',
+  iron:'⚙️ Armure Acier : -20% dégâts reçus pour les Acier',
+};
+
+const CAT_LABEL = { physical:'⚔️ Physique', special:'🔮 Spécial', status:'✨ Statut' };
+
+const TARGET_LABEL = {
+  single:'1 cible',          all_enemies:'Tous les ennemis',
+  row_front:'Rangée avant',  row_back:'Rangée arrière',
+  all_allies:'Tous les alliés', self:'Soi-même',
+  bounce_2:'Rebond ×2',      back_row_prio:'Rangée arrière prio.',
+  random_2:'2 aléatoires',   column:'Colonne',
+  primary_adj:'+ adjacents', nearest_2:'2 proches',
+  random_3:'3 aléatoires',   row_primary:'Rangée cible',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+export const PokedexUI = {
+  _registry: null,
+  _overlay:  null,
+  _tab:      'synergies', // 'synergies' | 'types' | 'moves'
+
+  // ─────────────────────────────────────────────────────────────────────────
+  init(registry) {
+    this._registry = registry;
+    this._overlay  = document.getElementById('overlay-pokedex');
+    if (!this._overlay) return;
+
+    const btn = document.getElementById('btn-pokedex');
+    if (btn) {
+      btn.addEventListener('click', () => this.open());
+    }
+
+    const closeBtn = document.getElementById('btn-pokedex-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => this.close());
+    }
+
+    this._overlay.addEventListener('click', e => {
+      if (e.target === this._overlay) this.close();
+    });
+  },
+
+  open(tab = this._tab) {
+    this._tab = tab;
+    this._render();
+    this._overlay?.classList.add('active');
+    document.body.classList.add('overlay-open');
+  },
+
+  close() {
+    this._overlay?.classList.remove('active');
+    document.body.classList.remove('overlay-open');
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  _render() {
+    const content = document.getElementById('pokedex-content');
+    if (!content) return;
+
+    const tabs = ['synergies', 'types', 'moves'];
+    const tabLabels = { synergies:'🔗 Synergies', types:'⚔️ Types', moves:'⚡ Capacités' };
+
+    content.innerHTML = `
+      <div class="pdx-tabs">
+        ${tabs.map(t => `
+          <button class="pdx-tab${this._tab === t ? ' active' : ''}" data-tab="${t}">
+            ${tabLabels[t]}
+          </button>
+        `).join('')}
+      </div>
+      <div class="pdx-body" id="pdx-body"></div>
+    `;
+
+    content.querySelectorAll('.pdx-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._tab = btn.dataset.tab;
+        this._render();
+      });
+    });
+
+    const body = document.getElementById('pdx-body');
+    if (this._tab === 'synergies') this._renderSynergies(body);
+    if (this._tab === 'types')     this._renderTypes(body);
+    if (this._tab === 'moves')     this._renderMoves(body);
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Onglet Synergies
+  // ─────────────────────────────────────────────────────────────────────────
+  _renderSynergies(body) {
+    body.innerHTML = Object.entries(SYNERGIES).map(([type, syn]) => {
+      const color = TYPE_COLORS[type] ?? '#888';
+
+      const renderTier = (tier, data) => {
+        const bonuses = Object.entries(data.statBonus ?? {}).map(([stat, mult]) => {
+          const pct = Math.round((mult - 1) * 100);
+          return `<span class="pdx-stat-bonus">${STAT_EMOJIS[stat] ?? stat} +${pct}%</span>`;
+        }).join('');
+        const effect = data.effect
+          ? `<div class="pdx-effect">${EFFECT_DESC[data.effect] ?? data.effect}</div>`
+          : '';
+        return `
+          <div class="pdx-syn-tier">
+            <div class="pdx-tier-header">
+              <span class="pdx-stars">${'★'.repeat(tier)}</span>
+              <span class="pdx-tier-bonuses">${bonuses}</span>
+            </div>
+            ${effect}
+          </div>`;
+      };
+
+      return `
+        <div class="pdx-syn-card" style="border-left-color:${color}">
+          <div class="pdx-syn-title">
+            <span class="pdx-type-badge" style="background:${color}">${syn.icon} ${type}</span>
+          </div>
+          ${renderTier(2, syn.seuil2)}
+          ${renderTier(3, syn.seuil3)}
+        </div>`;
+    }).join('');
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Onglet Types
+  // ─────────────────────────────────────────────────────────────────────────
+  _renderTypes(body) {
+    const cellStyle = (mult) => {
+      if (mult === 2)   return 'background:#27ae60;color:#fff;font-weight:700';
+      if (mult === 0.5) return 'background:#e74c3c;color:#fff;font-weight:700';
+      if (mult === 0)   return 'background:#2c3e50;color:#95a5a6';
+      return 'background:#1a1a2e;color:#4a5568';
+    };
+    const cellText = (mult) => {
+      if (mult === 2)   return '×2';
+      if (mult === 0.5) return '½';
+      if (mult === 0)   return '0';
+      return '';
+    };
+
+    body.innerHTML = `
+      <div class="pdx-type-legend">
+        <span style="background:#27ae60;color:#fff;padding:2px 6px;border-radius:4px">×2 Super efficace</span>
+        <span style="background:#e74c3c;color:#fff;padding:2px 6px;border-radius:4px">½ Peu efficace</span>
+        <span style="background:#2c3e50;color:#95a5a6;padding:2px 6px;border-radius:4px">0 Immunité</span>
+      </div>
+      <div class="pdx-type-scroll">
+        <table class="pdx-type-table">
+          <thead>
+            <tr>
+              <th class="pdx-type-corner">ATK ↓ DEF →</th>
+              ${TYPES.map(t => `
+                <th class="pdx-type-th">
+                  <span class="pdx-type-mini" style="background:${TYPE_COLORS[t]}">${t.slice(0,3)}</span>
+                </th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${TYPES.map(atk => `
+              <tr>
+                <td class="pdx-type-label">
+                  <span class="pdx-type-mini" style="background:${TYPE_COLORS[atk]}">${atk}</span>
+                </td>
+                ${TYPES.map(def => {
+                  const mult = (TYPE_CHART[atk]?.[def]) ?? 1;
+                  return `<td class="pdx-type-cell" style="${cellStyle(mult)}">${cellText(mult)}</td>`;
+                }).join('')}
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Onglet Capacités (pokémons vus)
+  // ─────────────────────────────────────────────────────────────────────────
+  _renderMoves(body) {
+    const seen    = getSeenPokemon(this._registry);  // Set d'IDs
+    const entries = POKEMONS
+      .filter(p => seen.has(p.id))
+      .sort((a, b) => a.id - b.id);
+
+    if (!entries.length) {
+      body.innerHTML = `
+        <div class="pdx-empty">
+          <p>Aucun Pokémon rencontré pour l'instant.</p>
+          <p style="font-size:11px;color:var(--text-muted)">
+            Explorez la map pour débloquer des entrées.
+          </p>
+        </div>`;
+      return;
+    }
+
+    body.innerHTML = entries.map(pokemon => {
+      const moveKey = POKEMON_MOVES[pokemon.id];
+      if (!moveKey) return '';
+      const move = MOVES[moveKey];
+      if (!move) return '';
+
+      const color = TYPE_COLORS[move.type] ?? '#888';
+
+      const effects = (move.effects ?? []).map(e => {
+        if (e.kind === 'status') {
+          const icons = {burn:'🔥',poison:'☠️',paralyze:'⚡',freeze:'❄️',sleep:'💤',confuse:'😵',stun:'🔒'};
+          return `${icons[e.status]??'●'}${e.chance < 1 ? ` ${Math.round(e.chance*100)}%` : ' garanti'}`;
+        }
+        if (e.kind === 'stat') {
+          const up = e.mult > 1;
+          const pct = Math.round(Math.abs(e.mult - 1) * 100);
+          const who = e.who === 'self' ? 'Soi' : e.who === 'all_targets' ? 'Tous' : 'Cible';
+          return `${who} ${STAT_EMOJIS[e.stat]??e.stat}${up?'▲':'▼'}${pct}%${e.permanent?'(perm)':e.turns?`×${e.turns}t`:''}`;
+        }
+        if (e.kind === 'heal')    return `💚 Soin ${Math.round(e.rate*100)}%`;
+        if (e.kind === 'ko')      return `☠ KO ${Math.round(e.chance*100)}%`;
+        if (e.kind === 'sacrifice') return '💥 Sacrifice';
+        if (e.kind === 'untargetable') return '🌫 Intouchable';
+        if (e.kind === 'shield')  return '🛡 Bouclier alliés';
+        if (e.kind === 'clear_buffs') return '🌀 Supprime buffs';
+        if (e.kind === 'push_back')   return '⬅ Repousse';
+        if (e.kind === 'skip_next')   return '⏭ Skip tour suivant';
+        return '';
+      }).filter(Boolean).join(' · ');
+
+      const bp   = move.bp > 0 ? Math.round(move.bp * (move.powerMult ?? 1)) : null;
+      const hits  = move.hits > 1 ? `×${move.hits}` : move.hitsRandom ? `×${move.hitsRandom[0]}-${move.hitsRandom[1]}` : null;
+      const drain = move.drain ? `🩸 Drain ${Math.round(move.drain*100)}%` : null;
+      const recoil = move.recoil ? `💥 Recul ${Math.round(move.recoil*100)}%` : null;
+      const tags  = [
+        bp      ? `💥 ${bp}` : null,
+        CAT_LABEL[move.cat],
+        TARGET_LABEL[move.target] ?? move.target,
+        hits, drain, recoil,
+      ].filter(Boolean);
+
+      return `
+        <div class="pdx-move-entry">
+          <div class="pdx-move-pokemon">
+            <img src="${pokemon.spriteUrl}" alt="${pokemon.name}"
+                 onerror="this.src='assets/placeholder.png'"
+                 class="pdx-pokemon-sprite" />
+            <span class="pdx-pokemon-name">#${pokemon.id} ${pokemon.name}</span>
+          </div>
+          <div class="pdx-move-info" style="border-left-color:${color}">
+            <div class="pdx-move-header">
+              <span class="pdx-move-name-big" style="color:${color}">⚡ ${move.name}</span>
+              <span class="pdx-type-badge-sm" style="background:${color}">${move.type}</span>
+            </div>
+            <div class="pdx-move-tags">${tags.map(t => `<span class="pdx-tag">${t}</span>`).join('')}</div>
+            ${effects ? `<div class="pdx-move-fx">${effects}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  },
+};

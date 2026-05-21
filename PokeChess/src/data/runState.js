@@ -1,21 +1,40 @@
 // Gestion de l'état global d'une run
-// Stocké dans le registre Phaser pour persister entre les scènes
 
-export const BANK_MAX_SIZE = 6;  // slots max dans la banque
+export const BANK_MAX_SIZE = 6;
 
-// Initialise une nouvelle run dans le registre
-export function initRun(registry, starterPokemon) {
-  const uid = `${starterPokemon.id}_starter`;
-  registry.set('runState', {
-    currentMap:  0,
-    coins:       5,          // 5 pièces pour démarrer
-    pokeballs:   2,          // ← 2 pokéballs de départ
-    inventory:   [],         // objets consommables en stock
-    playerBank:  [{ ...starterPokemon, uid, isInTeam: true }],
-  });
+// Slots débloqués selon les arènes vaincues :
+//   Départ    → 3 slots (rangée 0 complète)
+//   Arène 2   → 4 slots (+1 rangée 1 col 0)
+//   Arène 4   → 5 slots (+1 rangée 1 col 1)
+//   Arène 6   → 6 slots (+1 rangée 1 col 2, terrain complet)
+export const SLOT_UNLOCK_MAP = {
+  2: 4,   // après avoir battu l'arène 2 (mapIndex 1) → 4 slots
+  4: 5,   // après avoir battu l'arène 4 (mapIndex 3) → 5 slots
+  6: 6,   // après avoir battu l'arène 6 (mapIndex 5) → 6 slots
+};
+
+// Multiplicateur de stats ennemies par map (progression exponentielle douce)
+// map 0 → ×1.00 | map 4 → ×1.48 | map 7 → ×1.84
+export function getEnemyMultiplier(mapIndex) {
+  return Number((1 + mapIndex * 0.12).toFixed(2));
 }
 
-// Helpers pour lire/modifier le runState
+export function initRun(registry, starterPokemon) {
+  const uid     = `${starterPokemon.id}_starter_${Date.now()}`;
+  const starter = { ...starterPokemon, uid, isInTeam: true, col: 0, row: 0 };
+
+  registry.set('runState', {
+    currentMap:    0,
+    coins:         5,
+    inventory:     [],
+    playerBank:    [],
+    unlockedSlots: 3,
+    seenPokemon:   [],      // IDs des pokémons rencontrés
+  });
+
+  registry.set('playerUnits', [starter]);
+}
+
 export function getRunState(registry) {
   return registry.get('runState') ?? {};
 }
@@ -25,32 +44,32 @@ export function setRunState(registry, updates) {
   registry.set('runState', { ...current, ...updates });
 }
 
-// ── PokéBalls ──────────────────────────────────────────────────────────────
-export function getPokeballs(registry) {
-  return getRunState(registry).pokeballs ?? 0;
+// ── Slots débloqués ────────────────────────────────────────────────────────
+export function getUnlockedSlots(registry) {
+  return getRunState(registry).unlockedSlots ?? 3;
 }
 
-export function addPokeballs(registry, amount) {
-  const state = getRunState(registry);
-  setRunState(registry, { pokeballs: (state.pokeballs ?? 0) + amount });
-}
-
-export function removePokeball(registry) {
-  const state = getRunState(registry);
-  const current = state.pokeballs ?? 0;
-  if (current <= 0) return false;
-  setRunState(registry, { pokeballs: current - 1 });
+// Appelé depuis ArenaVictoryUI après la victoire.
+// arenaNumber = numéro humain de l'arène vaincue (1-8).
+// Retourne true si un slot a été débloqué.
+export function tryUnlockSlot(registry, arenaNumber) {
+  const newCount = SLOT_UNLOCK_MAP[arenaNumber];
+  if (!newCount) return false;
+  const current = getUnlockedSlots(registry);
+  if (current >= newCount) return false;
+  setRunState(registry, { unlockedSlots: newCount });
   return true;
 }
 
-// ── Inventaire (objets consommables) ──────────────────────────────────────
+// ── PokéBalls supprimées — achat direct en pièces (voir WildUI) ───────────
+
+// ── Inventaire ─────────────────────────────────────────────────────────────
 export function addToInventory(registry, itemId) {
   const state = getRunState(registry);
   const inv   = [...(state.inventory ?? [])];
   inv.push(itemId);
   setRunState(registry, { inventory: inv });
 }
-
 export function removeFromInventory(registry, itemId) {
   const state = getRunState(registry);
   const inv   = [...(state.inventory ?? [])];
@@ -60,33 +79,30 @@ export function removeFromInventory(registry, itemId) {
   setRunState(registry, { inventory: inv });
   return true;
 }
-
 export function getInventory(registry) {
   return getRunState(registry).inventory ?? [];
 }
-// ──────────────────────────────────────
+
+// ── Coins ──────────────────────────────────────────────────────────────────
 export function addCoins(registry, amount) {
   const state = getRunState(registry);
   setRunState(registry, { coins: (state.coins ?? 0) + amount });
 }
-
 export function removeCoins(registry, amount) {
   const state = getRunState(registry);
   setRunState(registry, { coins: Math.max(0, (state.coins ?? 0) - amount) });
 }
 
+// ── Banque ─────────────────────────────────────────────────────────────────
 export function addToBank(registry, pokemon) {
   const state = getRunState(registry);
   const bank  = state.playerBank ?? [];
   if (bank.length >= BANK_MAX_SIZE) return false;
-
-  // Génère un uid unique pour éviter les collisions de clé
   const uid = `${pokemon.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   bank.push({ ...pokemon, uid, isInTeam: true });
   setRunState(registry, { playerBank: bank });
   return true;
 }
-
 export function removeFromBank(registry, pokemonId) {
   const state = getRunState(registry);
   const bank  = state.playerBank ?? [];
@@ -97,25 +113,89 @@ export function removeFromBank(registry, pokemonId) {
   return removed;
 }
 
-// Budget de la map actuelle (détermine la force des ennemis et du carrousel)
+// ── Budget map (conservé pour les ennemis) ────────────────────────────────
 export function getMapBudget(mapIndex) {
   const MIN_BUDGET = 150;
   const MAX_BUDGET = 1200;
-  const ratio = mapIndex / 8;  // 9 maps : 0 à 8
+  const ratio = mapIndex / 8;
   return Math.round(MIN_BUDGET + (MAX_BUDGET - MIN_BUDGET) * ratio);
 }
 
-// Pool de pokémons filtrés selon le budget de la map
-// Retourne les pokémons dont la somme des stats est <= budget/2
+// ── Tiers BST ─────────────────────────────────────────────────────────────
+// T1: 180-310  T2: 311-390  T3: 391-470  T4: 471-550  T5: 551+
+export function getBSTTier(pokemon) {
+  const bst = pokemon.stats.hp  + pokemon.stats.atk + pokemon.stats.spa +
+              pokemon.stats.def + pokemon.stats.spd_def + pokemon.stats.spd;
+  if (bst <= 308) return 1;  // Salamèche (309) passe en T2
+  if (bst <= 390) return 2;
+  if (bst <= 470) return 3;
+  if (bst <= 550) return 4;
+  return 5;
+}
+
+// Taux de tirage par map (index 0-8) × tier (1-5), en %
+// Cible finale map 8 : 0/10/40/40/10
+const TIER_RATES = [
+  //  T1   T2   T3   T4   T5
+  [   65,  30,   5,   0,   0 ],  // map 0
+  [   50,  35,  13,   2,   0 ],  // map 1
+  [   32,  35,  24,   8,   1 ],  // map 2
+  [   18,  27,  36,  16,   3 ],  // map 3
+  [    6,  17,  40,  32,   5 ],  // map 4
+  [    1,  12,  40,  40,   7 ],  // map 5
+  [    0,  10,  40,  43,   7 ],  // map 6
+  [    0,  10,  40,  41,   9 ],  // map 7
+  [    0,  10,  40,  40,  10 ],  // map 8
+];
+
+// Tire un pokémon selon les poids pondérés de la map courante
+// Retourne un pokémon (pas un index) ou null si pool vide
+export function weightedWildDraw(registry, POKEMONS) {
+  const state    = getRunState(registry);
+  const mapIdx   = Math.min(state.currentMap ?? 0, TIER_RATES.length - 1);
+  const rates    = TIER_RATES[mapIdx];
+
+  // Assigne un poids à chaque pokémon selon son tier
+  const weighted = POKEMONS.map(p => {
+    const tier   = getBSTTier(p);
+    const weight = rates[tier - 1];
+    return { p, weight };
+  }).filter(x => x.weight > 0);
+
+  if (!weighted.length) return null;
+
+  const total = weighted.reduce((s, x) => s + x.weight, 0);
+  let   roll  = Math.random() * total;
+  for (const { p, weight } of weighted) {
+    roll -= weight;
+    if (roll <= 0) return p;
+  }
+  return weighted[weighted.length - 1].p;
+}
+
+// Conservé pour compatibilité (utilisé par les ennemis)
 export function getWildPool(registry, POKEMONS) {
   const state      = getRunState(registry);
   const mapIndex   = state.currentMap ?? 0;
   const budget     = getMapBudget(mapIndex);
   const maxStatSum = budget / 2;
-
   return POKEMONS.filter(p => {
     const statSum = p.stats.hp + p.stats.atk + p.stats.spa +
                     p.stats.def + p.stats.spd_def + p.stats.spd;
     return statSum <= maxStatSum;
   });
+}
+
+// ── Pokédex — pokémons rencontrés ──────────────────────────────────────────
+export function addSeenPokemon(registry, pokemonId) {
+  const state = getRunState(registry);
+  const seen  = state.seenPokemon ?? [];
+  if (!seen.includes(pokemonId)) {
+    setRunState(registry, { seenPokemon: [...seen, pokemonId] });
+  }
+}
+
+export function getSeenPokemon(registry) {
+  const state = getRunState(registry);
+  return new Set(state.seenPokemon ?? []);
 }
