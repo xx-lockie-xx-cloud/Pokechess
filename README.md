@@ -1,2 +1,0 @@
-# Pokechess
-Navigator Autochess Pokemon 

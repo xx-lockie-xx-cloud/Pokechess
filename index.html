@@ -1,1 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>PokeChess</title>
+  <link rel="stylesheet" href="src/styles/main.css" />
+</head>
+<body>
 
+  <!-- ── Header UI fixe ─────────────────────────────────────────────────── -->
+  <header id="game-header" class="hidden">
+    <div class="header-left">
+      <button id="btn-menu-home" class="btn-ghost btn-home" title="Menu principal">
+        ← Menu
+      </button>
+    </div>
+    <div class="header-center">
+      <span class="game-title-header">PokeChess</span>
+    </div>
+    <div class="header-right">
+      <span id="ui-coins">💰 0</span>
+      <button id="btn-team" class="btn-gold">⚔ Équipe</button>
+      <button id="btn-pokedex" class="btn-secondary">📖 Pokédex</button>
+    </div>
+  </header>
+
+  <!-- ── Menu ───────────────────────────────────────────────────────────── -->
+  <div id="screen-menu" class="screen active">
+    <div class="screen-content centered">
+      <h1 class="game-logo">PokeChess</h1>
+      <p class="game-subtitle">Un autochess inspiré de Pokémon</p>
+
+      <div class="menu-buttons">
+        <button id="btn-new-game" class="btn-primary btn-large">
+          🎮 Nouvelle Partie
+        </button>
+
+        <button id="btn-continue" class="btn-secondary btn-large hidden">
+          ▶ Continuer
+        </button>
+        <div id="save-meta" class="save-meta hidden"></div>
+
+        <div class="menu-save-actions hidden" id="menu-save-actions">
+          <button id="btn-export-save" class="btn-ghost">
+            💾 Exporter la sauvegarde
+          </button>
+          <button id="btn-import-save" class="btn-ghost">
+            📂 Importer une sauvegarde
+          </button>
+          <button id="btn-delete-save" class="btn-ghost btn-danger">
+            🗑 Supprimer la sauvegarde
+          </button>
+        </div>
+      </div>
+
+      <div id="menu-difficulty" class="menu-difficulty"></div>
+      <p class="version-label">v0.3</p>
+    </div>
+  </div>
+
+  <!-- ── Starter ────────────────────────────────────────────────────────── -->
+  <div id="screen-starter" class="screen">
+    <div class="screen-content">
+      <h2>Choisissez votre starter</h2>
+      <p class="subtitle">Votre premier compagnon pour cette aventure</p>
+      <div id="starter-cards" class="card-row"></div>
+      <div id="starter-stats" class="stats-panel hidden"></div>
+      <button id="btn-confirm-starter" class="btn-primary" disabled>
+        Choisir ce starter
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Map — HTML/CSS ────────────────────────────────────────────────── -->
+  <div id="screen-map" class="screen"></div>
+
+  <!-- ── Rencontre sauvage — overlay ──────────────────────────────────────── -->
+  <div id="overlay-wild" class="game-overlay">
+    <div class="screen-content">
+      <h2>🌿 Rencontre Sauvage !</h2>
+      <p class="subtitle">Choisissez un pokémon à capturer</p>
+      <div id="wild-cards" class="card-row"></div>
+      <div class="wild-actions">
+        <button id="btn-reroll" class="btn-secondary">🔄 Reroll — 1 💰</button>
+        <button id="btn-capture" class="btn-primary" disabled>🔴 Capturer</button>
+        <button id="btn-wild-skip" class="btn-ghost">Passer</button>
+      </div>
+      <p id="wild-info" class="info-text"></p>
+    </div>
+  </div>
+
+  <!-- ── Shop — overlay ──────────────────────────────────────────────────── -->
+  <div id="overlay-shop" class="game-overlay">
+    <div class="screen-content">
+      <h2>🛒 Boutique</h2>
+      <p class="subtitle">Achetez des objets pour votre aventure</p>
+      <div id="shop-cards" class="card-row"></div>
+      <p id="shop-info" class="info-text"></p>
+      <button id="btn-shop-leave" class="btn-ghost">Quitter la boutique</button>
+    </div>
+  </div>
+
+  <!-- ── Objet — overlay ─────────────────────────────────────────────────── -->
+  <div id="overlay-item" class="game-overlay">
+    <div class="screen-content">
+      <h2>🎒 Objet Trouvé !</h2>
+      <p class="subtitle">Choisissez un objet gratuitement</p>
+      <div id="item-cards" class="card-row"></div>
+      <div class="wild-actions">
+        <button id="btn-item-confirm" class="btn-primary" disabled>
+          Prendre cet objet
+        </button>
+        <button id="btn-item-skip" class="btn-ghost">Passer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Combat — overlay ────────────────────────────────────────────────── -->
+  <div id="overlay-combat" class="game-overlay"></div>
+
+  <!-- ── Victoire Arène — overlay ────────────────────────────────────────── -->
+  <div id="overlay-arena-victory" class="game-overlay">
+    <div class="screen-content centered arena-victory">
+      <div id="victory-champion" class="victory-champion"></div>
+      <div id="victory-content" class="victory-content">
+        <h2 id="victory-title"></h2>
+        <p id="victory-champion-name"></p>
+        <p id="victory-city"></p>
+        <div id="victory-badge" class="badge-box hidden">
+          <img id="victory-badge-img" src="" alt="Badge" />
+          <div>
+            <p id="victory-badge-name"></p>
+            <p class="badge-obtained">obtenu !</p>
+          </div>
+        </div>
+      </div>
+      <button id="btn-next-map" class="btn-primary btn-large">
+        ➡ Continuer
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Overlay PrepUI ─────────────────────────────────────────────────── -->
+  <div id="overlay-prep" class="overlay hidden">
+    <div class="overlay-panel">
+      <div class="overlay-header">
+        <h3>Gestion de l'équipe</h3>
+        <button id="btn-close-prep" class="btn-close">✕</button>
+      </div>
+      <div class="prep-body">
+        <div class="prep-section">
+          <p class="section-label">Terrain</p>
+          <div id="prep-field" class="field-grid"></div>
+          <div class="synergy-section">
+            <p class="section-label">Synergies</p>
+            <div id="prep-synergies" class="synergy-list"></div>
+          </div>
+          <div class="inventory-section">
+            <p class="section-label">Inventaire</p>
+            <div id="prep-inventory" class="inventory-list"></div>
+          </div>
+        </div>
+        <div class="prep-divider"></div>
+        <div class="prep-section">
+          <p class="section-label" id="prep-bank-label">Banque (0/6)</p>
+          <div id="prep-bank" class="bank-grid"></div>
+          <div class="spider-section">
+            <p class="section-label">Stats</p>
+            <svg id="prep-spider" viewBox="0 0 200 200"
+                 width="200" height="200"></svg>
+          </div>
+        </div>
+      </div>
+      <div id="prep-action-bar" class="action-bar hidden"></div>
+      <div class="overlay-footer">
+        <button id="btn-validate-team" class="btn-success">
+          ✅ Valider l'équipe
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Pokédex overlay ────────────────────────────────────────────────── -->
+  <div id="overlay-pokedex" class="pokedex-overlay">
+    <div class="pokedex-panel">
+      <div class="pokedex-header">
+        <span class="pokedex-title">📖 Pokédex</span>
+        <button id="btn-pokedex-close" class="btn-icon">✕</button>
+      </div>
+      <div id="pokedex-content" class="pokedex-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Point d'entrée JS ──────────────────────────────────────────────── -->
+  <script type="module" src="src/game.js"></script>
+
+</body>
+</html>
