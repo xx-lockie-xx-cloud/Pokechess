@@ -302,8 +302,8 @@ export const MOVES = {
   // ── Dragon ────────────────────────────────────────────────────────────────
   draco_rage:           { name:"Draco-Rage",       type:"Dragon",   cat:"special",  bp:1,   target:"single",
     effects:[{kind:"fixed_hp_pct",rate:0.40}] },
-  draco_meteore:        { name:"Draco-Météore",    type:"Dragon",   cat:"special",  bp:130, target:"all_enemies", powerMult:2.5,
-    effects:[{kind:"stat",who:"self",stat:"spa",mult:0.70,permanent:true}] },
+  draco_meteore:        { name:"Draco-Météore",    type:"Dragon",   cat:"mixed",   bp:130, target:"all_enemies", powerMult:1.25,
+    mixedSplit: 0.5 },  // 50% ATK physique + 50% SpATK — sans drop de stat
 
   // ── Spéciaux ──────────────────────────────────────────────────────────────
   ultralaser:           { name:"Ultralaser",       type:"Normal",   cat:"special",  bp:150, target:"single",  powerMult:3.0,

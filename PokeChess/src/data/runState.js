@@ -150,12 +150,12 @@ const TIER_RATES = [
 
 // Tire un pokémon selon les poids pondérés de la map courante
 // Retourne un pokémon (pas un index) ou null si pool vide
-export function weightedWildDraw(registry, POKEMONS) {
+export function weightedWildDraw(registry, POKEMONS, rng = null) {
   const state    = getRunState(registry);
   const mapIdx   = Math.min(state.currentMap ?? 0, TIER_RATES.length - 1);
   const rates    = TIER_RATES[mapIdx];
+  const rand     = rng ?? Math.random.bind(Math);
 
-  // Assigne un poids à chaque pokémon selon son tier
   const weighted = POKEMONS.map(p => {
     const tier   = getBSTTier(p);
     const weight = rates[tier - 1];
@@ -165,7 +165,7 @@ export function weightedWildDraw(registry, POKEMONS) {
   if (!weighted.length) return null;
 
   const total = weighted.reduce((s, x) => s + x.weight, 0);
-  let   roll  = Math.random() * total;
+  let   roll  = rand() * total;
   for (const { p, weight } of weighted) {
     roll -= weight;
     if (roll <= 0) return p;
@@ -198,4 +198,44 @@ export function addSeenPokemon(registry, pokemonId) {
 export function getSeenPokemon(registry) {
   const state = getRunState(registry);
   return new Set(state.seenPokemon ?? []);
+}
+
+// ── Layout de map ──────────────────────────────────────────────────────────
+// Sauve le layout complet (nœuds avec état visited/available) + nœud courant
+export function saveMapLayout(registry, mapNodes, startNode, lastNodeCol = null) {
+  const update = {
+    mapLayout: mapNodes,
+    mapStart:  startNode,
+  };
+  if (lastNodeCol !== null) update.lastNodeCol = lastNodeCol;
+  setRunState(registry, update);
+}
+
+export function getMapLayout(registry) {
+  const state = getRunState(registry);
+  return {
+    mapNodes:    state.mapLayout  ?? null,
+    startNode:   state.mapStart   ?? null,
+    lastNodeCol: state.lastNodeCol ?? 0,
+  };
+}
+
+// ── Sauvegarde de la progression sur la map ────────────────────────────────
+export function saveMapProgress(registry, seed, visitedNodes, availableNodes, col = 0) {
+  setRunState(registry, {
+    mapSeed:      seed,
+    mapVisited:   visitedNodes,
+    mapAvailable: availableNodes,
+    lastNodeCol:  col,
+  });
+}
+
+export function getMapProgress(registry) {
+  const state = getRunState(registry);
+  return {
+    seed:      state.mapSeed      ?? null,
+    visited:   state.mapVisited   ?? [],
+    available: state.mapAvailable ?? [],
+    col:       state.lastNodeCol  ?? 0,
+  };
 }

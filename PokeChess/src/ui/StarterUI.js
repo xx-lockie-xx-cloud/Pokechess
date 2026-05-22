@@ -12,6 +12,7 @@
 
 import { POKEMONS }                    from '../data/pokemons.js';
 import { getBSTTier }                  from '../data/runState.js';
+import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
 import { initRun }                     from '../data/runState.js';
 import { TYPE_COLORS as TC }           from '../data/pokemons.js';
@@ -126,6 +127,7 @@ export const StarterUI = {
            onerror="this.src='assets/placeholder.png'" />
       <span class="card-name">${pokemon.name}</span>
       <span class="card-types">${pokemon.types.join(' / ')}</span>
+      ${(() => { const m = window.SaveManager?.loadMeta() ?? null; const l = m?.pokemonLevels?.[pokemon.id] ?? 1; return l > 1 ? getLevelBadgeHTML(l) : ''; })()}
     `;
 
     card.addEventListener('click', () => this._selectCard(pokemon, card));
@@ -160,26 +162,30 @@ export const StarterUI = {
     const panel = document.getElementById('starter-stats');
     if (!panel) return;
 
-    const s = pokemon.stats;
+    const s     = pokemon.stats;
+    const meta  = window.SaveManager?.loadMeta() ?? null;
+    const level = meta?.pokemonLevels?.[pokemon.id] ?? 1;
+    const lMult = getLevelBonus(level);
+    const boost = v => level > 1 ? Math.round(v * lMult) : v;
 
-    // Même ordre et emojis que la toile SVG de PrepUI
-    const dominantOffense = (s.spa ?? 0) >= (s.atk ?? 0) ? 'SP.ATK' : 'ATK';
+    const dominantOffense = boost(s.spa ?? 0) >= boost(s.atk ?? 0) ? 'SP.ATK' : 'ATK';
 
     const STATS = [
-      { emoji: '❤️',  label: 'HP',     value: s.hp               },
-      { emoji: '⚔️',  label: 'ATK',    value: s.atk              },
-      { emoji: '🛡️',  label: 'DEF',    value: s.def              },
-      { emoji: '🔮',  label: 'SP.ATK', value: s.spa  ?? 0        },
-      { emoji: '💎',  label: 'SP.DEF', value: s.spd_def ?? s.def  },
-      { emoji: '👟',  label: 'VIT',    value: s.spd              },
+      { emoji: '❤️',  label: 'HP',     base: s.hp,               value: boost(s.hp)                },
+      { emoji: '⚔️',  label: 'ATK',    base: s.atk,              value: boost(s.atk)               },
+      { emoji: '🛡️',  label: 'DEF',    base: s.def,              value: boost(s.def)               },
+      { emoji: '🔮',  label: 'SP.ATK', base: s.spa  ?? 0,        value: boost(s.spa  ?? 0)         },
+      { emoji: '💎',  label: 'SP.DEF', base: s.spd_def ?? s.def, value: boost(s.spd_def ?? s.def)  },
+      { emoji: '👟',  label: 'VIT',    base: s.spd,              value: boost(s.spd)               },
     ];
 
-    const statsHtml = STATS.map(({ emoji, label, value }) => {
-      const isMain = label === dominantOffense;
+    const statsHtml = STATS.map(({ emoji, label, base, value }) => {
+      const isMain    = label === dominantOffense;
+      const isBoosted = level > 1 && value > base;
       return `
         <div class="stat-item${isMain ? ' stat-item--main' : ''}">
           <span class="stat-icon">${emoji}</span>
-          <span class="stat-value">${value}</span>
+          <span class="stat-value" style="${isBoosted ? 'color:#55efc4' : ''}">${value}${isBoosted ? `<span style="font-size:8px;color:#55efc4"> +${value-base}</span>` : ''}</span>
           <span class="stat-label">${label}</span>
         </div>
       `;

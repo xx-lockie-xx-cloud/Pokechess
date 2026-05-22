@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getEffectiveStats } from './items.js';
+import { getBSTTier }       from './runState.js';
 
 export const SYNERGIES = {
   "Feu": {
@@ -103,17 +104,19 @@ export const SYNERGIES = {
 export function getActiveSynergies(fieldUnits) {
   const typeCounts = {};
   fieldUnits.filter(Boolean).forEach(unit => {
+    // Les légendaires (T5) comptent pour 2 dans les synergies
+    const weight = getBSTTier(unit) >= 5 ? 2 : 1;
     unit.types.forEach(type => {
-      typeCounts[type] = (typeCounts[type] ?? 0) + 1;
+      typeCounts[type] = (typeCounts[type] ?? 0) + weight;
     });
   });
 
   const active = [];
   Object.entries(typeCounts).forEach(([type, count]) => {
-    if (count < 2) return;
+    if (count < 3) return;
     const synergy = SYNERGIES[type];
     if (!synergy) return;
-    const tier = count >= 3 ? 3 : 2;
+    const tier = count >= 5 ? 3 : 2;
     const data  = tier === 3 ? synergy.seuil3 : synergy.seuil2;
     active.push({
       type, icon: synergy.icon, color: synergy.color,
@@ -131,9 +134,9 @@ export function getActiveSynergies(fieldUnits) {
 // getFullStats — empile base → objet → synergies
 // Retourne les trois niveaux + métadonnées pour la toile SVG
 // ─────────────────────────────────────────────────────────────────────────────
-export function getFullStats(unit, fieldUnits = []) {
+export function getFullStats(unit, fieldUnits = [], meta = null) {
   const base     = { ...(unit.stats ?? {}) };
-  const withItem = getEffectiveStats(unit);   // base + objet
+  const withItem = getEffectiveStats(unit, meta);   // base + niveau + objet
 
   // Bonus de synergies applicables à cette unité
   const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean));

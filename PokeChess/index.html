@@ -13,7 +13,12 @@
   <!-- ── Header UI fixe ─────────────────────────────────────────────────── -->
   <header id="game-header" class="hidden">
     <div class="header-left">
-      <span class="game-title">PokeChess</span>
+      <button id="btn-menu-home" class="btn-ghost btn-home" title="Menu principal">
+        ← Menu
+      </button>
+    </div>
+    <div class="header-center">
+      <span class="game-title-header">PokeChess</span>
     </div>
     <div class="header-right">
       <span id="ui-coins">💰 0</span>
@@ -27,10 +32,32 @@
     <div class="screen-content centered">
       <h1 class="game-logo">PokeChess</h1>
       <p class="game-subtitle">Un autochess inspiré de Pokémon</p>
-      <button id="btn-new-game" class="btn-primary btn-large">
-        🎮 Nouvelle Partie
-      </button>
-      <p class="version-label">v0.2</p>
+
+      <div class="menu-buttons">
+        <button id="btn-new-game" class="btn-primary btn-large">
+          🎮 Nouvelle Partie
+        </button>
+
+        <button id="btn-continue" class="btn-secondary btn-large hidden">
+          ▶ Continuer
+        </button>
+        <div id="save-meta" class="save-meta hidden"></div>
+
+        <div class="menu-save-actions hidden" id="menu-save-actions">
+          <button id="btn-export-save" class="btn-ghost">
+            💾 Exporter la sauvegarde
+          </button>
+          <button id="btn-import-save" class="btn-ghost">
+            📂 Importer une sauvegarde
+          </button>
+          <button id="btn-delete-save" class="btn-ghost btn-danger">
+            🗑 Supprimer la sauvegarde
+          </button>
+        </div>
+      </div>
+
+      <div id="menu-difficulty" class="menu-difficulty"></div>
+      <p class="version-label">v0.3</p>
     </div>
   </div>
 

@@ -41,7 +41,7 @@ export const TRAINER_ARCHETYPES = [
         stats: { hp: 80, atk: 70, spa: 80, def: 65, spd_def: 120, spd: 100 },
         spriteUrl: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/73.png" },
       { id:  79, name: "Ramoloss", types: ["Eau", "Psy"],
-        stats: { hp: 95, atk: 75, spa: 100, def: 110, spd_def: 80, spd: 30 },
+        stats: { hp: 65, atk: 65, spa: 40, def: 65, spd_def: 40, spd: 15 },
         spriteUrl: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/79.png" },
       { id:  80, name: "Flagadoss", types: ["Eau", "Psy"],
         stats: { hp: 95, atk: 75, spa: 100, def: 110, spd_def: 80, spd: 30 },
@@ -70,7 +70,7 @@ export const TRAINER_ARCHETYPES = [
       { id: 117, name: "Hypocéan", types: ["Eau"],
         stats: { hp: 75, atk: 95, spa: 95, def: 95, spd_def: 95, spd: 85 },
         spriteUrl: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/117.png" },
-      { id: 118, name: "Poisson-Rouge", types: ["Eau"],
+      { id: 118, name: "Poissirène", types: ["Eau"],
         stats: { hp: 45, atk: 67, spa: 35, def: 60, spd_def: 50, spd: 63 },
         spriteUrl: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/118.png" },
       { id: 119, name: "Poissoroy", types: ["Eau"],
@@ -126,7 +126,7 @@ export const TRAINER_ARCHETYPES = [
         stats: { hp: 55, atk: 50, spa: 135, def: 45, spd_def: 95, spd: 120 },
         spriteUrl: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/65.png" },
       { id:  79, name: "Ramoloss", types: ["Eau", "Psy"],
-        stats: { hp: 95, atk: 75, spa: 100, def: 110, spd_def: 80, spd: 30 },
+        stats: { hp: 65, atk: 65, spa: 40, def: 65, spd_def: 40, spd: 15 },
         spriteUrl: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/79.png" },
       { id:  80, name: "Flagadoss", types: ["Eau", "Psy"],
         stats: { hp: 95, atk: 75, spa: 100, def: 110, spd_def: 80, spd: 30 },
@@ -323,41 +323,68 @@ export function teamBudget(units) {
 // Génère une équipe ennemie pour un archétype donné avec un budget cible
 // On pioche des pokémons aléatoirement jusqu'à atteindre le budget
 // maxUnits : nombre max de pokémon sur le terrain (1-6)
-export function generateEnemyTeam(archetype, targetBudget, maxUnits = 6) {
-  const pool    = [...archetype.pool];
-  const team    = [];
-  let   budget  = 0;
-  let   attempts = 0;
+// BST complet (6 stats) — utilisé pour le budget et le tirage pondéré
+function getBST(p) {
+  const s = p.stats;
+  return (s.hp ?? 0) + (s.atk ?? 0) + (s.spa ?? 0)
+       + (s.def ?? 0) + (s.spd_def ?? 0) + (s.spd ?? 0);
+}
 
-  while (budget < targetBudget && team.length < maxUnits && attempts < 50) {
-    attempts++;
+const TIER_RATES = [
+  [65, 30,  5,  0,  0],
+  [50, 35, 13,  2,  0],
+  [32, 35, 24,  8,  1],
+  [18, 27, 36, 16,  3],
+  [ 6, 17, 40, 32,  5],
+  [ 1, 12, 40, 40,  7],
+  [ 0, 10, 40, 43,  7],
+  [ 0, 10, 40, 41,  9],
+  [ 0, 10, 40, 40, 10],
+];
 
-    // Filtre les pokémons qui ne font pas exploser le budget
-    const remaining  = targetBudget - budget;
-    const affordable = pool.filter(p => {
-      const cost = p.stats.hp + p.stats.atk + p.stats.def + p.stats.spd;
-      return cost <= remaining + 50;  // petite tolérance
-    });
+function pokemonTier(p) {
+  const b = getBST(p);
+  if (b <= 308) return 1;
+  if (b <= 390) return 2;
+  if (b <= 470) return 3;
+  if (b <= 550) return 4;
+  return 5;
+}
 
-    if (affordable.length === 0) break;
+// rng : fonction seeded (ou Math.random si non fournie)
+function weightedPick(pool, mapIndex, rng = Math.random.bind(Math)) {
+  const rates    = TIER_RATES[Math.min(mapIndex ?? 0, 8)];
+  const weighted = pool.map(p => ({ p, w: rates[pokemonTier(p) - 1] ?? 0 }))
+                       .filter(x => x.w > 0);
+  if (!weighted.length) return pool[Math.floor(rng() * pool.length)];
+  const total = weighted.reduce((s, x) => s + x.w, 0);
+  let   roll  = rng() * total;
+  for (const { p, w } of weighted) { roll -= w; if (roll <= 0) return p; }
+  return weighted[weighted.length - 1].p;
+}
 
-    // Pioche un pokémon aléatoire dans les abordables
-    const pick = affordable[Math.floor(Math.random() * affordable.length)];
-    const cost = pick.stats.hp + pick.stats.atk + pick.stats.def + pick.stats.spd;
+// rng : passé depuis MapGenerator pour le déterminisme complet
+export function generateEnemyTeam(archetype, targetBudget, maxUnits = 6, mapIndex = 0, rng = Math.random.bind(Math)) {
+  const pool  = [...archetype.pool];
+  const team  = [];
+  let   tries = 0;
 
-    // Position aléatoire sur la grille 3x2
-    const availableCells = [];
+  while (team.length < maxUnits && tries < 60) {
+    tries++;
+    const cells = [];
     for (let col = 0; col < 3; col++)
       for (let row = 0; row < 2; row++)
         if (!team.find(u => u.col === col && u.row === row))
-          availableCells.push({ col, row });
+          cells.push({ col, row });
+    if (!cells.length) break;
 
-    if (availableCells.length === 0) break;
-
-    const cell = availableCells[Math.floor(Math.random() * availableCells.length)];
+    const pick = weightedPick(pool, mapIndex, rng);
+    const cell = cells[Math.floor(rng() * cells.length)];
     team.push({ ...pick, col: cell.col, row: cell.row, attributes: [] });
-    budget += cost;
   }
 
   return team;
 }
+
+// Export TIER_RATES pour runState.weightedWildDraw
+export { TIER_RATES, pokemonTier };

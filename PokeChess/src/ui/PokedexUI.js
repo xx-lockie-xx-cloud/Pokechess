@@ -6,6 +6,7 @@ import { SYNERGIES }          from '../data/synergies.js';
 import { TYPE_CHART }         from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES } from '../data/moves.js';
 import { getSeenPokemon }     from '../data/runState.js';
+import { getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
 import { POKEMONS }           from '../data/pokemons.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -218,7 +219,11 @@ export const PokedexUI = {
   // Onglet Capacités (pokémons vus)
   // ─────────────────────────────────────────────────────────────────────────
   _renderMoves(body) {
-    const seen    = getSeenPokemon(this._registry);  // Set d'IDs
+    // Fusion : pokémons vus dans la run courante + pokémons persistants (meta)
+    const runSeen  = getSeenPokemon(this._registry);
+    const meta     = window.SaveManager?.loadMeta() ?? null;
+    const metaSeen = new Set(meta?.seenPokemon ?? []);
+    const seen     = new Set([...runSeen, ...metaSeen]);
     const entries = POKEMONS
       .filter(p => seen.has(p.id))
       .sort((a, b) => a.id - b.id);
@@ -275,13 +280,24 @@ export const PokedexUI = {
         hits, drain, recoil,
       ].filter(Boolean);
 
+      const meta     = window.SaveManager?.loadMeta() ?? null;
+      const pLevel   = meta?.pokemonLevels?.[pokemon.id] ?? 1;
+      const pBonus   = Math.round((getLevelBonus(pLevel) - 1) * 100);
+      const pct      = Math.round(pLevel / MAX_LEVEL * 100);
+      const isCaught = meta?.caughtPokemon?.includes(pokemon.id);
+
       return `
         <div class="pdx-move-entry">
           <div class="pdx-move-pokemon">
             <img src="${pokemon.spriteUrl}" alt="${pokemon.name}"
                  onerror="this.src='assets/placeholder.png'"
-                 class="pdx-pokemon-sprite" />
+                 class="pdx-pokemon-sprite ${isCaught ? 'pdx-caught' : ''}" />
             <span class="pdx-pokemon-name">#${pokemon.id} ${pokemon.name}</span>
+            ${getLevelBadgeHTML(pLevel)}
+            <div class="pdx-level-bar-wrap">
+              <div class="pdx-level-bar" style="width:${pct}%"></div>
+            </div>
+            ${pBonus > 0 ? `<span class="pdx-level-bonus">+${pBonus}% stats</span>` : ''}
           </div>
           <div class="pdx-move-info" style="border-left-color:${color}">
             <div class="pdx-move-header">

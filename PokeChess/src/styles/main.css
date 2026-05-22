@@ -99,26 +99,50 @@ img {
   background: rgba(10, 10, 26, 0.95);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border-default);
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   padding: 0 var(--gap-md);
   z-index: 100;
 }
 
 #game-header.hidden { display: none; }
 
-.header-left, .header-right {
+.header-left {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: var(--gap-sm);
 }
 
-.header-center .game-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: 1px;
+.header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--gap-sm);
+}
+
+/* Titre du header — même police que le menu */
+.game-title-header {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--color-gold);
+  letter-spacing: 2px;
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
+}
+
+/* Bouton retour menu */
+.btn-home {
+  font-size: 11px !important;
+  padding: 5px 10px !important;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
 #ui-coins, #ui-pokeballs {
@@ -200,6 +224,81 @@ h3 { font-size: clamp(14px, 3vw, 18px); }
   font-size: 11px;
   color: var(--text-muted);
   margin-top: var(--gap-lg);
+}
+
+/* ── Menu principal — boutons et sauvegarde ───────────────────────────────── */
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.save-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  width: 100%;
+}
+
+.save-meta-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-gold);
+  text-align: center;
+}
+
+.save-meta-details {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.menu-save-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-default);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-ghost:hover {
+  background: rgba(255,255,255,0.07);
+  color: var(--text-primary);
+}
+
+.btn-ghost.btn-danger {
+  border-color: rgba(231,76,60,0.4);
+  color: var(--color-red);
+}
+
+.btn-ghost.btn-danger:hover {
+  background: rgba(231,76,60,0.12);
 }
 
 .info-text {
@@ -1463,6 +1562,100 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   padding: 2px 0;
 }
 
+/* ── Boutons combat (lancer + vitesse) ──────────────────────────────────── */
+.combat-btn-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.btn-speed {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.btn-speed:hover { background: rgba(255,255,255,0.13); color: var(--text-primary); }
+.btn-speed.active {
+  background: rgba(255,215,0,0.15);
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
+/* ── Journal de combat ──────────────────────────────────────────────────── */
+.combat-log-zone {
+  max-height: 180px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  margin-top: 8px;
+  font-size: 10px;
+  line-height: 1.7;
+  scrollbar-width: thin;
+  scrollbar-color: #334466 transparent;
+}
+
+.log-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-gold);
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+}
+
+.log-turn   { color: #4a5568; font-style: italic; font-size: 9px; }
+.log-move   { color: #ffd700; font-weight: 700; }
+.log-super  { color: #ff6b6b; font-weight: 700; }
+.log-weak   { color: #718096; }
+.log-crit   { color: #f39c12; font-weight: 700; }
+.log-status { color: #a29bfe; }
+.log-heal   { color: #55efc4; }
+.log-faint  { color: #e17055; font-weight: 700; }
+
+/* ── Stat changes persistants : buffs gauche / débuffs droite ───────────── */
+.combat-stat-side {
+  position: absolute;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  pointer-events: none;
+  z-index: 6;
+  max-width: 48%;
+}
+
+.combat-stat-buffs {
+  left: 2px;
+  align-items: flex-start;
+}
+
+.combat-stat-debuffs {
+  right: 2px;
+  align-items: flex-end;
+}
+
+.combat-stat-badge-perm {
+  font-size: 7px;
+  font-weight: 700;
+  background: rgba(0,0,0,0.75);
+  padding: 0 3px;
+  border-radius: 3px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
 /* ── Barre Mana ──────────────────────────────────────────────────────────── */
 .combat-mana-bar {
   width: 100%;
@@ -2241,4 +2434,130 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   padding: 40px 20px;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SYSTÈME DE NIVEAUX PERSISTANTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.level-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 1.5;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(0,0,0,0.7);
+  z-index: 3;
+}
+
+.pdx-level-bar-wrap {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  margin-top: 3px;
+}
+
+.pdx-level-bar {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #55efc4, #74b9ff);
+  transition: width 0.4s ease;
+}
+
+.pdx-level-bonus {
+  font-size: 9px;
+  color: #55efc4;
+  font-weight: 600;
+  margin-top: 2px;
+  display: block;
+}
+
+.pdx-caught {
+  border: 2px solid var(--color-green);
+  border-radius: 4px;
+}
+
+/* ── Toast level up ──────────────────────────────────────────────────────── */
+.level-up-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.88);
+  border: 1px solid var(--color-gold);
+  border-radius: var(--radius-md);
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 9999;
+  animation: level-up-anim 2.5s ease forwards;
+  white-space: nowrap;
+}
+
+@keyframes level-up-anim {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SÉLECTEUR DE DIFFICULTÉ (menu principal)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.menu-difficulty {
+  width: 100%;
+  max-width: 320px;
+  margin-top: 4px;
+}
+
+.difficulty-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.difficulty-btns {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-difficulty {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-difficulty:hover:not(:disabled) {
+  background: rgba(255,255,255,0.12);
+  color: var(--text-primary);
+}
+
+.btn-difficulty.active {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+  background: rgba(255,215,0,0.1);
+}
+
+.btn-difficulty.locked {
+  opacity: 0.35;
+  cursor: not-allowed;
 }

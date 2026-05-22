@@ -30,6 +30,7 @@ import { getRunState, setRunState,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
 import { ITEMS }                         from '../data/items.js';
 import { getActiveSynergies, getFullStats }  from '../data/synergies.js';
+import { getLevelBadgeHTML, getLevelBonus }  from '../data/levelSystem.js';
 import { getMove }                           from '../data/moves.js';
 import { canEvolve, getEvolutionId }     from '../data/evolutionData.js';
 
@@ -223,6 +224,9 @@ export const PrepUI = {
       const itemHtml = unit.heldItem
         ? `<span class="slot-item">${unit.heldItem.emoji}</span>` : '';
 
+      const meta      = window.SaveManager?.loadMeta() ?? null;
+      const unitLevel = meta?.pokemonLevels?.[unit.id] ?? 1;
+
       slot.innerHTML = `
         <span class="type-corner tl" style="border-color:${c1} transparent transparent transparent"></span>
         <span class="type-corner tr" style="border-color:transparent ${c2} transparent transparent"></span>
@@ -231,6 +235,7 @@ export const PrepUI = {
         <img src="${unit.spriteUrl}" alt="${unit.name}"
              onerror="this.src='assets/placeholder.png'" />
         <span class="slot-name">${unit.name}</span>
+        ${unitLevel > 1 ? getLevelBadgeHTML(unitLevel) : ''}
         ${itemHtml}
       `;
     } else {
@@ -735,7 +740,8 @@ slot.addEventListener('drop', (e) => {
         if (this._field[c][r]) fieldUnits.push(this._field[c][r]);
 
     // Trois niveaux de stats
-    const full          = getFullStats(pokemon, fieldUnits);
+    const metaLvl = window.SaveManager?.loadMeta() ?? null;
+    const full    = getFullStats(pokemon, fieldUnits, metaLvl);
     const { base, withItem, withSynergy, itemBoosted, synergyBoosted, synColor } = full;
 
     const hasSynColor    = !!synColor;
@@ -744,6 +750,7 @@ slot.addEventListener('drop', (e) => {
 
     // Stat offensive dominante sur les stats FINALES
     const dominantOffense = (withSynergy.spa ?? 0) >= (withSynergy.atk ?? 0) ? '🔮' : '⚔️';
+    const pLevelSvg       = metaLvl?.pokemonLevels?.[pokemon.id] ?? 1;
 
     const axes = [
       { emoji: '❤️',  key: 'hp',      baseV: base.hp,              itemV: withItem.hp,              synV: withSynergy.hp,              max: 250, angle: -90  },

@@ -4,6 +4,7 @@
 
 import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { getMove }                             from '../data/moves.js';
+import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
 import { addCoins, getEnemyMultiplier }     from '../data/runState.js';
 import { getEffectiveStats }               from '../data/items.js';
 import { getActiveSynergies, getFullStats } from '../data/synergies.js';
@@ -22,6 +23,8 @@ export const CombatUI = {
   _enemyUnits:  [],
   _slots:       {},
   _hpState:     {},
+  _speed:       1,
+  _combatLog:   [],
   _unsubscribe: null,   // pour nettoyer le listener registre
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -36,6 +39,8 @@ export const CombatUI = {
     this._slots         = {};
     this._hpState       = {};
     this._statusTracker = {};
+    this._speed         = 1;
+    this._combatLog     = [];
 
     // Lit toujours depuis le registre (priorité sur data.playerUnits)
     this._playerUnits = registry.get('playerUnits') ?? data.playerUnits ?? [];
@@ -151,12 +156,34 @@ export const CombatUI = {
     phase.textContent = 'Préparez-vous !';
     wrapper.appendChild(phase);
 
-    // Bouton lancer
+    // Boutons lancer + vitesse
+    const btnRow = document.createElement('div');
+    btnRow.className = 'combat-btn-row';
+
     const btn = document.createElement('button');
     btn.className   = 'btn-danger btn-large';
     btn.id          = 'btn-start-combat';
     btn.textContent = '⚔ Lancer le combat';
-    wrapper.appendChild(btn);
+    btnRow.appendChild(btn);
+
+    const btnSpeed = document.createElement('button');
+    btnSpeed.className   = 'btn-speed';
+    btnSpeed.id          = 'btn-combat-speed';
+    btnSpeed.textContent = '▶▶ ×2';
+    btnSpeed.title       = 'Accélérer le combat';
+    btnSpeed.addEventListener('click', () => {
+      this._speed = this._speed === 1 ? 2 : 1;
+      btnSpeed.textContent = this._speed === 2 ? '▶ ×1' : '▶▶ ×2';
+      btnSpeed.classList.toggle('active', this._speed === 2);
+    });
+    btnRow.appendChild(btnSpeed);
+    wrapper.appendChild(btnRow);
+
+    // Zone journal
+    const logZone = document.createElement('div');
+    logZone.id        = 'combat-log-zone';
+    logZone.className = 'combat-log-zone hidden';
+    wrapper.appendChild(logZone);
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -287,13 +314,19 @@ export const CombatUI = {
 
   // ─────────────────────────────────────────────────────────────────────────
   _startCombat() {
-    const mapIndex = this._data.mapIndex ?? 0;
-    const mult     = getEnemyMultiplier(mapIndex);
+    const mapIndex    = this._data.mapIndex ?? 0;
+    const baseMult    = getEnemyMultiplier(mapIndex);
+    // Multiplicateur de difficulté (persistant via meta save)
+    const diffId      = window.SaveManager?.getDifficulty() ?? 'normal';
+    const diffMults   = { easy: 0.8, normal: 1.0, hard: 1.3, expert: 1.7 };
+    const diffMult    = diffMults[diffId] ?? 1.0;
+    const mult        = baseMult * diffMult;
 
     // ── Joueur : item stats + synergy stats ──────────────────────────────
     const playerSynergies = getActiveSynergies(this._playerUnits);
+    const meta = window.SaveManager?.loadMeta() ?? null;
     const playerForEngine = this._playerUnits.map(u => {
-      const full = getFullStats(u, this._playerUnits);
+      const full = getFullStats(u, this._playerUnits, meta);
       return { ...u, attributes: u.attributes ?? [], stats: full.withSynergy };
     });
 
@@ -316,14 +349,18 @@ export const CombatUI = {
   // ─────────────────────────────────────────────────────────────────────────
   _animateLog(log, index, onComplete) {
     if (index >= log.length) { onComplete(); return; }
-    const delay = this._handleEvent(log[index]);
+    const delay = Math.round(this._handleEvent(log[index]) / this._speed);
     setTimeout(() => this._animateLog(log, index + 1, onComplete), delay);
   },
 
   // ─────────────────────────────────────────────────────────────────────────
   _handleEvent(event) {
+    // Alimente le journal de combat
+    this._logEvent(event);
+
     switch (event.type) {
       case 'turn_start':
+        this._appendLog(`<span class="log-turn">— Tour ${(event.turn ?? 0) + 1} —</span>`);
         return DELAY_TURN_START;
 
       case 'attack': {
@@ -351,6 +388,8 @@ export const CombatUI = {
       case 'stat_change': {
         const key = this._buildKey(event.side, event.who);
         this._showStatChange(key, event.label, event.color);
+        // Met à jour le badge permanent
+        this._addStatBadge(key, event.stat, event.mult, event.color, event.label);
         return 90;
       }
 
@@ -540,6 +579,22 @@ export const CombatUI = {
     const phase = document.getElementById('combat-phase-text');
     if (phase) phase.textContent = isWin ? '🏆 Victoire !' : '💀 Défaite...';
 
+    // Gain de niveau pour les pokémons survivants après une victoire
+    if (isWin && window.SaveManager) {
+      const playerUnits = this._registry.get('playerUnits') ?? [];
+      const levelUps    = [];
+      playerUnits.forEach(u => {
+        if (!u.id) return;
+        const result = window.SaveManager.gainPokemonLevel(u.id);
+        if (result.gained) {
+          levelUps.push({ name: u.name, level: result.newLevel, id: u.id });
+        }
+      });
+      if (levelUps.length > 0) {
+        this._showLevelUps(levelUps);
+      }
+    }
+
     if (isWin) {
       addCoins(this._registry, 3);
       this._showRewardAnimation('+3 💰');
@@ -582,6 +637,20 @@ export const CombatUI = {
     box.appendChild(btn);
     overlay.appendChild(box);
     screen.appendChild(overlay);
+  },
+
+  _showLevelUps(levelUps) {
+    // Affiche une notification de level up pour chaque pokémon
+    levelUps.forEach((lu, i) => {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'level-up-toast';
+        const color = getLevelColor(lu.level);
+        el.innerHTML = `<span style="color:${color}">⬆ ${lu.name} → Nv.${lu.level}</span>`;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 2500);
+      }, i * 300);
+    });
   },
 
   _showRewardAnimation(text) {
@@ -638,6 +707,85 @@ export const CombatUI = {
     el.textContent = `${label} +${heal}`;
     slot.appendChild(el);
     setTimeout(() => el.remove(), 1100);
+  },
+
+  // ── Journal de combat ────────────────────────────────────────────────────
+  _logEvent(event) {
+    const t = event.type;
+    if (t === 'attack') {
+      const mover = event.isMove ? `<span class="log-move">⚡${event.moveName}</span> ` : '';
+      const eff   = event.typeMult >= 2 ? ' <span class="log-super">super efficace!</span>'
+                  : event.typeMult <= 0.5 ? ' <span class="log-weak">peu efficace</span>' : '';
+      const crit  = event.isCrit ? ' <span class="log-crit">critique!</span>' : '';
+      this._appendLog(
+        `${event.attackerName} → ${event.targetName}: ${mover}<b>-${event.damage} PV</b>${eff}${crit}`
+      );
+    } else if (t === 'status_applied') {
+      const stacks = event.stacks > 1 ? ` ×${event.stacks}` : '';
+      this._appendLog(`<span class="log-status">${event.label}${stacks}</span> sur ${event.targetName}`);
+    } else if (t === 'effect_damage') {
+      this._appendLog(
+        `<span class="log-status">${event.label}</span> ${event.targetName}: <b>-${event.damage} PV</b>`
+      );
+    } else if (t === 'effect_heal') {
+      this._appendLog(
+        `<span class="log-heal">${event.label}</span> ${event.targetName}: <b>+${event.heal} PV</b>`
+      );
+    } else if (t === 'unit_fainted') {
+      this._appendLog(`<span class="log-faint">💀 ${event.unitName} est K.O. !</span>`);
+    } else if (t === 'ultimate_start') {
+      this._appendLog(
+        `<span class="log-move">⚡ ${event.attackerSide === 'player' ? '🔵' : '🔴'} ${event.moveName} !</span>`
+      );
+    } else if (t === 'attack_skipped') {
+      this._appendLog(`${event.attackerSide === 'player' ? '🔵' : '🔴'} <i>${event.label}</i>`);
+    } else if (t === 'attack_missed') {
+      this._appendLog(`<i>${event.label}</i>`);
+    } else if (t === 'stat_change') {
+      this._appendLog(
+        `<span style="color:${event.color}">${event.label}</span>`
+      );
+    } else if (t === 'combat_end') {
+      const winner = event.winner === 'player' ? '🏆 Victoire !' : '💀 Défaite';
+      this._appendLog(`<b>${winner}</b> (tour ${(event.turn ?? 0) + 1})`);
+      // Affiche le journal
+      const logZone = document.getElementById('combat-log-zone');
+      if (logZone) {
+        logZone.innerHTML = `<div class="log-title">📋 Journal de combat</div>` +
+          this._combatLog.map(l => `<div class="log-line">${l}</div>`).join('');
+        logZone.classList.remove('hidden');
+      }
+    }
+  },
+
+  _appendLog(html) {
+    this._combatLog.push(html);
+  },
+
+  _addStatBadge(key, stat, mult, color, label) {
+    const slot = this._slots[key];
+    if (!slot) return;
+    const isBuff = mult > 1;
+    const side   = isBuff ? 'buffs' : 'debuffs';
+
+    // Conteneurs séparés : buffs à gauche, débuffs à droite
+    let container = slot.querySelector(`.combat-stat-${side}`);
+    if (!container) {
+      container = document.createElement('div');
+      container.className = `combat-stat-side combat-stat-${side}`;
+      slot.appendChild(container);
+    }
+
+    // Badge par stat (mis à jour si déjà présent)
+    let badge = container.querySelector(`[data-stat="${stat}"]`);
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className    = 'combat-stat-badge-perm';
+      badge.dataset.stat = stat;
+      container.appendChild(badge);
+    }
+    badge.textContent = label;
+    badge.style.color = color;
   },
 
   _showMoveAnimation(key, moveName) {

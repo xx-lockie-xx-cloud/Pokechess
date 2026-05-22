@@ -4,9 +4,11 @@
 // Plus de Phaser — la map est rendue en CSS/SVG par MapUI.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { UIManager } from './ui/UIManager.js';
+import { UIManager }   from './ui/UIManager.js';
+import { SaveManager } from './SaveManager.js';
 
-window.UIManager = UIManager;
+window.UIManager   = UIManager;
+window.SaveManager = SaveManager;
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -20,6 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const old = this._data.get(key);
       this._data.set(key, value);
       this.events.emit(`changedata-${key}`, this, value, old);
+      // Auto-save silencieuse à chaque changement d'état
+      if (key === 'runState' || key === 'playerUnits') {
+        SaveManager.save(this);
+      }
       return this;
     },
 

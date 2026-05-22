@@ -32,6 +32,7 @@ export const MapUI = {
   _nodes:    [],
   _start:    null,
   _mapIdx:   0,
+  _seed:     null,
   _reg:      null,
   _onNode:   null,
   _zoom:     1,
@@ -49,16 +50,46 @@ export const MapUI = {
     this._zoom   = 1;
 
     // Génère ou réutilise les nœuds
-    if (data?.mapNodes) {
-      this._nodes  = data.mapNodes;
-      this._start  = data.startNode ?? null;
-      this._mapIdx = data.mapIndex  ?? 0;
+    const state  = getRunState(registry);
+    this._mapIdx = data?.mapIndex ?? state.currentMap ?? 0;
+    const gen    = new MapGenerator();
+
+    if (data?.seed != null) {
+      // ── Restauration depuis seed ───────────────────────────────────────────
+      // Même seed → même PRNG → même layout garanti
+      this._nodes = gen.generate(this._mapIdx, data?.prevArena ?? null, data.seed);
+      this._start = gen._startNode;
+      this._seed  = data.seed;
+      gen.restoreState(
+        this._nodes, this._start,
+        data.visitedNodes   ?? [],
+        data.availableNodes ?? []
+      );
     } else {
-      const state  = getRunState(registry);
-      this._mapIdx = data?.mapIndex ?? state.currentMap ?? 0;
-      const gen    = new MapGenerator();  // cols/rowsMax calculés dans generate() selon mapIndex
-      this._nodes  = gen.generate(this._mapIdx, data?.prevArena ?? null);
-      this._start  = gen._startNode;
+      // ── Nouvelle map (ou retour depuis combat avec mapNodes) ───────────────
+      // On génère toujours depuis un nouveau seed (le seed sera sauvé après)
+      const prevArena = data?.prevArena ?? null;
+      this._nodes = gen.generate(this._mapIdx, prevArena);
+      this._start = gen._startNode;
+      this._seed  = gen._seed;
+      // Si mapNodes passé (retour combat), restaure l'état visited/available
+      // depuis le registre (sauvé dans runState)
+      if (data?.mapNodes) {
+        // Recopie visited/available depuis les mapNodes fournis
+        const visitedSet   = new Set();
+        const availableSet = new Set();
+        data.mapNodes.forEach(col => col.forEach(n => {
+          if (n.visited)   visitedSet.add(n.id);
+          if (n.available) availableSet.add(n.id);
+        }));
+        if (data.startNode?.visited) visitedSet.add('start');
+        gen.restoreState(
+          this._nodes, this._start,
+          [...visitedSet], [...availableSet]
+        );
+        // Conserve le seed existant si disponible dans les data
+        if (data.existingSeed != null) this._seed = data.existingSeed;
+      }
     }
 
     // Construit la structure de base (titre + viewport)

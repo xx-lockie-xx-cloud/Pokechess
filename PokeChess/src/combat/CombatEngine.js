@@ -14,8 +14,8 @@ function aoeMult(targetCount) {
 }
 
 const MANA_MAX       = 100;
-const MANA_ON_HIT    = 10;   // mana gagnée en attaquant
-const MANA_ON_RECV   = 15;   // mana gagnée en recevant un coup
+const MANA_ON_HIT    = 20;   // mana gagnée en attaquant
+const MANA_ON_RECV   = 0;    // mana reçu = % HP perdus (calculé dynamiquement)
 
 export class CombatEngine {
   constructor(playerUnits, enemyUnits, playerSynergies = [], enemySynergies = []) {
@@ -26,8 +26,10 @@ export class CombatEngine {
     this.playerFx = this._extractEffects(playerSynergies);
     this.enemyFx  = this._extractEffects(enemySynergies);
 
-    this.rageKills  = { player: 0, enemy: 0 };
-    this.swarmProcs = 0;
+    this.rageKills        = { player: 0, enemy: 0 };
+    this.swarmProcs       = 0;
+    this._playerSynData   = playerSynergies;
+    this._enemySynData    = enemySynergies;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -79,10 +81,21 @@ export class CombatEngine {
     return unit.statusEffects.some(s => s.type === type);
   }
   _addStatus(unit, type, turns = -1) {
-    if (this._hasStatus(unit, type)) return;
-    unit.statusEffects.push({ type, turnsLeft: turns });
+    const existing = unit.statusEffects.find(s => s.type === type);
+    // Poison : stackable (max 5 stacks)
+    if (type === 'poison' && existing) {
+      existing.stacks = Math.min((existing.stacks ?? 1) + 1, 5);
+      this.log.push({ type: 'status_applied', effect: type,
+        label: `☠️ Poison ×${existing.stacks}`,
+        stacks: existing.stacks,
+        targetId: unit.uid, targetName: unit.name, targetSide: unit.side });
+      return;
+    }
+    if (existing) return;  // autres statuts : non stackables
+    unit.statusEffects.push({ type, turnsLeft: turns, stacks: 1 });
     this.log.push({ type: 'status_applied', effect: type,
       label: STATUS_LABELS[type] ?? type,
+      stacks: 1,
       targetId: unit.uid, targetName: unit.name, targetSide: unit.side });
   }
   _removeStatus(unit, type) {
@@ -148,12 +161,14 @@ export class CombatEngine {
           targetId:u.uid, targetSide:u.side });
       });
     }
+    // Statuts de synergies : limités à 3 tours (renouvelés si réappliqués)
     const statusMap = { burn:'🔥', poison:'☠️', paralyze:'⚡', freeze:'❄️', confuse:'😵' };
+    const synergyStatusTurns = { burn: 3, poison: 3, confuse: 3, paralyze: -1, freeze: -1 };
     Object.keys(statusMap).forEach(eff => {
       if (!fx.has(eff)) return;
       enemies.forEach(u => {
         if (eff === 'burn') this._applyPermStat(u, 'atk', 0.90);
-        this._addStatus(u, eff);
+        this._addStatus(u, eff, synergyStatusTurns[eff] ?? -1);
       });
     });
   }
@@ -268,10 +283,11 @@ export class CombatEngine {
     if (!targets.length) return;
     this._performNormalAttack(unit, targets);
 
-    // Essaim
-    const sideFx = this._fx(unit.side);
+    // Essaim (chance configurée dans synergies.js, défaut 15%)
+    const sideFx    = this._fx(unit.side);
+    const swarmRate = this._swarmRate(unit.side);
     if (sideFx.has('swarm') && this.swarmProcs < 2 && unit.types.includes('Insecte')) {
-      if (Math.random() < 0.50) {
+      if (Math.random() < swarmRate) {
         const others = this._alliesOf(unit).filter(u =>
           u.hp > 0 && u.uid !== unit.uid && u.types.includes('Insecte'));
         if (others.length > 0) {
@@ -734,8 +750,13 @@ export class CombatEngine {
   // Infliger des dégâts avec log
   // ─────────────────────────────────────────────────────────────────────────
   _dealDamage(attacker, target, damage, mult, isSwarm, move = null) {
+    const hpBefore = target.hp;
     target.hp = Math.max(0, target.hp - damage);
-    target.mana = Math.min(MANA_MAX, target.mana + MANA_ON_RECV);
+    // Mana reçue = % HP perdus (ex: -20% HP → +20 mana)
+    const hpPctLost = target.maxHp > 0
+      ? Math.round((hpBefore - target.hp) / target.maxHp * 100)
+      : 0;
+    target.mana = Math.min(MANA_MAX, target.mana + hpPctLost);
     const typeMult = move?.ignoreType ? 1
       : getTypeMultiplier((move?.type ?? attacker.types[0]), target.types);
 
@@ -773,7 +794,19 @@ export class CombatEngine {
   // Formule dégâts (capacité — respecte la catégorie de la capacité)
   // ─────────────────────────────────────────────────────────────────────────
   _calcDamageMove(attacker, target, basePower, move) {
-    const isPhys  = move.cat === 'physical';
+    const isMixed = move.cat === 'mixed';
+    if (isMixed) {
+      // 50% des dégâts physiques + 50% des dégâts spéciaux
+      const split   = move.mixedSplit ?? 0.5;
+      const physDmg = this._calcDamageMoveSingle(attacker, target, basePower * split, 'physical', move);
+      const specDmg = this._calcDamageMoveSingle(attacker, target, basePower * (1 - split), 'special', move);
+      return Math.max(1, physDmg + specDmg);
+    }
+    return this._calcDamageMoveSingle(attacker, target, basePower, move.cat, move);
+  }
+
+  _calcDamageMoveSingle(attacker, target, basePower, cat, move) {
+    const isPhys  = cat === 'physical';
     const atkStat = isPhys ? this._getStat(attacker, 'atk') : this._getStat(attacker, 'spa');
     let   defStat = isPhys ? this._getStat(target, 'def')   : this._getStat(target, 'spd_def');
 
@@ -791,6 +824,7 @@ export class CombatEngine {
 
     return Math.max(1, Math.round(damage));
   }
+  // _calcDamageMove délègue ici ↑
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fin de tour
@@ -806,10 +840,14 @@ export class CombatEngine {
           damage:dmg, targetHpLeft:u.hp, targetMaxHp:u.maxHp });
         if (u.hp <= 0) this._handleFaint(u);
       }
-      if (this._hasStatus(u, 'poison')) {
-        const dmg = Math.max(1, Math.ceil(u.maxHp * 0.08));
+      const poisonStatus = u.statusEffects.find(s => s.type === 'poison');
+      if (poisonStatus) {
+        const stacks = poisonStatus.stacks ?? 1;
+        const dmg    = Math.max(1, Math.ceil(u.maxHp * 0.03 * stacks));
         u.hp = Math.max(0, u.hp - dmg);
-        this.log.push({ type:'effect_damage', effect:'poison', label:'☠️',
+        this.log.push({ type:'effect_damage', effect:'poison',
+          label: stacks > 1 ? `☠️×${stacks}` : '☠️',
+          stacks,
           targetId:u.uid, targetName:u.name, targetSide:u.side,
           damage:dmg, targetHpLeft:u.hp, targetMaxHp:u.maxHp });
         if (u.hp <= 0) this._handleFaint(u);
@@ -854,9 +892,23 @@ export class CombatEngine {
 
   _decrementMods() {
     [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      // Décrémente tempMods
       u.tempMods = u.tempMods
         .map(m => ({ ...m, turnsLeft: m.turnsLeft - 1 }))
         .filter(m => m.turnsLeft > 0);
+
+      // Décrémente les statuts à durée limitée (turnsLeft > 0)
+      u.statusEffects = u.statusEffects.filter(s => {
+        if (s.turnsLeft === -1) return true;  // permanent
+        if (s.turnsLeft <= 1) {
+          this.log.push({ type:'status_cleared', effect: s.type,
+            label: `${s.type} dissipé`,
+            targetId: u.uid, targetSide: u.side });
+          return false;
+        }
+        s.turnsLeft--;
+        return true;
+      });
     });
   }
 
@@ -868,6 +920,15 @@ export class CombatEngine {
     this.log.push({ type:'unit_fainted', unitId:unit.uid, unitName:unit.name, unitSide:unit.side });
     if (unit.types.includes('Dragon'))
       this.rageKills[unit.side] = (this.rageKills[unit.side] ?? 0) + 1;
+  }
+
+  _swarmRate(side) {
+    // Taux de proc de l'essaim depuis les synergies actives
+    if (side === 'player' && this._playerSynData) {
+      const s = this._playerSynData.find(x => x.effect === 'swarm');
+      if (s?.swarmChance) return s.swarmChance;
+    }
+    return 0.15;  // défaut 15%
   }
 
   _allAlive()      { return [...this.playerUnits, ...this.enemyUnits].filter(u => u.hp > 0); }

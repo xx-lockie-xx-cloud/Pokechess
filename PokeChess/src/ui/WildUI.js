@@ -13,6 +13,7 @@
 
 import { POKEMONS, TYPE_COLORS as TC } from '../data/pokemons.js';
 import { getBSTTier }                  from '../data/runState.js';
+import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
 import {
   getRunState, addToBank, removeCoins, addCoins,
@@ -252,6 +253,8 @@ export const WildUI = {
     const c1 = hexToCSS(TC[pokemon.types[0]] ?? 0x888888);
     const c2 = hexToCSS(TC[pokemon.types[1]] ?? TC[pokemon.types[0]] ?? 0x888888);
 
+    const price = CAPTURE_PRICE[tier] ?? 3;
+
     card.innerHTML = `
       ${buildCardFrame(tier)}
       <span class="type-corner tl" style="border-color: ${c1} transparent transparent transparent"></span>
@@ -262,6 +265,8 @@ export const WildUI = {
            onerror="this.src='assets/placeholder.png'" />
       <span class="card-name">${pokemon.name}</span>
       <span class="card-types">${pokemon.types.join(' / ')}</span>
+      ${(() => { const m = window.SaveManager?.loadMeta() ?? null; const l = m?.pokemonLevels?.[pokemon.id] ?? 1; return l > 1 ? getLevelBadgeHTML(l) : ''; })()}
+      <span class="card-price">${price} 💰</span>
     `;
 
     card.addEventListener('click', () => this._selectCard(pokemon, card));
@@ -297,23 +302,30 @@ export const WildUI = {
     const info = document.getElementById('wild-info');
     if (!info) return;
 
-    const s = pokemon.stats;
-    const dominantOffense = (s.spa ?? 0) >= (s.atk ?? 0) ? 'spa' : 'atk';
+    const s     = pokemon.stats;
+    const meta  = window.SaveManager?.loadMeta() ?? null;
+    const level = meta?.pokemonLevels?.[pokemon.id] ?? 1;
+    const lMult = getLevelBonus(level);
+
+    // Stats avec bonus de niveau appliqué
+    const boosted = (val) => level > 1 ? Math.round(val * lMult) : val;
+    const dominantOffense = (boosted(s.spa ?? 0)) >= (boosted(s.atk ?? 0)) ? 'spa' : 'atk';
 
     const STATS = [
-      { emoji:'❤️', key:'hp',      value: s.hp              },
-      { emoji:'⚔️', key:'atk',     value: s.atk             },
-      { emoji:'🛡️', key:'def',     value: s.def             },
-      { emoji:'🔮', key:'spa',     value: s.spa  ?? 0       },
-      { emoji:'💎', key:'spd_def', value: s.spd_def ?? s.def },
-      { emoji:'👟', key:'spd',     value: s.spd             },
+      { emoji:'❤️', key:'hp',      base: s.hp,              value: boosted(s.hp)              },
+      { emoji:'⚔️', key:'atk',     base: s.atk,             value: boosted(s.atk)             },
+      { emoji:'🛡️', key:'def',     base: s.def,             value: boosted(s.def)             },
+      { emoji:'🔮', key:'spa',     base: s.spa  ?? 0,       value: boosted(s.spa  ?? 0)       },
+      { emoji:'💎', key:'spd_def', base: s.spd_def ?? s.def, value: boosted(s.spd_def ?? s.def) },
+      { emoji:'👟', key:'spd',     base: s.spd,             value: boosted(s.spd)             },
     ];
 
-    const statsHtml = STATS.map(({ emoji, key, value }) => {
-      const isMain = key === dominantOffense;
+    const statsHtml = STATS.map(({ emoji, key, base, value }) => {
+      const isMain    = key === dominantOffense;
+      const isBoosted = level > 1 && value > base;
       return `<div class="stat-item${isMain ? ' stat-item--main' : ''}">
         <span class="stat-icon">${emoji}</span>
-        <span class="stat-value">${value}</span>
+        <span class="stat-value" style="${isBoosted ? 'color:#55efc4' : ''}">${value}${isBoosted ? `<span style="font-size:8px;color:#55efc4"> +${value-base}</span>` : ''}</span>
         <span class="stat-label">${STAT_EMOJIS_W[key] ? key.toUpperCase().replace('_DEF','D').replace('SPA','S.ATK') : key}</span>
       </div>`;
     }).join('');

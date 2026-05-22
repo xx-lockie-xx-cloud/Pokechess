@@ -4,8 +4,12 @@
 // Architecture : tous les écrans en HTML/CSS pur, map via MapUI.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getRunState, addSeenPokemon } from '../data/runState.js';
+import { getRunState, addSeenPokemon,
+         saveMapProgress, getMapProgress } from '../data/runState.js';
+import { DIFFICULTIES, getUnlockedDifficultiesWithMeta } from '../data/levelSystem.js';
+import { SaveManager }                from '../SaveManager.js';
 import { MapUI }          from './MapUI.js';
+import { MapGenerator }   from '../map/MapGenerator.js';
 import { PokedexUI }     from './PokedexUI.js';
 import { StarterUI }      from './StarterUI.js';
 import { WildUI }         from './WildUI.js';
@@ -48,12 +52,149 @@ class UIManagerClass {
     document.getElementById('btn-team')
       ?.addEventListener('click', () => this._togglePrep());
 
+    document.getElementById('btn-menu-home')
+      ?.addEventListener('click', () => {
+        const ok = confirm('Retourner au menu principal ? Ta progression est sauvegardée.');
+        if (!ok) return;
+        const mapEl = document.getElementById('screen-map');
+        if (mapEl) { mapEl.style.cssText = ''; mapEl.classList.remove('active'); }
+        this.show('menu');
+      });
+
     setInterval(() => this._refreshHeader(), 500);
 
-    // Pokédex — initialisé dès le démarrage (overlay toujours présent dans le DOM)
+    // Pokédex
     PokedexUI.init(registry);
 
+    // ── Sauvegarde ──────────────────────────────────────────────────────────
+    this._initSaveButtons();
+
     this.show('menu');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // _initSaveButtons() — branche les boutons du menu principal
+  // ─────────────────────────────────────────────────────────────────────────
+  _initSaveButtons() {
+    const hasSave = SaveManager.hasSave();
+
+    // Bouton Continuer
+    const btnContinue = document.getElementById('btn-continue');
+    const saveMeta    = document.getElementById('save-meta');
+    const saveActions = document.getElementById('menu-save-actions');
+
+    if (hasSave) {
+      btnContinue?.classList.remove('hidden');
+      saveActions?.classList.remove('hidden');
+
+      // Métadonnées de la save
+      const meta = SaveManager.getMeta();
+      if (meta && saveMeta) {
+        saveMeta.classList.remove('hidden');
+        saveMeta.innerHTML = `
+          <div class="save-meta-title">En route vers ${meta.city} — étape ${meta.step}/${meta.totalCols}</div>
+          <div class="save-meta-details">
+            <span>🗺 Arène ${meta.map}</span>
+            <span>💰 ${meta.coins} pièces</span>
+            <span>🐾 ${meta.units} pokémon${meta.units > 1 ? 's' : ''}</span>
+            <span style="color:var(--text-muted);font-size:10px">${meta.date}</span>
+          </div>
+        `;
+      }
+    }
+
+    // Continuer — restaure la map depuis le seed dans runState
+    btnContinue?.addEventListener('click', () => {
+      const save = SaveManager.load(this.registry);
+      if (!save) return;
+      const state = this.registry.get('runState');
+      if (!state) return;
+
+      // Le seed et la progression sont dans runState (auto-sauvegardés)
+      const progress = getMapProgress(this.registry);
+
+      if (progress.seed != null) {
+        this._startMapScene({
+          mapIndex:       state.currentMap ?? 0,
+          seed:           progress.seed,
+          visitedNodes:   progress.visited,
+          availableNodes: progress.available,
+        });
+      } else {
+        // Pas de seed → nouvelle map
+        this._startMapScene({ mapIndex: state.currentMap ?? 0 });
+      }
+      this.show('map');
+    });
+
+    // Nouvelle partie — écrase toujours la save de run en cours (roguelite)
+    document.getElementById('btn-new-game')?.addEventListener('click', () => {
+      SaveManager.deleteRunSave();  // efface uniquement la save de run (pas la meta)
+      this.show('starter');
+    });
+
+    // Export JSON
+    document.getElementById('btn-export-save')?.addEventListener('click', () => {
+      if (SaveManager.hasSave()) {
+        SaveManager.load(this.registry);   // s'assure que le registre est à jour
+      }
+      SaveManager.exportJSON(this.registry);
+    });
+
+    // Import JSON
+    document.getElementById('btn-import-save')?.addEventListener('click', () => {
+      SaveManager.importJSON(
+        this.registry,
+        (save) => {
+          alert('✅ Sauvegarde importée ! Clique sur "Continuer" pour reprendre.');
+          location.reload();   // recharge pour réinitialiser proprement l'UI
+        },
+        (err) => alert(`❌ ${err}`)
+      );
+    });
+
+    // Supprimer
+    document.getElementById('btn-delete-save')?.addEventListener('click', () => {
+      const ok = confirm('Supprimer définitivement ta sauvegarde ?');
+      if (!ok) return;
+      SaveManager.deleteSave();
+      location.reload();
+    });
+
+    // ── Sélecteur de difficulté ──────────────────────────────────────────
+    this._renderDifficultySelector();
+  }
+
+  _renderDifficultySelector() {
+    const container = document.getElementById('menu-difficulty');
+    if (!container) return;
+    const meta       = SaveManager.loadMeta();
+    const unlocked   = getUnlockedDifficultiesWithMeta(meta);
+    const current    = SaveManager.getDifficulty();
+
+    container.innerHTML = `
+      <div class="difficulty-label">Difficulté</div>
+      <div class="difficulty-btns">
+        ${unlocked.map(d => `
+          <button class="btn-difficulty ${d.id === current ? 'active' : ''}"
+                  data-id="${d.id}" title="${d.desc}">
+            ${d.label}
+          </button>
+        `).join('')}
+        ${DIFFICULTIES.filter(d => !unlocked.includes(d)).map(d => `
+          <button class="btn-difficulty locked" disabled title="Complète ${d.unlockAt} run(s) pour débloquer">
+            🔒 ${d.label.split(' ')[1]}
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    container.querySelectorAll('.btn-difficulty:not(.locked)').forEach(btn => {
+      btn.addEventListener('click', () => {
+        SaveManager.setDifficulty(btn.dataset.id);
+        this._renderDifficultySelector();
+      });
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -167,8 +308,34 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   _startMapScene(data) {
     MapUI.init(data, this.registry, (nodeData) => {
+      // Collecte visited/available depuis les nœuds mutés
+      const visited   = [];
+      const available = [];
+      if (nodeData.startNode?.visited) visited.push('start');
+      (nodeData.mapNodes ?? []).forEach(col =>
+        col.forEach(n => {
+          if (n.visited)   visited.push(n.id);
+          if (n.available) available.push(n.id);
+        })
+      );
+      // Colonne du nœud sélectionné
+      const colStr = nodeData.nodeId ? nodeData.nodeId.split('_')[0] : '0';
+      const col    = isNaN(parseInt(colStr, 10)) ? 0 : parseInt(colStr, 10);
+
+      // Sauve seed + progression dans runState (auto-persisté par game.js)
+      const seed = MapUI._seed;
+      if (seed != null) {
+        saveMapProgress(this.registry, seed, visited, available, col);
+      }
+
       this.onNodeSelected(nodeData);
     });
+
+    // Sauvegarde du seed initial (nouvelle map générée)
+    if (MapUI._seed != null && !data?.seed) {
+      const available = (MapUI._nodes?.[0] ?? []).map(n => n.id);
+      saveMapProgress(this.registry, MapUI._seed, ['start'], available, 0);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -241,7 +408,27 @@ class UIManagerClass {
   // Redémarre MapScene avec de nouvelles données sans toucher aux écrans HTML
   _refreshMapScene(data) {
     this.currentData = { ...this.currentData, ...data };
-    this._startMapScene(data);
+    // Récupère le seed et la progression depuis runState pour préserver le layout
+    const progress = getMapProgress(this.registry);
+    if (progress.seed != null && data.mapNodes) {
+      // Retour depuis combat/shop/item : restaure le layout par seed
+      // en recopiant visited/available depuis les mapNodes passés
+      const visitedSet   = new Set(['start']);
+      const availableSet = new Set();
+      (data.mapNodes ?? []).forEach(col => col.forEach(n => {
+        if (n.visited)   visitedSet.add(n.id);
+        if (n.available) availableSet.add(n.id);
+      }));
+      this._startMapScene({
+        mapIndex:       data.mapIndex,
+        seed:           progress.seed,
+        visitedNodes:   [...visitedSet],
+        availableNodes: [...availableSet],
+        prevArena:      data.prevArena ?? null,
+      });
+    } else {
+      this._startMapScene(data);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────

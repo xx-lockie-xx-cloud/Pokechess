@@ -3,22 +3,29 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
-// getEffectiveStats(unit) — retourne les stats avec les bonus d'objet appliqués.
-// Utilisé par PrepUI (toile SVG) et CombatUI (moteur de combat).
+// getEffectiveStats(unit, meta?) — stats avec bonus niveau + bonus objet.
+// Chaîne : base → ×niveau → ×objet
 // ─────────────────────────────────────────────────────────────────────────────
-export function getEffectiveStats(unit) {
+export function getEffectiveStats(unit, meta = null) {
   const base = { ...(unit.stats ?? {}) };
-  const item = unit.heldItem;
 
-  if (!item?.statBonus) return base;
-
-  // Vérifie le filtre de type (ex. Eau Mystique → uniquement type Eau)
-  if (item.typeFilter) {
-    const types = unit.types ?? [];
-    if (!types.includes(item.typeFilter)) return base;
+  // Bonus de niveau (persistant entre les runs)
+  const level     = meta?.pokemonLevels?.[unit.id] ?? unit.level ?? 1;
+  const levelMult = level > 1 ? 1 + (level - 1) * 0.005 : 1;
+  const withLevel = {};
+  for (const [k, v] of Object.entries(base)) {
+    withLevel[k] = level > 1 ? Math.round(v * levelMult) : v;
   }
 
-  const result = { ...base };
+  const item = unit.heldItem;
+  if (!item?.statBonus) return withLevel;
+
+  if (item.typeFilter) {
+    const types = unit.types ?? [];
+    if (!types.includes(item.typeFilter)) return withLevel;
+  }
+
+  const result = { ...withLevel };
   for (const [stat, mult] of Object.entries(item.statBonus)) {
     if (result[stat] != null) {
       result[stat] = Math.round(result[stat] * mult);
@@ -50,13 +57,13 @@ export const ITEMS = {
     statBonus: { atk: 1.30, spa: 1.30 },
   },
   charbon: {
-    id: 'charbon', name: 'Charbon', emoji: '🪨', price: 4,
+    id: 'charbon', name: 'Charbon', emoji: '🔥', price: 4,
     type: 'equippable', typeFilter: 'Feu',
     description: '+30% ATK et SP.ATK (type Feu).',
     statBonus: { atk: 1.30, spa: 1.30 },
   },
   poudre_de_feuille: {
-    id: 'poudre_de_feuille', name: 'Poudre de Feuille', emoji: '🍃', price: 4,
+    id: 'poudre_de_feuille', name: 'Encens Fleur', emoji: '🍃', price: 4,
     type: 'equippable', typeFilter: 'Plante',
     description: '+30% ATK et SP.ATK (type Plante).',
     statBonus: { atk: 1.30, spa: 1.30 },
