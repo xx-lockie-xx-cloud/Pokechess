@@ -2749,10 +2749,91 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     padding: 4px 7px;
   }
 
-  /* ── Labels labels dans le SVG : masque les valeurs très petites ─────────
-     Sur mobile le SVG est 120px, les labels seraient illisibles */
+  /* ── Synergies : icône + étoiles seulement, pas de nom du type ─────────────
+     Le nom (Feu, Eau, etc.) prend trop de place sur mobile.
+     On garde l'icône et les étoiles, le tooltip reste accessible.     */
+  .synergy-badge .synergy-name {
+    display: none;
+  }
+
+  /* ── Tooltip synergies : visible au toucher, au-dessus de la bannière ───────
+     Sur mobile :
+     - :hover ne fonctionne pas → on utilise :focus-within + touch via JS
+     - z-index élevé pour passer au-dessus du header fixe
+     - Position vers le bas si peu de place en haut                     */
+  .synergy-badge .synergy-tooltip {
+    z-index: 9999 !important;
+    bottom: auto;
+    top: calc(100% + 6px);   /* s'ouvre vers le bas par défaut */
+    left: 0;
+    right: auto;
+    max-width: 200px;
+    white-space: normal;     /* autorise le retour à la ligne */
+  }
+
+  /* Quand le tooltip passerait hors écran à droite */
+  .synergy-badge:last-child .synergy-tooltip,
+  .synergy-badge:nth-last-child(-n+2) .synergy-tooltip {
+    left: auto;
+    right: 0;
+  }
+
+  /* Affichage au toucher (toggle via classe .tooltip-open ajoutée par JS) */
+  .synergy-badge.tooltip-open .synergy-tooltip {
+    display: block !important;
+  }
+
+  /* ── Header : rééquilibrage gauche/droite ────────────────────────────────
+     Pokédex déplacé à gauche (à côté du menu), titre centré,
+     équipe à droite. Bouton menu réduit à un carré compact.            */
+  #game-header {
+    grid-template-columns: auto 1fr auto;
+    padding: 0 8px;
+  }
+
+  .header-left {
+    gap: 4px;
+  }
+
+  /* Bouton menu : carré compact */
+  #btn-menu-home {
+    font-size: 14px !important;
+    padding: 4px 7px !important;
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+  /* Pokédex dans le header-left (déplacé par JS) */
+  #btn-pokedex {
+    font-size: 14px;
+    padding: 4px 7px;
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+  /* Bouton équipe : à droite uniquement */
+  #btn-team {
+    font-size: 14px;
+    padding: 4px 10px;
+  }
+
+  /* ── SVG stats PrepUI : texte plus grand, toile optimisée ───────────────
+     Le SVG garde 120px mais les labels utilisent l'espace disponible.
+     Police plus grande et emojis lisibles à cette taille.              */
+  #prep-spider {
+    width:  130px !important;
+    height: 130px !important;
+    overflow: visible !important; /* laisse les labels dépasser si besoin */
+  }
+
+  /* Texte SVG : plus grand et lisible à 130px */
   #prep-spider text {
-    font-size: 7px !important;
+    font-size: 8px !important;
+  }
+
+  /* La section spider prend toute la largeur disponible à droite */
+  .spider-section {
+    overflow: visible;
   }
 
 }
