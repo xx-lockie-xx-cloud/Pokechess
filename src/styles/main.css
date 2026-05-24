@@ -137,12 +137,13 @@ img {
   text-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
 }
 
-/* Bouton retour menu */
+/* Bouton retour menu — compact */
 .btn-home {
   font-size: 11px !important;
-  padding: 5px 10px !important;
+  padding: 4px 8px !important;
   border-radius: var(--radius-sm);
   white-space: nowrap;
+  min-width: 0;
 }
 
 #ui-coins, #ui-pokeballs {
@@ -2757,3 +2758,4 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 }
 /* ── Fin du bloc mobile ───────────────────────────────────────────────────── */
+
