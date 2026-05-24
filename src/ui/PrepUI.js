@@ -818,11 +818,12 @@ slot.addEventListener('drop', (e) => {
     // Polygone effectif
     const polyPts = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
-    // Tailles adaptatives : plus grandes sur mobile (SVG 120px = scale 0.6)
+    // Tailles adaptatives mobile — les labels débordent via overflow:visible
+    // La toile reste 120px, seuls les textes sortent légèrement
     const isMobile  = window.innerWidth <= 768;
-    const emojiSize = isMobile ? 27 : 13;
-    const valSize   = isMobile ? 22 : 8;
-    const labelDist = isMobile ? 26 : 18;
+    const emojiSize = isMobile ? 38 : 13;
+    const valSize   = isMobile ? 28 : 8;
+    const labelDist = isMobile ? 20 : 18;  // réduit : labels plus gros, moins loin
 
     // Icônes + valeurs
     // Priorité couleur : Doré (dominant) > Type (synergies) > Vert (item) > Gris
