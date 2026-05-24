@@ -6,6 +6,7 @@
 
 import { getRunState, addSeenPokemon,
          saveMapProgress, getMapProgress } from '../data/runState.js';
+import { DIFFICULTIES, getUnlockedDifficultiesWithMeta } from '../data/levelSystem.js';
 import { SaveManager }                from '../SaveManager.js';
 import { MapUI }          from './MapUI.js';
 import { MapGenerator }   from '../map/MapGenerator.js';
@@ -128,7 +129,7 @@ class UIManagerClass {
 
     // Nouvelle partie — écrase toujours la save de run en cours (roguelite)
     document.getElementById('btn-new-game')?.addEventListener('click', () => {
-      SaveManager.deleteRunSave();
+      SaveManager.deleteRunSave();  // efface uniquement la save de run (pas la meta)
       this.show('starter');
     });
 
@@ -167,41 +168,32 @@ class UIManagerClass {
   _renderDifficultySelector() {
     const container = document.getElementById('menu-difficulty');
     if (!container) return;
+    const meta       = SaveManager.loadMeta();
+    const unlocked   = getUnlockedDifficultiesWithMeta(meta);
+    const current    = SaveManager.getDifficulty();
 
-    // Import dynamique pour éviter les dépendances circulaires
-    import('../data/levelSystem.js').then(({ DIFFICULTIES, getUnlockedDifficultiesWithMeta }) => {
-      const meta     = SaveManager.loadMeta();
-      const unlocked = getUnlockedDifficultiesWithMeta(meta);
-      const unlockedIds = unlocked.map(d => d.id);
-      const current  = SaveManager.getDifficulty();
-      const locked   = DIFFICULTIES.filter(d => !unlockedIds.includes(d.id));
+    container.innerHTML = `
+      <div class="difficulty-label">Difficulté</div>
+      <div class="difficulty-btns">
+        ${unlocked.map(d => `
+          <button class="btn-difficulty ${d.id === current ? 'active' : ''}"
+                  data-id="${d.id}" title="${d.desc}">
+            ${d.label}
+          </button>
+        `).join('')}
+        ${DIFFICULTIES.filter(d => !unlocked.includes(d)).map(d => `
+          <button class="btn-difficulty locked" disabled title="Complète ${d.unlockAt} run(s) pour débloquer">
+            🔒 ${d.label.split(' ')[1]}
+          </button>
+        `).join('')}
+      </div>
+    `;
 
-      container.innerHTML = `
-        <div class="difficulty-label">Difficulté</div>
-        <div class="difficulty-btns">
-          ${unlocked.map(d => `
-            <button class="btn-difficulty ${d.id === current ? 'active' : ''}"
-                    data-id="${d.id}" title="${d.desc}">
-              ${d.label}
-            </button>
-          `).join('')}
-          ${locked.map(d => `
-            <button class="btn-difficulty locked" disabled
-                    title="Complète ${d.unlockAt} run(s) pour débloquer">
-              🔒 ${d.label.split(' ').slice(1).join(' ')}
-            </button>
-          `).join('')}
-        </div>
-      `;
-
-      container.querySelectorAll('.btn-difficulty:not(.locked)').forEach(btn => {
-        btn.addEventListener('click', () => {
-          SaveManager.setDifficulty(btn.dataset.id);
-          this._renderDifficultySelector();
-        });
+    container.querySelectorAll('.btn-difficulty:not(.locked)').forEach(btn => {
+      btn.addEventListener('click', () => {
+        SaveManager.setDifficulty(btn.dataset.id);
+        this._renderDifficultySelector();
       });
-    }).catch(e => {
-      console.warn('[UIManager] difficulty selector failed:', e);
     });
   }
 
