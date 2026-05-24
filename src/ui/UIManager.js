@@ -71,8 +71,19 @@ class UIManagerClass {
     // (à côté du bouton Menu) pour équilibrer gauche/droite du titre
     this._balanceHeaderMobile();
 
-    // ── Sauvegarde ──────────────────────────────────────────────────────────
-    this._initSaveButtons();
+    // ── Bouton Nouvelle Partie — branché directement ici pour fiabilité ───────
+    // Ne pas dépendre de _initSaveButtons pour ce bouton critique
+    document.getElementById('btn-new-game')?.addEventListener('click', () => {
+      SaveManager.deleteRunSave();
+      this.show('starter');
+    });
+
+    // ── Sauvegarde (autres boutons : continuer, export, import, supprimer) ───
+    try {
+      this._initSaveButtons();
+    } catch (e) {
+      console.warn('[UIManager] _initSaveButtons failed:', e);
+    }
 
     this.show('menu');
   }
@@ -84,26 +95,26 @@ class UIManagerClass {
   // Déplace #btn-pokedex dans .header-left si l'écran est petit
   // Cela équilibre : [🏠 📖] [PokeChess] [⚔]
   _balanceHeaderMobile() {
-    const isMobile = () => window.innerWidth <= 768;
-    const move = () => {
-      const btnPokedex  = document.getElementById('btn-pokedex');
-      const headerLeft  = document.querySelector('.header-left');
-      const headerRight = document.querySelector('.header-right');
-      if (!btnPokedex || !headerLeft || !headerRight) return;
-      if (isMobile()) {
-        // Déplace Pokédex dans header-left s'il n'y est pas déjà
-        if (!headerLeft.contains(btnPokedex)) {
-          headerLeft.appendChild(btnPokedex);
+    try {
+      const isMobile = () => window.innerWidth <= 768;
+      const move = () => {
+        const btnPokedex  = document.getElementById('btn-pokedex');
+        const headerLeft  = document.querySelector('.header-left');
+        const headerRight = document.querySelector('.header-right');
+        if (!btnPokedex || !headerLeft || !headerRight) return;
+        if (isMobile()) {
+          if (!headerLeft.contains(btnPokedex))
+            headerLeft.appendChild(btnPokedex);
+        } else {
+          if (!headerRight.contains(btnPokedex))
+            headerRight.insertBefore(btnPokedex, headerRight.firstChild);
         }
-      } else {
-        // Remet Pokédex dans header-right sur desktop
-        if (!headerRight.contains(btnPokedex)) {
-          headerRight.insertBefore(btnPokedex, headerRight.firstChild);
-        }
-      }
-    };
-    move();
-    window.addEventListener('resize', move);
+      };
+      move();
+      window.addEventListener('resize', move);
+    } catch (e) {
+      console.warn('[UIManager] _balanceHeaderMobile failed:', e);
+    }
   },
 
   _initSaveButtons() {
@@ -158,11 +169,7 @@ class UIManagerClass {
       this.show('map');
     });
 
-    // Nouvelle partie — écrase toujours la save de run en cours (roguelite)
-    document.getElementById('btn-new-game')?.addEventListener('click', () => {
-      SaveManager.deleteRunSave();  // efface uniquement la save de run (pas la meta)
-      this.show('starter');
-    });
+    // Nouvelle partie — géré dans init() pour fiabilité
 
     // Export JSON
     document.getElementById('btn-export-save')?.addEventListener('click', () => {

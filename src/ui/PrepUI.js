@@ -569,21 +569,29 @@ slot.addEventListener('drop', (e) => {
       container.appendChild(badge);
 
       // ── Touch : toggle tooltip au tap sur mobile ─────────────────────────
-      // Sur mobile :hover ne se déclenche pas → on gère le tap manuellement
-      badge.addEventListener('touchstart', (e) => {
+      // Utilise touchend (pas touchstart) pour ne pas interférer
+      // avec les autres éléments cliquables de la page
+      badge.addEventListener('touchend', (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        // Ferme tous les autres tooltips ouverts
         document.querySelectorAll('.synergy-badge.tooltip-open')
           .forEach(b => { if (b !== badge) b.classList.remove('tooltip-open'); });
         badge.classList.toggle('tooltip-open');
-      }, { passive: true });
+      });
     });
 
-    // Ferme le tooltip en tapant ailleurs
-    document.addEventListener('touchstart', () => {
-      document.querySelectorAll('.synergy-badge.tooltip-open')
-        .forEach(b => b.classList.remove('tooltip-open'));
-    }, { passive: true });
+    // Ferme le tooltip en tapant ailleurs — uniquement sur la zone prep
+    // (ne pas mettre sur document pour éviter d'intercepter les boutons)
+    const prepBody = document.getElementById('overlay-prep');
+    if (prepBody && !prepBody._tooltipListenerAdded) {
+      prepBody._tooltipListenerAdded = true;
+      prepBody.addEventListener('touchstart', (e) => {
+        if (!e.target.closest('.synergy-badge')) {
+          document.querySelectorAll('.synergy-badge.tooltip-open')
+            .forEach(b => b.classList.remove('tooltip-open'));
+        }
+      }, { passive: true });
+    }
   },
 
   // ─────────────────────────────────────────────────────────────────────────
