@@ -557,7 +557,7 @@ slot.addEventListener('drop', (e) => {
         : '';
 
       badge.innerHTML = `
-        ${syn.icon} ${syn.type} ${'★'.repeat(syn.tier)}
+        ${syn.icon}<span class="synergy-name"> ${syn.type}</span> ${'★'.repeat(syn.tier)}
         <span class="synergy-tooltip">
           <strong>${syn.icon} ${syn.type} — ${syn.tier === 3 ? '3★' : '2★'}</strong>
           <span style="color:var(--text-muted);font-size:9px">${syn.count} pokémons</span>
@@ -567,7 +567,23 @@ slot.addEventListener('drop', (e) => {
         </span>
       `;
       container.appendChild(badge);
+
+      // ── Touch : toggle tooltip au tap sur mobile ─────────────────────────
+      // Sur mobile :hover ne se déclenche pas → on gère le tap manuellement
+      badge.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+        // Ferme tous les autres tooltips ouverts
+        document.querySelectorAll('.synergy-badge.tooltip-open')
+          .forEach(b => { if (b !== badge) b.classList.remove('tooltip-open'); });
+        badge.classList.toggle('tooltip-open');
+      }, { passive: true });
     });
+
+    // Ferme le tooltip en tapant ailleurs
+    document.addEventListener('touchstart', () => {
+      document.querySelectorAll('.synergy-badge.tooltip-open')
+        .forEach(b => b.classList.remove('tooltip-open'));
+    }, { passive: true });
   },
 
   // ─────────────────────────────────────────────────────────────────────────
