@@ -854,9 +854,9 @@ slot.addEventListener('drop', (e) => {
       return `
         ${bgRect}
         <text x="${lx.toFixed(1)}" y="${(ly - 6).toFixed(1)}"
-              text-anchor="middle" font-size="13" dominant-baseline="middle">${ax.emoji}</text>
+              text-anchor="middle" font-size="16" dominant-baseline="middle">${ax.emoji}</text>
         <text x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}"
-              text-anchor="middle" font-size="8" fill="${valColor}"
+              text-anchor="middle" font-size="11" fill="${valColor}"
               font-weight="${isMain || isBoostedAny ? 'bold' : 'normal'}"
               dominant-baseline="middle">${valueStr}</text>
       `;
@@ -917,10 +917,7 @@ slot.addEventListener('drop', (e) => {
                stroke="${finalColor}" stroke-width="${finalStrokeW}"/>
       ${dots}
       ${labels}
-      <text x="${cx}" y="${cy}" text-anchor="middle"
-            font-size="9" fill="#e2e8f0" dominant-baseline="middle">
-        ${pokemon.name}
-      </text>
+
     `;
   },
 
