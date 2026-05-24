@@ -818,10 +818,16 @@ slot.addEventListener('drop', (e) => {
     // Polygone effectif
     const polyPts = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
+    // Tailles adaptatives : plus grandes sur mobile (SVG 120px = scale 0.6)
+    const isMobile  = window.innerWidth <= 768;
+    const emojiSize = isMobile ? 27 : 13;
+    const valSize   = isMobile ? 22 : 8;
+    const labelDist = isMobile ? 26 : 18;
+
     // Icônes + valeurs
     // Priorité couleur : Doré (dominant) > Type (synergies) > Vert (item) > Gris
     const labels = axes.map(ax => {
-      const dist       = R + 18;
+      const dist       = R + labelDist;
       const lx         = cx + dist * Math.cos(toRad(ax.angle));
       const ly         = cy + dist * Math.sin(toRad(ax.angle));
       const isMain     = ax.emoji === dominantOffense;
@@ -854,9 +860,9 @@ slot.addEventListener('drop', (e) => {
       return `
         ${bgRect}
         <text x="${lx.toFixed(1)}" y="${(ly - 6).toFixed(1)}"
-              text-anchor="middle" font-size="16" dominant-baseline="middle">${ax.emoji}</text>
+              text-anchor="middle" font-size="${emojiSize}" dominant-baseline="middle">${ax.emoji}</text>
         <text x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}"
-              text-anchor="middle" font-size="11" fill="${valColor}"
+              text-anchor="middle" font-size="${valSize}" fill="${valColor}"
               font-weight="${isMain || isBoostedAny ? 'bold' : 'normal'}"
               dominant-baseline="middle">${valueStr}</text>
       `;
