@@ -115,7 +115,7 @@ class UIManagerClass {
     } catch (e) {
       console.warn('[UIManager] _balanceHeaderMobile failed:', e);
     }
-  },
+  }
 
   _initSaveButtons() {
     const hasSave = SaveManager.hasSave();
