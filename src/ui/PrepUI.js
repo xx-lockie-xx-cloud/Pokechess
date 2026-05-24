@@ -557,7 +557,7 @@ slot.addEventListener('drop', (e) => {
         : '';
 
       badge.innerHTML = `
-        ${syn.icon}<span class="synergy-name"> ${syn.type}</span> ${'★'.repeat(syn.tier)}
+        ${syn.icon} ${syn.type} ${'★'.repeat(syn.tier)}
         <span class="synergy-tooltip">
           <strong>${syn.icon} ${syn.type} — ${syn.tier === 3 ? '3★' : '2★'}</strong>
           <span style="color:var(--text-muted);font-size:9px">${syn.count} pokémons</span>
@@ -568,30 +568,7 @@ slot.addEventListener('drop', (e) => {
       `;
       container.appendChild(badge);
 
-      // ── Touch : toggle tooltip au tap sur mobile ─────────────────────────
-      // Utilise touchend (pas touchstart) pour ne pas interférer
-      // avec les autres éléments cliquables de la page
-      badge.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        document.querySelectorAll('.synergy-badge.tooltip-open')
-          .forEach(b => { if (b !== badge) b.classList.remove('tooltip-open'); });
-        badge.classList.toggle('tooltip-open');
-      });
     });
-
-    // Ferme le tooltip en tapant ailleurs — uniquement sur la zone prep
-    // (ne pas mettre sur document pour éviter d'intercepter les boutons)
-    const prepBody = document.getElementById('overlay-prep');
-    if (prepBody && !prepBody._tooltipListenerAdded) {
-      prepBody._tooltipListenerAdded = true;
-      prepBody.addEventListener('touchstart', (e) => {
-        if (!e.target.closest('.synergy-badge')) {
-          document.querySelectorAll('.synergy-badge.tooltip-open')
-            .forEach(b => b.classList.remove('tooltip-open'));
-        }
-      }, { passive: true });
-    }
   },
 
   // ─────────────────────────────────────────────────────────────────────────
