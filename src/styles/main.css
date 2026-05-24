@@ -2723,8 +2723,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   }
 
   #prep-spider {
-    width:  120px !important;
-    height: 120px !important;
+    width:   120px !important;
+    height:  120px !important;
+    overflow: visible !important; /* labels peuvent dépasser sans agrandir le module */
   }
 
   /* Label banque */
