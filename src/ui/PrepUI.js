@@ -823,7 +823,7 @@ slot.addEventListener('drop', (e) => {
     const isMobile  = window.innerWidth <= 768;
     const emojiSize = isMobile ? 38 : 13;
     const valSize   = isMobile ? 28 : 8;
-    const labelDist = isMobile ? 20 : 18;  // réduit : labels plus gros, moins loin
+    const labelDist = isMobile ? 12 : 18;  // très proche de la toile sur mobile
 
     // Icônes + valeurs
     // Priorité couleur : Doré (dominant) > Type (synergies) > Vert (item) > Gris
