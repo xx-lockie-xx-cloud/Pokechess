@@ -86,6 +86,7 @@ class UIManagerClass {
     if (hasSave) {
       btnContinue?.classList.remove('hidden');
       saveActions?.classList.remove('hidden');
+      document.getElementById('menu-save-actions-extra')?.classList.remove('hidden');
 
       // Métadonnées de la save
       const meta = SaveManager.getMeta();
@@ -153,7 +154,7 @@ class UIManagerClass {
       );
     });
 
-    // Supprimer
+    // Supprimer la run
     document.getElementById('btn-delete-save')?.addEventListener('click', () => {
       const ok = confirm('Supprimer définitivement ta sauvegarde ?');
       if (!ok) return;
@@ -161,9 +162,49 @@ class UIManagerClass {
       location.reload();
     });
 
+    // Reset complet (achievements + niveaux + méta)
+    document.getElementById('btn-reset-all')?.addEventListener('click', () => {
+      const ok1 = confirm('⚠️ Réinitialiser TOUTE ta progression ? (niveaux, succès, difficulté)');
+      if (!ok1) return;
+      const ok2 = confirm('Dernière confirmation — cette action est irréversible.');
+      if (!ok2) return;
+      SaveManager.resetMeta();
+      SaveManager.deleteSave();
+      location.reload();
+    });
+
+    // Affiche les achievements débloqués dans le menu
+    this._renderMenuAchievements();
+
     // ── Sélecteur de difficulté ──────────────────────────────────────────
     this._renderDifficultySelector();
   }
+
+  // Affiche un résumé des achievements débloqués dans le menu principal
+  _renderMenuAchievements() {
+    const container = document.getElementById('menu-achievements');
+    if (!container) return;
+    import('../data/levelSystem.js').then(({ ACHIEVEMENTS }) => {
+      const meta     = SaveManager.loadMeta();
+      const unlocked = meta.achievements ?? {};
+      const done     = Object.values(ACHIEVEMENTS)
+        .filter(a => unlocked[a.id]?.unlocked);
+      const total    = Object.values(ACHIEVEMENTS).length;
+      if (!done.length) {
+        container.innerHTML = `<span class="menu-ach-empty">Aucun succès débloqué</span>`;
+        return;
+      }
+      container.innerHTML = `
+        <div class="menu-ach-title">🏅 Succès (${done.length}/${total})</div>
+        <div class="menu-ach-list">
+          ${done.slice(0, 6).map(a =>
+            `<span class="menu-ach-badge" title="${a.desc}">${a.label}</span>`
+          ).join('')}
+          ${done.length > 6 ? `<span class="menu-ach-more">+${done.length - 6}</span>` : ''}
+        </div>
+      `;
+    }).catch(() => {});
+  },
 
   _renderDifficultySelector() {
     const container = document.getElementById('menu-difficulty');

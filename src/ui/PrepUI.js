@@ -506,6 +506,22 @@ slot.addEventListener('drop', (e) => {
     this._saveState(this._registry);
   },
 
+  // Vend l'objet tenu par le pokémon sélectionné (moitié du prix d'achat)
+  _sellItem() {
+    const pokemon = this._selected;
+    if (!pokemon?.heldItem) return;
+    const item     = pokemon.heldItem;
+    const sellPrice = Math.max(0, Math.floor((item.price ?? 4) / 2));
+    const ok = confirm(`Vendre ${item.emoji} ${item.name} pour ${sellPrice} 💰 ?`);
+    if (!ok) return;
+    addCoins(this._registry, sellPrice);
+    const updated = { ...pokemon, heldItem: null };
+    this._updateUnit(updated);
+    this._renderActionBar(updated);
+    this._drawSpider(updated);
+    this._renderSynergies();
+  },
+
   _sellPrice(pokemon) {
     // Prix de revente selon tier : T1=0, T2=1, T3=2, T4=3, T5=4
     const SELL = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4 };
@@ -708,9 +724,14 @@ slot.addEventListener('drop', (e) => {
         ${moveBlock}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-self:flex-start">
-        ${pokemon.heldItem ? `<button class="btn-unequip" id="btn-prep-unequip">
-          ${pokemon.heldItem.emoji} Retirer
-        </button>` : ''}
+        ${pokemon.heldItem ? `
+          <button class="btn-unequip" id="btn-prep-unequip">
+            ${pokemon.heldItem.emoji} Retirer
+          </button>
+          <button class="btn-sell btn-sell-item" id="btn-prep-sell-item">
+            Vendre objet ${Math.max(0, Math.floor((pokemon.heldItem.price ?? 4) / 2))} 💰
+          </button>
+        ` : ''}
         <button class="btn-sell" id="btn-prep-sell">
           Vendre ${price} 💰
         </button>
@@ -722,6 +743,9 @@ slot.addEventListener('drop', (e) => {
 
     document.getElementById('btn-prep-unequip')
       ?.addEventListener('click', () => this._unequip());
+
+    document.getElementById('btn-prep-sell-item')
+      ?.addEventListener('click', () => this._sellItem());
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -822,7 +846,7 @@ slot.addEventListener('drop', (e) => {
     // La toile reste 120px, seuls les textes sortent légèrement
     const isMobile  = window.innerWidth <= 768;
     const emojiSize = isMobile ? 38 : 13;
-    const valSize   = isMobile ? 28 : 8;
+    const valSize   = isMobile ? 56 : 8;
     const labelDist = isMobile ? 12 : 18;  // très proche de la toile sur mobile
 
     // Icônes + valeurs

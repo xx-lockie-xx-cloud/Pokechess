@@ -6,6 +6,7 @@ import { SYNERGIES }          from '../data/synergies.js';
 import { TYPE_CHART }         from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES } from '../data/moves.js';
 import { getSeenPokemon }     from '../data/runState.js';
+import { ACHIEVEMENTS }        from '../data/levelSystem.js';
 import { getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
 import { POKEMONS }           from '../data/pokemons.js';
 
@@ -21,10 +22,116 @@ const TYPE_COLORS = {
   Sol:'#e0c068',      Vol:'#a890f0',     Psy:'#f85888',    Insecte:'#a8b820',
   Roche:'#b8a038',    Spectre:'#705898', Dragon:'#7038f8', Ténèbres:'#705848',
   Acier:'#b8b8d0',    Fée:'#ee99ac',
+  // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
 };
 
 const STAT_EMOJIS = {
   hp:'❤️', atk:'⚔️', def:'🛡️', spa:'🔮', spd_def:'💎', spd:'👟',
+  // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
 };
 
 const EFFECT_DESC = {
@@ -44,9 +151,115 @@ const EFFECT_DESC = {
   charm:'🧚 Charme : les ennemis ciblent toujours le + défensif',
   rage:'🐉 Rage : +10% dégâts par allié Dragon KO',
   iron:'⚙️ Armure Acier : -20% dégâts reçus pour les Acier',
+  // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
 };
 
-const CAT_LABEL = { physical:'⚔️ Physique', special:'🔮 Spécial', status:'✨ Statut' };
+const CAT_LABEL = { physical:'⚔️ Physique', special:'🔮 Spécial', status:'✨ Statut'   // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
+};
 
 const TARGET_LABEL = {
   single:'1 cible',          all_enemies:'Tous les ennemis',
@@ -56,6 +269,59 @@ const TARGET_LABEL = {
   random_2:'2 aléatoires',   column:'Colonne',
   primary_adj:'+ adjacents', nearest_2:'2 proches',
   random_3:'3 aléatoires',   row_primary:'Rangée cible',
+  // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -102,8 +368,66 @@ export const PokedexUI = {
     const content = document.getElementById('pokedex-content');
     if (!content) return;
 
-    const tabs = ['synergies', 'types', 'moves'];
-    const tabLabels = { synergies:'🔗 Synergies', types:'⚔️ Types', moves:'⚡ Capacités' };
+    const tabs = ['synergies', 'types', 'moves', 'achievements'];
+    const tabLabels = {
+      synergies:    '🔗 Synergies',
+      types:        '⚔️ Types',
+      moves:        '⚡ Capacités',
+      achievements: '🏅 Succès',
+      // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
+};
 
     content.innerHTML = `
       <div class="pdx-tabs">
@@ -124,9 +448,10 @@ export const PokedexUI = {
     });
 
     const body = document.getElementById('pdx-body');
-    if (this._tab === 'synergies') this._renderSynergies(body);
-    if (this._tab === 'types')     this._renderTypes(body);
-    if (this._tab === 'moves')     this._renderMoves(body);
+    if (this._tab === 'synergies')    this._renderSynergies(body);
+    if (this._tab === 'types')        this._renderTypes(body);
+    if (this._tab === 'moves')        this._renderMoves(body);
+    if (this._tab === 'achievements') this._renderAchievements(body);
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -152,7 +477,60 @@ export const PokedexUI = {
             </div>
             ${effect}
           </div>`;
-      };
+        // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
+};
 
       return `
         <div class="pdx-syn-card" style="border-left-color:${color}">
@@ -174,13 +552,119 @@ export const PokedexUI = {
       if (mult === 0.5) return 'background:#e74c3c;color:#fff;font-weight:700';
       if (mult === 0)   return 'background:#2c3e50;color:#95a5a6';
       return 'background:#1a1a2e;color:#4a5568';
+      // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
     };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
+};
     const cellText = (mult) => {
       if (mult === 2)   return '×2';
       if (mult === 0.5) return '½';
       if (mult === 0)   return '0';
       return '';
+      // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
     };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
+};
 
     body.innerHTML = `
       <div class="pdx-type-legend">
@@ -249,7 +733,60 @@ export const PokedexUI = {
 
       const effects = (move.effects ?? []).map(e => {
         if (e.kind === 'status') {
-          const icons = {burn:'🔥',poison:'☠️',paralyze:'⚡',freeze:'❄️',sleep:'💤',confuse:'😵',stun:'🔒'};
+          const icons = {burn:'🔥',poison:'☠️',paralyze:'⚡',freeze:'❄️',sleep:'💤',confuse:'😵',stun:'🔒'  // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
+  },
+};
           return `${icons[e.status]??'●'}${e.chance < 1 ? ` ${Math.round(e.chance*100)}%` : ' garanti'}`;
         }
         if (e.kind === 'stat') {
@@ -309,5 +846,58 @@ export const PokedexUI = {
           </div>
         </div>`;
     }).join('');
+  },
+  // ── Onglet Achievements ────────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    // Regroupe par catégorie
+    const categories = {
+      league:     { label: '🏆 Ligue par type', items: [] },
+      progression:{ label: '🗺 Progression',    items: [] },
+      collection: { label: '📖 Collection',      items: [] },
+      level:      { label: '⬆ Niveaux',          items: [] },
+      combat:     { label: '⚔️ Combat',          items: [] },
+      roguelite:  { label: '🎲 Roguelite',       items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total    = Object.values(ACHIEVEMENTS).length;
+    const done     = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct      = Math.round(done / total * 100);
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
   },
 };
