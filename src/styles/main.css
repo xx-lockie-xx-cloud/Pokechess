@@ -2761,3 +2761,155 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 /* ── Fin du bloc mobile ───────────────────────────────────────────────────── */
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACHIEVEMENTS — Menu principal + Pokédex
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Bloc achievements dans le menu principal */
+.menu-achievements {
+  width: 100%;
+  max-width: 320px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.menu-ach-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.menu-ach-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-gold);
+  margin-bottom: 6px;
+}
+
+.menu-ach-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.menu-ach-badge {
+  font-size: 10px;
+  background: rgba(255,215,0,0.12);
+  border: 1px solid rgba(255,215,0,0.3);
+  border-radius: 8px;
+  padding: 2px 8px;
+  color: var(--color-gold);
+  cursor: default;
+}
+
+.menu-ach-more {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+}
+
+/* Onglet achievements dans le Pokédex */
+.pdx-ach-header {
+  margin-bottom: 10px;
+}
+
+.pdx-ach-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.pdx-ach-progress-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.pdx-ach-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-gold), #fdcb6e);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.pdx-ach-category {
+  margin-bottom: 10px;
+}
+
+.pdx-ach-cat-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 5px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.pdx-ach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pdx-ach-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.03);
+}
+
+.pdx-ach-item.unlocked {
+  background: rgba(255,215,0,0.07);
+  border: 1px solid rgba(255,215,0,0.2);
+}
+
+.pdx-ach-item.locked {
+  opacity: 0.45;
+}
+
+.pdx-ach-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.pdx-ach-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pdx-ach-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pdx-ach-desc {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+/* Bouton vente objet dans PrepUI */
+.btn-sell-item {
+  background: rgba(255,165,0,0.15);
+  border: 1px solid rgba(255,165,0,0.4);
+  color: #ffa500;
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-sell-item:hover {
+  background: rgba(255,165,0,0.25);
+}
