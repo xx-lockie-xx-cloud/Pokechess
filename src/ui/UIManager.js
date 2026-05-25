@@ -204,7 +204,7 @@ class UIManagerClass {
         </div>
       `;
     }).catch(() => {});
-  },
+  }
 
   _renderDifficultySelector() {
     const container = document.getElementById('menu-difficulty');
