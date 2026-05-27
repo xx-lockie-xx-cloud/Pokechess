@@ -1,150 +1,235 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// arenas.js — Données des 8 arènes de Kanto + Ligue
-// Sprites HGSS via archive.org / spriters-resource
+// arenas.js — 8 arènes de Kanto avec équipes générées dynamiquement
+// Les équipes sont créées selon la difficulté et la courbe de progression
+// Le joueur ne connaît pas le type adverse avant le combat
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { POKEMONS }    from './pokemons.js';
+import { getBSTTier }  from './runState.js';
+
+// ── Métadonnées des 8 arènes (sans équipes statiques) ────────────────────────
 export const ARENAS = [
-  {
-    id: 1, city: 'Argenta', champion: 'Pierre', type: 'Roche',
-    badgeName: 'Badge Pierre', badgeEmoji: '🪨',
-    badgeSprite:          'assets/badges/pierre_b.png',
-    championSprite:       'assets/trainers/map/champions/pierre.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/pierre_c.png',
-    // Pokémons de l'arène (plus forts que les dresseurs normaux de map 1)
-    team: [
-      { id: 74, name: 'Racaillou',  types: ['Roche','Sol'],  row: 0, col: 0,
-        stats: { hp: 50, atk: 90, spa: 35, def: 115, spd_def: 35, spd: 25 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/74.png' },
-      { id: 95, name: 'Onix',       types: ['Roche','Sol'],  row: 0, col: 1,
-        stats: { hp: 45, atk: 55, spa: 35, def: 170, spd_def: 50, spd: 75 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/95.png' },
-    ]
-  },
-  {
-    id: 2, city: 'Azuria', champion: 'Misty', type: 'Eau',
-    badgeName: 'Badge Cascade', badgeEmoji: '💧',
-    badgeSprite:          'assets/badges/misty_b.png',
-    championSprite:       'assets/trainers/map/champions/misty.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/misty_c.png',
-    team: [
-      { id: 120, name: 'Stari',      types: ['Eau'],          row: 0, col: 0,
-        stats: { hp: 40, atk: 55, spa: 80, def: 65, spd_def: 65, spd: 95 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/120.png' },
-      { id: 121, name: 'Staross',    types: ['Eau','Psy'],    row: 0, col: 1,
-        stats: { hp: 70, atk: 85, spa: 110, def: 95, spd_def: 95, spd: 125 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/121.png' },
-    ]
-  },
-  {
-    id: 3, city: 'Carmin-sur-Mer', champion: 'Lt. Surge', type: 'Électrik',
-    badgeName: 'Badge Tonnerre', badgeEmoji: '⚡',
-    badgeSprite:          'assets/badges/surge_b.png',
-    championSprite:       'assets/trainers/map/champions/surge.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/surge_c.png',
-    team: [
-      { id: 100, name: 'Voltorbe',   types: ['Électrik'],     row: 0, col: 0,
-        stats: { hp: 50, atk: 40, spa: 65, def: 60, spd_def: 65, spd: 110 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/100.png' },
-      { id: 26,  name: 'Raichu',     types: ['Électrik'],     row: 0, col: 1,
-        stats: { hp: 70, atk: 100, spa: 100, def: 65, spd_def: 90, spd: 120 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/26.png' },
-    ]
-  },
-  {
-    id: 4, city: 'Céladopole', champion: 'Erika', type: 'Plante',
-    badgeName: 'Badge Arc-en-ciel', badgeEmoji: '🌿',
-    badgeSprite:          'assets/badges/erika_b.png',
-    championSprite:       'assets/trainers/map/champions/erika.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/erika_c.png',
-    team: [
-      { id: 71,  name: 'Empiflor',   types: ['Plante','Poison'], row: 0, col: 0,
-        stats: { hp: 90, atk: 90, spa: 120, def: 95, spd_def: 100, spd: 60 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/71.png' },
-      { id: 45,  name: 'Rafflesia',  types: ['Plante','Poison'], row: 0, col: 1,
-        stats: { hp: 85, atk: 90, spa: 120, def: 95, spd_def: 100, spd: 60 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/45.png' },
-    ]
-  },
-  {
-    id: 5, city: 'Parmanie', champion: 'Koga', type: 'Poison',
-    badgeName: 'Badge Âme', badgeEmoji: '☠️',
-    badgeSprite:          'assets/badges/koga_b.png',
-    championSprite:       'assets/trainers/map/champions/koga.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/koga_c.png',
-    team: [
-      { id: 89,  name: 'Grotadmorv', types: ['Poison'],       row: 0, col: 0,
-        stats: { hp: 115, atk: 115, spa: 75, def: 85, spd_def: 110, spd: 60 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/89.png' },
-      { id: 49,  name: 'Aéromite',   types: ['Insecte','Poison'], row: 0, col: 1,
-        stats: { hp: 80, atk: 75, spa: 100, def: 70, spd_def: 100, spd: 100 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/49.png' },
-    ]
-  },
-  {
-    id: 6, city: 'Safrania', champion: 'Sabrina', type: 'Psy',
-    badgeName: 'Badge Marais', badgeEmoji: '🔮',
-    badgeSprite:          'assets/badges/sabrina_b.png',
-    championSprite:       'assets/trainers/map/champions/sabrina.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/sabrina_c.png',
-    team: [
-      { id: 59,  name: 'Arcanin',    types: ['Feu'],          row: 0, col: 0,
-        stats: { hp: 100, atk: 120, spa: 90, def: 90, spd_def: 90, spd: 105 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/59.png' },
-      { id: 78,  name: 'Galopa',     types: ['Feu'],          row: 0, col: 1,
-        stats: { hp: 75, atk: 110, spa: 90, def: 80, spd_def: 90, spd: 115 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/78.png' },
-    ]
-  },
-  {
-    id: 7, city: 'Cramois\'île', champion: 'Auguste', type: 'Feu',
-    badgeName: 'Badge Volcan', badgeEmoji: '🔥',
-    badgeSprite:          'assets/badges/auguste_b.png',
-    championSprite:       'assets/trainers/map/champions/auguste.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/auguste_c.png',
-    team: [
-      { id: 58, name: 'Caninos',  types: ['Feu'],
-        stats: { hp: 55, atk: 70, spa: 70, def: 45, spd_def: 50, spd: 60 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/58.png' },
-      { id: 77, name: 'Ponyta',   types: ['Feu'],
-        stats: { hp: 50, atk: 85, spa: 65, def: 55, spd_def: 65, spd: 90 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/77.png' },
-      { id: 78, name: 'Galopa',   types: ['Feu'],
-        stats: { hp: 65, atk: 100, spa: 80, def: 70, spd_def: 80, spd: 105 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/78.png' },
-      { id: 59, name: 'Arcanin',  types: ['Feu'],
-        stats: { hp: 90, atk: 110, spa: 100, def: 80, spd_def: 80, spd: 95 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/59.png' },
-    ]
-  },
-  {
-    id: 8, city: 'Jadielle', champion: 'Giovanni', type: 'Sol',
-    badgeName: 'Badge Terre', badgeEmoji: '🏔',
-    championSprite:       'assets/trainers/map/champions/giovanni.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/giovanni_c.png',
-    team: [
-      { id: 112, name: 'Rhinoféros', types: ['Sol','Roche'],  row: 0, col: 0,
-        stats: { hp: 115, atk: 140, spa: 55, def: 130, spd_def: 55, spd: 50 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/112.png' },
-      { id: 76,  name: 'Grolem',     types: ['Roche','Sol'],  row: 1, col: 0,
-        stats: { hp: 90, atk: 130, spa: 65, def: 140, spd_def: 75, spd: 55 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/76.png' },
-      { id: 34,  name: 'Nidoking',   types: ['Poison','Sol'], row: 0, col: 1,
-        stats: { hp: 91, atk: 112, spa: 95, def: 87, spd_def: 85, spd: 95 },
-        attributes: [], spriteUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/34.png' },
-    ]
-  },
-  {
-    id: 9, city: 'Indigo', champion: 'Ligue Pokémon', type: 'Mixte',
-    badgeName: 'Champion Pokémon', badgeEmoji: '🏆',
-    badgeSprite:          'assets/badges/giovanni_b.png',
-    championSprite:       null,
-    championSpriteCombat: null,
-    team:         [],      // généré dynamiquement
-    isLeague:     true,
-  },
+  { id: 1, city: 'Argenta',        champion: 'Pierre',   type: 'Roche',
+    badgeName: 'Badge Pierre',    badgeEmoji: '🪨',
+    badgeSprite: 'assets/badges/pierre_b.png',
+    championSprite: 'assets/trainers/map/champions/pierre.png',
+    championSpriteCombat: 'assets/trainers/combat/champions/pierre_c.png' },
+  { id: 2, city: 'Azuria',         champion: 'Ondine',   type: 'Eau',
+    badgeName: 'Badge Cascade',   badgeEmoji: '💧',
+    badgeSprite: 'assets/badges/ondine_b.png',
+    championSprite: 'assets/trainers/map/champions/ondine.png',
+    championSpriteCombat: 'assets/trainers/combat/champions/ondine_c.png' },
+  { id: 3, city: 'Carmin sur Mer', champion: 'Lt. Surge', type: 'Électrik',
+    badgeName: 'Badge Foudre',    badgeEmoji: '⚡',
+    badgeSprite: 'assets/badges/surge_b.png',
+    championSprite: 'assets/trainers/map/champions/surge.png',
+    championSpriteCombat: 'assets/trainers/combat/champions/surge_c.png' },
+  { id: 4, city: 'Céladopole',    champion: 'Erika',    type: 'Plante',
+    badgeName: 'Badge Arc-en-Ciel', badgeEmoji: '🌿',
+    badgeSprite: 'assets/badges/erika_b.png',
+    championSprite: 'assets/trainers/map/champions/erika.png',
+    championSpriteCombat: 'assets/trainers/combat/champions/erika_c.png' },
+  { id: 5, city: 'Parmanie',       champion: 'Koga',     type: 'Poison',
+    badgeName: 'Badge Âme',       badgeEmoji: '☠️',
+    badgeSprite: 'assets/badges/koga_b.png',
+    championSprite: 'assets/trainers/map/champions/koga.png',
+    championSpriteCombat: 'assets/trainers/combat/champions/koga_c.png' },
+  { id: 6, city: 'Safrania',       champion: 'Sabrina',  type: 'Psy',
+    badgeName: 'Badge Marbre',    badgeEmoji: '🔮',
+    badgeSprite: 'assets/badges/sabrina_b.png',
+    championSprite: 'assets/trainers/map/champions/sabrina.png',
+    championSpriteCombat: 'assets/trainers/combat/champions/sabrina_c.png' },
+  { id: 7, city: 'Cramois\'île',   champion: 'Auguste',  type: 'Feu',
+    badgeName: 'Badge Volcan',    badgeEmoji: '🔥',
+    badgeSprite: 'assets/badges/auguste_b.png',
+    championSprite: 'assets/trainers/map/champions/auguste.png',
+    championSpriteCombat: 'assets/trainers/combat/champions/auguste_c.png' },
+  { id: 8, city: 'Jadielle',       champion: 'Giovanni', type: 'Sol',
+    badgeName: 'Badge Terre',     badgeEmoji: '🏔',
+    badgeSprite: 'assets/badges/giovanni_b.png',
+    championSprite: 'assets/trainers/map/champions/giovanni.png',
+    championSpriteCombat: 'assets/trainers/combat/champions/giovanni_c.png' },
 ];
 
-// Retourne les données de l'arène pour une map donnée (index 0-7)
+// ── Génère l'équipe du champion selon difficulté et mapIndex ─────────────────
+// L'équipe est composée de 6 pokémons partageant tous le type de l'arène
+// Budget calibré sur la courbe de difficulté générale
+// budget   : somme de stats cible (passé depuis MapGenerator)
+// maxUnits : nombre max de pokémons (aligné sur les slots joueur)
+export function generateArenaTeam(arena, mapIndex = 0, budget = 800, maxUnits = 3, rng = Math.random.bind(Math)) {
+  const type = arena.type;
+
+  // Pool : tous les pokémons non-légendaires du type de l'arène
+  const LEGENDARIES = new Set([144, 145, 146, 147, 148, 149, 150, 151]);
+  const pool = POKEMONS.filter(p =>
+    !LEGENDARIES.has(p.id) && p.types.includes(type)
+  );
+  if (!pool.length) return [];
+
+  // Taux de tirage par tier selon mapIndex (même table que les dresseurs)
+  const RATES = [
+    [65, 30,  5,  0,  0],
+    [50, 35, 13,  2,  0],
+    [32, 35, 24,  8,  1],
+    [18, 27, 36, 16,  3],
+    [ 6, 17, 40, 32,  5],
+    [ 1, 12, 40, 40,  7],
+    [ 0, 10, 40, 43,  7],
+    [ 0, 10, 40, 40, 10],
+  ];
+
+  function pokemonBST(p) {
+    const s = p.stats;
+    return (s.hp ?? 0) + (s.atk ?? 0) + (s.spa ?? 0)
+         + (s.def ?? 0) + (s.spd_def ?? 0) + (s.spd ?? 0);
+  }
+
+  function pokemonTier(p) {
+    const b = pokemonBST(p);
+    if (b <= 308) return 1;
+    if (b <= 390) return 2;
+    if (b <= 470) return 3;
+    if (b <= 550) return 4;
+    return 5;
+  }
+
+  // Tirage pondéré par tier
+  function weightedPick(remaining) {
+    const rates = RATES[Math.min(mapIndex, 7)];
+    // Filtre aussi par budget restant
+    const weighted = pool
+      .map(p => ({ p, w: rates[pokemonTier(p) - 1] ?? 0 }))
+      .filter(x => x.w > 0 && pokemonBST(x.p) <= remaining + 50);
+    // Si rien d'abordable → prend le moins cher du pool
+    if (!weighted.length) {
+      const cheapest = pool.slice().sort((a, b) => pokemonBST(a) - pokemonBST(b));
+      return cheapest[0];
+    }
+    const total = weighted.reduce((s, x) => s + x.w, 0);
+    let   roll  = rng() * total;
+    for (const { p, w } of weighted) { roll -= w; if (roll <= 0) return p; }
+    return weighted[weighted.length - 1].p;
+  }
+
+  // Génère l'équipe dans la limite de maxUnits et du budget
+  const team  = [];
+  let   spent = 0;
+  const cells = [];
+  for (let col = 0; col < 3; col++)
+    for (let row = 0; row < 2; row++)
+      cells.push({ col, row });
+
+  // Mélange seeded
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+
+  for (let i = 0; i < maxUnits && spent < budget; i++) {
+    const remaining = budget - spent;
+    const pick      = weightedPick(remaining);
+    const bst       = pokemonBST(pick);
+    spent += bst;
+    team.push({ ...pick, col: cells[i].col, row: cells[i].row, attributes: [] });
+  }
+
+  return team;
+}
+
+// ── Synergy budget (point 8) : chaque synergie compte dans le budget ─────────
+export function calculateSynergyBudget(team) {
+  const typeCounts = {};
+  team.forEach(u => {
+    (u.types ?? []).forEach(t => {
+      typeCounts[t] = (typeCounts[t] ?? 0) + 1;
+    });
+  });
+  let bonus = 0;
+  Object.values(typeCounts).forEach(count => {
+    if (count >= 4) bonus += 200;      // synergie niveau 2
+    else if (count >= 2) bonus += 100; // synergie niveau 1
+  });
+  return bonus;
+}
+
+// ── Génère l'équipe de la ligue : type aléatoire + synergie 3★ garantie ──────
+// 6 pokémons partageant TOUS un type commun → synergie 3★ (4 même type) assurée
+export function generateLeagueTeam(mapIndex = 7, difficultyMult = 1.0, rng = Math.random.bind(Math)) {
+  const LEGENDARIES = new Set([144, 145, 146, 147, 148, 149, 150, 151]);
+
+  // Liste des types disponibles (ceux ayant au moins 6 pokémons non-légendaires)
+  const typePool = {};
+  POKEMONS.filter(p => !LEGENDARIES.has(p.id)).forEach(p => {
+    p.types.forEach(t => {
+      typePool[t] = (typePool[t] ?? []);
+      typePool[t].push(p);
+    });
+  });
+  const validTypes = Object.entries(typePool).filter(([, pool]) => pool.length >= 6);
+  if (!validTypes.length) return [];
+
+  // Tire un type aléatoire
+  const [chosenType, pool] = validTypes[Math.floor(rng() * validTypes.length)];
+
+  // Budget élevé pour la ligue (difficile)
+  const BASE_BUDGET = 800;
+  const MAX_BUDGET  = 2400;
+  const ratio       = Math.min(mapIndex / 7, 1);
+  const curved      = Math.pow(ratio, 1.3);
+  const budget      = Math.round(
+    (BASE_BUDGET + (MAX_BUDGET - BASE_BUDGET) * curved) * difficultyMult * 1.3
+  );
+
+  // Tirage pondéré — favorise les tiers hauts pour la ligue
+  const RATES = [[0, 5, 25, 45, 25]]; // map 7+ : beaucoup de T3-T4-T5
+  function pokemonBST(p) {
+    const s = p.stats;
+    return (s.hp ?? 0) + (s.atk ?? 0) + (s.spa ?? 0) + (s.def ?? 0) + (s.spd_def ?? 0) + (s.spd ?? 0);
+  }
+  function pokemonTier(p) {
+    const b = pokemonBST(p);
+    if (b <= 308) return 1;
+    if (b <= 390) return 2;
+    if (b <= 470) return 3;
+    if (b <= 550) return 4;
+    return 5;
+  }
+  function weightedPick(remaining) {
+    const rates = RATES[0];
+    const weighted = pool
+      .map(p => ({ p, w: rates[pokemonTier(p) - 1] ?? 0 }))
+      .filter(x => x.w > 0 && pokemonBST(x.p) <= remaining + 80);
+    if (!weighted.length) return pool[Math.floor(rng() * pool.length)];
+    const total = weighted.reduce((s, x) => s + x.w, 0);
+    let   roll  = rng() * total;
+    for (const { p, w } of weighted) { roll -= w; if (roll <= 0) return p; }
+    return weighted[weighted.length - 1].p;
+  }
+
+  const team  = [];
+  let   spent = 0;
+  const cells = [];
+  for (let col = 0; col < 3; col++)
+    for (let row = 0; row < 2; row++)
+      cells.push({ col, row });
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+  for (let i = 0; i < 6 && spent < budget; i++) {
+    const pick = weightedPick(budget - spent);
+    spent += pokemonBST(pick);
+    team.push({ ...pick, col: cells[i].col, row: cells[i].row, attributes: [] });
+  }
+
+  return { team, type: chosenType };
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 export function getArenaForMap(mapIndex) {
   return ARENAS[Math.min(mapIndex, ARENAS.length - 1)] ?? null;
+}
+
+export function getArenaById(id) {
+  return ARENAS.find(a => a.id === id) ?? null;
 }

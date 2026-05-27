@@ -71,6 +71,10 @@ export class CombatEngine {
       untargetable: 0,
       // Skip prochain tour (Ultralaser)
       skipNextTurn: false,
+      // ATB (Active Time Battle) — barre de charge de 0→100
+      // Initialisée à (100 + SPD) / 5 → pokémon rapide démarre plus avancé
+      // SPD=30 → 26 | SPD=100 → 40 | SPD=110 → 42
+      atbBar: 0,  // calculé après _copyUnit via _initATBBar()
     };
   }
 
@@ -115,14 +119,81 @@ export class CombatEngine {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Vitesse effective ATB : 100 + SPD (lissée pour éviter les écarts extrêmes)
+  // Exemple : SPD=30 → 130 | SPD=110 → 210 (ratio 1.6× au lieu de 3.6×)
+  _getATBSpeed(unit) {
+    return 100 + this._getStat(unit, 'spd');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // resolve() — moteur ATB
+  // ─────────────────────────────────────────────────────────────────────────
   resolve() {
     this._setupPreCombat();
-    let turn = 0;
-    while (!this._isOver() && turn < 100) {
-      this._resolveTurn(turn++);
+
+    let actionCount   = 0;    // nombre total d'actions (pour les effets périodiques)
+    let globalActions = 0;    // sécurité anti-boucle infinie
+    const MAX_ACTIONS = 500;
+
+    // Taille du tick : chaque tick avance les barres de (speed/10) points
+    // → barres moins saturées, différences de vitesse plus lisibles
+    const TICK_DIV = 20;
+
+    while (!this._isOver() && globalActions < MAX_ACTIONS) {
+      globalActions++;
+
+      // ── Tick ATB : avance toutes les barres d'un incrément proportionnel ──
+      const alive = this._allAlive();
+      if (!alive.length) break;
+
+      // Incrément par tick = speed / TICK_DIV (ex : SPD=130 → +26/tick, SPD=210 → +42/tick)
+      alive.forEach(u => {
+        u.atbBar = Math.min(100 + this._getATBSpeed(u), u.atbBar + this._getATBSpeed(u) / TICK_DIV);
+      });
+
+      // Unités prêtes (barre ≥ 100) triées par valeur décroissante
+      // (celle avec le plus grand overflow joue en premier)
+      const ready = this._allAlive()
+        .filter(u => u.atbBar >= 100)
+        .sort((a, b) => b.atbBar - a.atbBar);
+
+      for (const unit of ready) {
+        if (unit.hp <= 0 || this._isOver()) continue;
+        if (unit.skipNextTurn) { unit.skipNextTurn = false; unit.atbBar -= 100; continue; }
+
+        // Log de l'action
+        actionCount++;
+        this.log.push({ type: 'turn_start', turn: actionCount, unitId: unit.uid, unitName: unit.name });
+
+        // Bâillement → sommeil (décrémenté à chaque action de l'unité)
+        const delay = unit.statusEffects.find(s => s.type === 'delayed_sleep');
+        if (delay) {
+          delay.turnsLeft = (delay.turnsLeft ?? 1) - 1;
+          if (delay.turnsLeft <= 0) {
+            this._removeStatus(unit, 'delayed_sleep');
+            this._addStatus(unit, 'sleep', 3);
+          }
+        }
+
+        // Agit
+        this._takeTurn(unit);
+
+        // Reset barre (conserve l'overflow au-delà de 100)
+        unit.atbBar -= 100;
+
+        // ── Effets de fin d'action (burn, poison, regen) ──────────────────
+        // Déclenchés toutes les 8 actions globales (≈ 1 tour complet)
+        if (actionCount % 8 === 0) {
+          this._resolveEndOfTurn();
+          this._decrementMods();
+        }
+      }
+
+
     }
+
     const winner = this._winner();
-    this.log.push({ type: 'combat_end', winner, turn });
+    this.log.push({ type: 'combat_end', winner, turn: actionCount });
     return { log: this.log, winner };
   }
 
@@ -130,6 +201,12 @@ export class CombatEngine {
   // Pré-combat : synergies
   // ─────────────────────────────────────────────────────────────────────────
   _setupPreCombat() {
+    // Initialise les barres ATB APRÈS les effets pré-combat (qui peuvent modifier SPD)
+    // (100 + SPD) / 5 → SPD=30 → 26 | SPD=110 → 42
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      u.atbBar = this._getATBSpeed(u) / 5;
+    });
+
     this._applyPreEffects('player', this.playerFx, this.enemyUnits, this.playerUnits);
     this._applyPreEffects('enemy',  this.enemyFx,  this.playerUnits, this.enemyUnits);
     // Armure Roche
@@ -177,42 +254,7 @@ export class CombatEngine {
     unit[stat] = Math.round(unit[stat] * mult);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Tour
-  // ─────────────────────────────────────────────────────────────────────────
-  _resolveTurn(turn) {
-    this.log.push({ type:'turn_start', turn });
-    this.swarmProcs = 0;
-
-    // Bâillement → sommeil
-    this._allAlive().forEach(u => {
-      const delay = u.statusEffects.find(s => s.type === 'delayed_sleep');
-      if (delay) {
-        delay.turnsLeft = (delay.turnsLeft ?? 1) - 1;
-        if (delay.turnsLeft <= 0) {
-          this._removeStatus(u, 'delayed_sleep');
-          this._addStatus(u, 'sleep', 3);
-        }
-      }
-    });
-
-    // Ordre de jeu : priority d'abord, puis VIT effective
-    const order = this._allAlive().sort((a, b) => {
-      const pa = a._pendingPriority ?? 0;
-      const pb = b._pendingPriority ?? 0;
-      if (pb !== pa) return pb - pa;
-      return this._getStat(b, 'spd') - this._getStat(a, 'spd');
-    });
-
-    for (const unit of order) {
-      if (unit.hp <= 0) continue;
-      if (unit.skipNextTurn) { unit.skipNextTurn = false; continue; }
-      this._takeTurn(unit);
-    }
-
-    this._resolveEndOfTurn();
-    this._decrementMods();
-  }
+  // _resolveTurn() supprimé — remplacé par le moteur ATB dans resolve()
 
   // ─────────────────────────────────────────────────────────────────────────
   // Action d'une unité
@@ -387,8 +429,11 @@ export class CombatEngine {
         dmg = Math.round(dmg * (1 + rageCount * 0.10));
 
       this._dealDamage(attacker, target, dmg, mult, isSwarm);
-      attacker.mana = Math.min(MANA_MAX, attacker.mana + MANA_ON_HIT);
     });
+    // Mana une seule fois par attaque, indépendamment du nombre de cibles
+    if (targets.length > 0) {
+      attacker.mana = Math.min(MANA_MAX, attacker.mana + MANA_ON_HIT);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -470,8 +515,9 @@ export class CombatEngine {
         }
 
         this._dealDamage(attacker, target, totalDmg, 1.0, false, move);
-        attacker.mana = Math.min(MANA_MAX, attacker.mana + MANA_ON_HIT);
       });
+      // Mana gagnée une seule fois après l'attaque, indépendamment du nb de cibles
+      attacker.mana = Math.min(MANA_MAX, attacker.mana + MANA_ON_HIT);
 
       // Recul
       if (move.recoil && targets.length > 0) {
@@ -757,6 +803,11 @@ export class CombatEngine {
       ? Math.round((hpBefore - target.hp) / target.maxHp * 100)
       : 0;
     target.mana = Math.min(MANA_MAX, target.mana + hpPctLost);
+    // Érosion PV max : 10% des dégâts reçus, minimum 1 HP
+    const erosion = Math.max(1, Math.floor(damage * 0.10));
+    target.maxHp  = Math.max(1, target.maxHp - erosion);
+    // Si les PV actuels dépassent le nouveau max, on les plafonne
+    target.hp = Math.min(target.hp, target.maxHp);
     const typeMult = move?.ignoreType ? 1
       : getTypeMultiplier((move?.type ?? attacker.types[0]), target.types);
 
@@ -767,8 +818,10 @@ export class CombatEngine {
       damage, multiplier: mult, typeMult, isSwarm,
       isMove:       !!move, moveName: move?.name ?? null,
       targetHpLeft: target.hp, targetMaxHp: target.maxHp,
-      // Mana info for UI
       attackerMana: attacker.mana, targetMana: target.mana,
+      // Barres ATB pour l'UI (après reset, valeur 0-100)
+      attackerAtb:  Math.max(0, Math.min(100, attacker.atbBar ?? 0)),
+      targetAtb:    Math.max(0, Math.min(100, target.atbBar   ?? 0)),
     });
 
     if (target.hp <= 0) this._handleFaint(target);
@@ -879,10 +932,13 @@ export class CombatEngine {
     if (victim.hp <= 0) this._handleFaint(victim);
   }
 
+  // Regen eau : soigne TOUS les alliés (pas uniquement les types Eau)
+  // Déclenchée toutes les 8 actions depuis la boucle ATB
   _applySynergyRegen(side, fx, units) {
     if (!fx.has('regen')) return;
-    units.filter(u => u.hp > 0 && u.types.includes('Eau')).forEach(u => {
-      const heal = Math.max(1, Math.ceil(u.maxHp * 0.08));
+    const rate = 0.04;
+    units.filter(u => u.hp > 0).forEach(u => {
+      const heal = Math.max(1, Math.ceil(u.maxHp * rate));
       u.hp = Math.min(u.maxHp, u.hp + heal);
       this.log.push({ type:'effect_heal', effect:'regen', label:'💧',
         targetId:u.uid, targetName:u.name, targetSide:u.side,

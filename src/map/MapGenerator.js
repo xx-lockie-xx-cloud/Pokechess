@@ -3,7 +3,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { TRAINER_ARCHETYPES, generateEnemyTeam } from '../data/trainers.js';
-import { getArenaForMap }                         from '../data/arenas.js';
+import { getArenaForMap, generateArenaTeam,
+         generateLeagueTeam }              from '../data/arenas.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRNG déterministe — Mulberry32 (rapide, bonne distribution)
@@ -39,7 +40,7 @@ export const NODE_TYPES = {
 function budgetForStep(mapIndex, col, totalCols) {
   const globalStep = mapIndex * totalCols + col;
   const totalSteps = 8 * totalCols;
-  const MIN_BUDGET = 200;
+  const MIN_BUDGET = 800;
   const MAX_BUDGET = 2400;
   const ratio      = Math.min(globalStep / Math.max(totalSteps - 1, 1), 1);
   const curved     = Math.pow(ratio, 1.3);
@@ -136,11 +137,29 @@ export class MapGenerator {
             units:       generateEnemyTeam(archetype, budget, maxUnits, mapIndex, rng),
           };
         } else if (isBoss) {
-          const arenaData = getArenaForMap(mapIndex);
+          const arenaData    = getArenaForMap(mapIndex);
+          const bossMaxUnits = maxUnitsForStep(mapIndex, col, this.cols);
+          const bossBudget   = budgetForStep(mapIndex, col, this.cols);
+
+          let bossTeam, bossName;
+          if (mapIndex >= 8) {
+            // Map 8 = Ligue Pokémon (9e map) → équipe aléatoire type commun, synergie 3★ garantie
+            const leagueResult = generateLeagueTeam(mapIndex, 1.0, rng);
+            bossTeam = leagueResult.team;
+            bossName = `Ligue Pokémon — type ${leagueResult.type}`;
+          } else {
+            bossTeam = arenaData
+              ? generateArenaTeam(arenaData, mapIndex, bossBudget, bossMaxUnits, rng)
+              : [];
+            bossName = arenaData ? `Champion ${arenaData.champion}` : 'Champion';
+          }
+
           trainerData = {
-            name:  arenaData ? `Champion ${arenaData.champion}` : 'Champion',
-            color: 0xffd700,
-            units: arenaData ? arenaData.team : [],
+            name:    bossName,
+            color:   0xffd700,
+            isArena: true,
+            arena:   arenaData,
+            units:   bossTeam,
           };
         }
 
@@ -180,6 +199,7 @@ export class MapGenerator {
   }
 
   // ── Connexions sans croisements ───────────────────────────────────────────
+  // Garantit que chaque noeud a au moins un lien entrant (pas de fantômes)
   _buildConnections(nodes, rng) {
     for (let col = 0; col < nodes.length - 1; col++) {
       const current = nodes[col];
@@ -202,6 +222,22 @@ export class MapGenerator {
             if (!node.connections.includes(secondary.id)) {
               node.connections.push(secondary.id);
             }
+          }
+        }
+      });
+
+      // Garantie : chaque noeud de la colonne suivante a au moins un lien entrant
+      // Si un noeud est orphelin, on le connecte au noeud le plus proche
+      next.forEach((orphan, i) => {
+        const hasIncoming = current.some(n => n.connections.includes(orphan.id));
+        if (!hasIncoming) {
+          const closest = current.reduce((best, n) => {
+            const bestIdx = next.findIndex(x => x.id === (best.connections[0] ?? ''));
+            const diff    = Math.abs(i - current.indexOf(n));
+            return diff < Math.abs(i - bestIdx) ? n : best;
+          }, current[0]);
+          if (closest && !closest.connections.includes(orphan.id)) {
+            closest.connections.push(orphan.id);
           }
         }
       });

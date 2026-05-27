@@ -337,6 +337,11 @@ class UIManagerClass {
 
       case 'arenaVictory':
         ArenaVictoryUI.init(data, this.registry, (nextData) => {
+          // Retour menu demandé depuis l'écran de victoire
+          if (nextData.goToMenu) {
+            this.show('menu');
+            return;
+          }
           this._closeOverlay('arenaVictory');
           this.show('map', nextData);
         });

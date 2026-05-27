@@ -144,17 +144,26 @@ export const PrepUI = {
     if (!grid) return;
     grid.innerHTML = '';
 
-    // Slots numérotés de gauche à droite, rangée 0 en premier :
-    // index = r * GRID_COLS + c  (0-5 pour une grille 3×2)
-    const unlocked = getUnlockedSlots(this._registry);
+    // Placement libre : tous les slots sont accessibles
+    // La limite porte sur le nombre TOTAL de pokémons sur le terrain
+    // (pas sur leur position). Les slots vides restent interactifs.
+    const maxUnits = getUnlockedSlots(this._registry);
 
     for (let r = 0; r < GRID_ROWS; r++) {
       for (let c = 0; c < GRID_COLS; c++) {
-        const slotIndex = r * GRID_COLS + c;
-        const isLocked  = slotIndex >= unlocked;
+        // Un slot est "bloqué" uniquement si :
+        // - il est vide ET le terrain est déjà plein (maxUnits atteint)
+        const unit = this._field[c][r];
+        const totalOnField = Object.values(this._field)
+          .flatMap(col => Object.values(col))
+          .filter(Boolean).length;
+        // Un slot vide est verrouillé seulement si le terrain est plein
+        // ET qu'on ne déplace pas un pokémon déjà sur le terrain
+        // (permettre le drag terrain→terrain même quand c'est plein)
+        const dragFromField = this._dragSource?.source === 'field';
+        const isLocked = !unit && totalOnField >= maxUnits && !dragFromField;
 
         if (isLocked) {
-          // Slot verrouillé — non interactif
           const locked = document.createElement('div');
           locked.className = 'slot slot-locked';
           locked.innerHTML = `<span class="slot-lock-icon">🔒</span>`;
@@ -165,7 +174,6 @@ export const PrepUI = {
           continue;
         }
 
-        const unit = this._field[c][r];
         const slot = this._createSlot(unit, {
           selected: this._selectedCard?.source === 'field' &&
                     this._selectedCard?.col === c &&
@@ -508,18 +516,27 @@ slot.addEventListener('drop', (e) => {
 
   // Vend l'objet tenu par le pokémon sélectionné (moitié du prix d'achat)
   _sellItem() {
-    const pokemon = this._selected;
+    if (!this._selectedCard) return;
+    const { pokemon, source, col, row, idx } = this._selectedCard;
     if (!pokemon?.heldItem) return;
-    const item     = pokemon.heldItem;
+    const item      = pokemon.heldItem;
     const sellPrice = Math.max(0, Math.floor((item.price ?? 4) / 2));
     const ok = confirm(`Vendre ${item.emoji} ${item.name} pour ${sellPrice} 💰 ?`);
     if (!ok) return;
     addCoins(this._registry, sellPrice);
+
+    // Met à jour l'unité dans field ou bank
     const updated = { ...pokemon, heldItem: null };
-    this._updateUnit(updated);
-    this._renderActionBar(updated);
-    this._drawSpider(updated);
-    this._renderSynergies();
+    if (source === 'field') {
+      this._field[col][row] = updated;
+      this._selectedCard.pokemon = updated;
+    } else {
+      this._bank[idx] = updated;
+      this._selectedCard.pokemon = updated;
+    }
+
+    this._renderAll();
+    this._saveState(this._registry);
   },
 
   _sellPrice(pokemon) {
