@@ -109,14 +109,14 @@ export const ITEMS = {
   ceinture_choix: {
     id: 'ceinture_choix', name: 'Ceinture Choix', emoji: '🥊', price: 5,
     type: 'equippable',
-    description: '+30% ATK.',
-    statBonus: { atk: 1.30 },
+    description: '+30% ATK, +15% VIT.',
+    statBonus: { atk: 1.30, spd: 1.15 },
   },
   lunettes_choix: {
     id: 'lunettes_choix', name: 'Lunettes Choix', emoji: '🔭', price: 5,
     type: 'equippable',
-    description: '+30% SP.ATK.',
-    statBonus: { spa: 1.30 },
+    description: '+30% SP.ATK, +15% VIT.',
+    statBonus: { spa: 1.30, spd: 1.15 },
   },
   bouclier_acier: {
     id: 'bouclier_acier', name: 'Bouclier Acier', emoji: '🛡️', price: 4,

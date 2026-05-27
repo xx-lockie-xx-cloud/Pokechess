@@ -1,15 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PokedexUI.js — Encyclopédie in-game (Synergies · Types · Capacités)
+// PokedexUI.js — Encyclopédie in-game (Synergies · Types · Capacités · Succès)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { SYNERGIES }          from '../data/synergies.js';
 import { TYPE_CHART }         from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES } from '../data/moves.js';
 import { getSeenPokemon }     from '../data/runState.js';
-import { getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
 import { POKEMONS }           from '../data/pokemons.js';
+import { ACHIEVEMENTS }       from '../data/levelSystem.js';
+import { getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
 
-// ─────────────────────────────────────────────────────────────────────────────
 const TYPES = [
   'Normal','Feu','Eau','Électrik','Plante','Glace','Combat','Poison',
   'Sol','Vol','Psy','Insecte','Roche','Spectre','Dragon','Ténèbres','Acier','Fée',
@@ -29,14 +29,14 @@ const STAT_EMOJIS = {
 
 const EFFECT_DESC = {
   burn:'🔥 Brûlure : -10% ATK + 5% HP/tour sur les ennemis',
-  regen:'💧 Régénération : +8% HP/tour pour les unités Eau alliées',
+  regen:'💧 Régénération : +4% HP/tour pour les unités Eau alliées (5 tours)',
   poison:'☠️ Poison : -8% HP/tour sur les ennemis',
   paralyze:'⚡ Paralysie : 25% de chance de skip/tour',
   confuse:'😵 Confusion : 20% de chance de frapper un allié',
   freeze:'❄️ Gel : 30% de chance de skip, se dissipe sur coup reçu',
   dodge:'🦅 Esquive : 20% d\'esquive pour les unités Vol',
   crit:'🎯 Coup Critique : +30% chances de crit (×1.5 dégâts)',
-  swarm:'🦋 Essaim : 50% qu\'un autre Insecte enchaîne (max 2/tour)',
+  swarm:'🦋 Essaim : 15% qu\'un autre Insecte enchaîne (max 2/tour)',
   quake:'🏔 Tremblement : -5% HP max sur tous les ennemis au début',
   curse:'👻 Malédiction : l\'ennemi avec + de HP perd 10% HP/tour',
   intimidate:'🌑 Intimidation : -15% ATK + SP.ATK ennemies au début',
@@ -62,24 +62,17 @@ const TARGET_LABEL = {
 export const PokedexUI = {
   _registry: null,
   _overlay:  null,
-  _tab:      'synergies', // 'synergies' | 'types' | 'moves'
+  _tab:      'synergies',
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Initialisation ────────────────────────────────────────────────────────
   init(registry) {
     this._registry = registry;
     this._overlay  = document.getElementById('overlay-pokedex');
     if (!this._overlay) return;
-
-    const btn = document.getElementById('btn-pokedex');
-    if (btn) {
-      btn.addEventListener('click', () => this.open());
-    }
-
-    const closeBtn = document.getElementById('btn-pokedex-close');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => this.close());
-    }
-
+    document.getElementById('btn-pokedex')
+      ?.addEventListener('click', () => this.open());
+    document.getElementById('btn-pokedex-close')
+      ?.addEventListener('click', () => this.close());
     this._overlay.addEventListener('click', e => {
       if (e.target === this._overlay) this.close();
     });
@@ -97,14 +90,17 @@ export const PokedexUI = {
     document.body.classList.remove('overlay-open');
   },
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Rendu principal ───────────────────────────────────────────────────────
   _render() {
     const content = document.getElementById('pokedex-content');
     if (!content) return;
-
-    const tabs = ['synergies', 'types', 'moves'];
-    const tabLabels = { synergies:'🔗 Synergies', types:'⚔️ Types', moves:'⚡ Capacités' };
-
+    const tabs = ['synergies', 'types', 'moves', 'achievements'];
+    const tabLabels = {
+      synergies:    '🔗 Synergies',
+      types:        '⚔️ Types',
+      moves:        '⚡ Capacités',
+      achievements: '🏅 Succès',
+    };
     content.innerHTML = `
       <div class="pdx-tabs">
         ${tabs.map(t => `
@@ -115,27 +111,23 @@ export const PokedexUI = {
       </div>
       <div class="pdx-body" id="pdx-body"></div>
     `;
-
     content.querySelectorAll('.pdx-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         this._tab = btn.dataset.tab;
         this._render();
       });
     });
-
     const body = document.getElementById('pdx-body');
-    if (this._tab === 'synergies') this._renderSynergies(body);
-    if (this._tab === 'types')     this._renderTypes(body);
-    if (this._tab === 'moves')     this._renderMoves(body);
+    if (this._tab === 'synergies')    this._renderSynergies(body);
+    if (this._tab === 'types')        this._renderTypes(body);
+    if (this._tab === 'moves')        this._renderMoves(body);
+    if (this._tab === 'achievements') this._renderAchievements(body);
   },
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Onglet Synergies
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Onglet Synergies ──────────────────────────────────────────────────────
   _renderSynergies(body) {
     body.innerHTML = Object.entries(SYNERGIES).map(([type, syn]) => {
       const color = TYPE_COLORS[type] ?? '#888';
-
       const renderTier = (tier, data) => {
         const bonuses = Object.entries(data.statBonus ?? {}).map(([stat, mult]) => {
           const pct = Math.round((mult - 1) * 100);
@@ -153,7 +145,6 @@ export const PokedexUI = {
             ${effect}
           </div>`;
       };
-
       return `
         <div class="pdx-syn-card" style="border-left-color:${color}">
           <div class="pdx-syn-title">
@@ -165,9 +156,7 @@ export const PokedexUI = {
     }).join('');
   },
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Onglet Types
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Onglet Types ──────────────────────────────────────────────────────────
   _renderTypes(body) {
     const cellStyle = (mult) => {
       if (mult === 2)   return 'background:#27ae60;color:#fff;font-weight:700';
@@ -181,7 +170,6 @@ export const PokedexUI = {
       if (mult === 0)   return '0';
       return '';
     };
-
     body.innerHTML = `
       <div class="pdx-type-legend">
         <span style="background:#27ae60;color:#fff;padding:2px 6px;border-radius:4px">×2 Super efficace</span>
@@ -215,26 +203,19 @@ export const PokedexUI = {
       </div>`;
   },
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Onglet Capacités (pokémons vus)
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Onglet Capacités ──────────────────────────────────────────────────────
   _renderMoves(body) {
-    // Fusion : pokémons vus dans la run courante + pokémons persistants (meta)
     const runSeen  = getSeenPokemon(this._registry);
     const meta     = window.SaveManager?.loadMeta() ?? null;
     const metaSeen = new Set(meta?.seenPokemon ?? []);
     const seen     = new Set([...runSeen, ...metaSeen]);
-    const entries = POKEMONS
-      .filter(p => seen.has(p.id))
-      .sort((a, b) => a.id - b.id);
+    const entries  = POKEMONS.filter(p => seen.has(p.id)).sort((a, b) => a.id - b.id);
 
     if (!entries.length) {
       body.innerHTML = `
         <div class="pdx-empty">
           <p>Aucun Pokémon rencontré pour l'instant.</p>
-          <p style="font-size:11px;color:var(--text-muted)">
-            Explorez la map pour débloquer des entrées.
-          </p>
+          <p style="font-size:11px;color:var(--text-muted)">Explorez la map pour débloquer des entrées.</p>
         </div>`;
       return;
     }
@@ -244,47 +225,41 @@ export const PokedexUI = {
       if (!moveKey) return '';
       const move = MOVES[moveKey];
       if (!move) return '';
-
-      const color = TYPE_COLORS[move.type] ?? '#888';
+      const color   = TYPE_COLORS[move.type] ?? '#888';
+      const pLevel  = meta?.pokemonLevels?.[pokemon.id] ?? 1;
+      const pBonus  = Math.round((getLevelBonus(pLevel) - 1) * 100);
+      const pct     = Math.round(pLevel / MAX_LEVEL * 100);
+      const isCaught = meta?.caughtPokemon?.includes(pokemon.id);
 
       const effects = (move.effects ?? []).map(e => {
         if (e.kind === 'status') {
           const icons = {burn:'🔥',poison:'☠️',paralyze:'⚡',freeze:'❄️',sleep:'💤',confuse:'😵',stun:'🔒'};
-          return `${icons[e.status]??'●'}${e.chance < 1 ? ` ${Math.round(e.chance*100)}%` : ' garanti'}`;
+          return `${icons[e.status] ?? '●'}${e.chance < 1 ? ` ${Math.round(e.chance*100)}%` : ' garanti'}`;
         }
         if (e.kind === 'stat') {
-          const up = e.mult > 1;
+          const up  = e.mult > 1;
           const pct = Math.round(Math.abs(e.mult - 1) * 100);
           const who = e.who === 'self' ? 'Soi' : e.who === 'all_targets' ? 'Tous' : 'Cible';
-          return `${who} ${STAT_EMOJIS[e.stat]??e.stat}${up?'▲':'▼'}${pct}%${e.permanent?'(perm)':e.turns?`×${e.turns}t`:''}`;
+          return `${who} ${STAT_EMOJIS[e.stat] ?? e.stat}${up ? '▲' : '▼'}${pct}%`;
         }
-        if (e.kind === 'heal')    return `💚 Soin ${Math.round(e.rate*100)}%`;
-        if (e.kind === 'ko')      return `☠ KO ${Math.round(e.chance*100)}%`;
-        if (e.kind === 'sacrifice') return '💥 Sacrifice';
-        if (e.kind === 'untargetable') return '🌫 Intouchable';
-        if (e.kind === 'shield')  return '🛡 Bouclier alliés';
-        if (e.kind === 'clear_buffs') return '🌀 Supprime buffs';
-        if (e.kind === 'push_back')   return '⬅ Repousse';
-        if (e.kind === 'skip_next')   return '⏭ Skip tour suivant';
+        if (e.kind === 'heal')       return `💚 Soin ${Math.round(e.rate*100)}%`;
+        if (e.kind === 'ko')         return `☠ KO ${Math.round(e.chance*100)}%`;
+        if (e.kind === 'sacrifice')  return '💥 Sacrifice';
+        if (e.kind === 'shield')     return '🛡 Bouclier';
+        if (e.kind === 'clear_buffs') return '🌀 Reset buffs';
         return '';
       }).filter(Boolean).join(' · ');
 
-      const bp   = move.bp > 0 ? Math.round(move.bp * (move.powerMult ?? 1)) : null;
+      const bp    = move.bp > 0 ? Math.round(move.bp * (move.powerMult ?? 1)) : null;
       const hits  = move.hits > 1 ? `×${move.hits}` : move.hitsRandom ? `×${move.hitsRandom[0]}-${move.hitsRandom[1]}` : null;
-      const drain = move.drain ? `🩸 Drain ${Math.round(move.drain*100)}%` : null;
-      const recoil = move.recoil ? `💥 Recul ${Math.round(move.recoil*100)}%` : null;
       const tags  = [
-        bp      ? `💥 ${bp}` : null,
+        bp   ? `💥 ${bp}`    : null,
         CAT_LABEL[move.cat],
         TARGET_LABEL[move.target] ?? move.target,
-        hits, drain, recoil,
+        hits,
+        move.drain  ? `🩸 ${Math.round(move.drain*100)}%`  : null,
+        move.recoil ? `💥 Recul ${Math.round(move.recoil*100)}%` : null,
       ].filter(Boolean);
-
-      const meta     = window.SaveManager?.loadMeta() ?? null;
-      const pLevel   = meta?.pokemonLevels?.[pokemon.id] ?? 1;
-      const pBonus   = Math.round((getLevelBonus(pLevel) - 1) * 100);
-      const pct      = Math.round(pLevel / MAX_LEVEL * 100);
-      const isCaught = meta?.caughtPokemon?.includes(pokemon.id);
 
       return `
         <div class="pdx-move-entry">
@@ -309,5 +284,58 @@ export const PokedexUI = {
           </div>
         </div>`;
     }).join('');
+  },
+
+  // ── Onglet Achievements ───────────────────────────────────────────────────
+  _renderAchievements(body) {
+    const meta     = window.SaveManager?.loadMeta() ?? {};
+    const unlocked = meta.achievements ?? {};
+
+    const categories = {
+      league:      { label: '🏆 Ligue par type', items: [] },
+      progression: { label: '🗺 Progression',    items: [] },
+      collection:  { label: '📖 Collection',     items: [] },
+      level:       { label: '⬆ Niveaux',         items: [] },
+      combat:      { label: '⚔️ Combat',         items: [] },
+      roguelite:   { label: '🎲 Roguelite',      items: [] },
+    };
+
+    Object.values(ACHIEVEMENTS).forEach(a => {
+      const cat = categories[a.category];
+      if (cat) cat.items.push(a);
+    });
+
+    const total = Object.values(ACHIEVEMENTS).length;
+    const done  = Object.values(unlocked).filter(v => v?.unlocked).length;
+    const pct   = total > 0 ? Math.round(done / total * 100) : 0;
+
+    body.innerHTML = `
+      <div class="pdx-ach-header">
+        <span class="pdx-ach-count">${done}/${total} succès débloqués</span>
+        <div class="pdx-ach-progress-bar">
+          <div class="pdx-ach-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      ${Object.values(categories).map(cat => {
+        if (!cat.items.length) return '';
+        return `
+          <div class="pdx-ach-category">
+            <div class="pdx-ach-cat-title">${cat.label}</div>
+            <div class="pdx-ach-list">
+              ${cat.items.map(a => {
+                const isUnlocked = unlocked[a.id]?.unlocked;
+                return `
+                  <div class="pdx-ach-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    <span class="pdx-ach-icon">${isUnlocked ? '✅' : '🔒'}</span>
+                    <div class="pdx-ach-info">
+                      <span class="pdx-ach-label">${a.label}</span>
+                      <span class="pdx-ach-desc">${a.desc}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
+    `;
   },
 };

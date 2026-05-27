@@ -177,7 +177,7 @@ export const TRAINER_ARCHETYPES = [
       { id:  50, name: "Taupiqueur", types: ["Sol"],
         stats: { hp: 10, atk: 55, spa: 35, def: 25, spd_def: 45, spd: 95 },
         spriteUrl: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/50.png" },
-      { id:  51, name: "Dugtrio", types: ["Sol"],
+      { id:  51, name: "Triopikeur", types: ["Sol"],
         stats: { hp: 35, atk: 100, spa: 50, def: 50, spd_def: 70, spd: 120 },
         spriteUrl: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/51.png" },
       { id:  74, name: "Racaillou", types: ["Roche", "Sol"],

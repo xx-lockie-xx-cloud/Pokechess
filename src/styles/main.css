@@ -100,9 +100,10 @@ img {
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border-default);
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   padding: 0 var(--gap-md);
+  gap: 8px;
   z-index: 100;
 }
 
@@ -113,6 +114,8 @@ img {
   align-items: center;
   justify-content: flex-start;
   gap: var(--gap-sm);
+  position: relative;
+  z-index: 101;   /* au-dessus du header-center pour que les boutons soient cliquables */
 }
 
 .header-center {
@@ -137,12 +140,15 @@ img {
   text-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
 }
 
-/* Bouton retour menu */
+/* Bouton retour menu — compact */
 .btn-home {
-  font-size: 11px !important;
-  padding: 5px 10px !important;
+  /* Taille fixe, même hauteur que btn-gold */
+  font-size: 13px;
+  padding: 6px 12px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
+  line-height: 1;
+  flex-shrink: 0;  /* ne s'étire jamais */
 }
 
 #ui-coins, #ui-pokeballs {
@@ -353,6 +359,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   border: 1px solid var(--color-gold);
   padding: 8px 16px;
   font-size: 13px;
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
 }
 .btn-secondary:hover:not(:disabled) { background: rgba(255,215,0,0.12); }
 
@@ -716,13 +725,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .slot img {
   width:  var(--sprite-size) !important;
   height: var(--sprite-size) !important;
-  object-fit: none;        /* affiche à taille exacte, sans redimensionnement */
+  object-fit: none;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
-  /* Décale légèrement vers le haut pour laisser de la place au nom */
   margin-bottom: 10px;
   flex-shrink: 0;
+  /* Le clic/drag traverse l'image pour atteindre le slot parent */
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .slot .slot-name {
@@ -1461,7 +1473,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   align-items: center;
   justify-content: flex-start;
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   transition: border-color var(--transition);
 }
 
@@ -1478,6 +1490,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   width: 100%;
   padding: 3px 4px 2px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 3;   /* barres HP/ATB au premier plan */
 }
 
 .combat-hp-bar {
@@ -1512,7 +1526,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   align-items: center;
   justify-content: center;
   width: 100%;
-  margin-top: -10px;  /* remonte légèrement le sprite dans la carte */
+  margin-top: -10px;
+  position: relative;
+  z-index: 2;   /* au-dessus du mana-bg (z-index 0) et hp-wrapper (z-index 1) */
 }
 
 .combat-sprite {
@@ -1525,8 +1541,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   transition: opacity 0.4s ease, filter 0.3s ease;
 }
 
-/* ── Nom du pokémon — overlay semi-transparent en bas du slot ─────────────── */
+/* ── Nom du pokémon — masqué (trop chargé) ───────────────────────────────── */
 .combat-slot-name {
+  display: none;
   position: absolute;
   bottom: 0;
   left: 0;
@@ -2560,4 +2577,433 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .btn-difficulty.locked {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE — Toutes les règles ci-dessous s'appliquent uniquement sur mobile
+   (max-width: 768px). Aucune règle desktop n'est modifiée.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── 1. Header : icônes uniquement, pas de texte ─────────────────────────
+     On masque le texte des boutons et on réduit leur taille
+     pour éviter la congestion sur petits écrans               */
+  .btn-home-text,
+  .btn-team-text,
+  .btn-pokedex-text {
+    display: none;
+  }
+
+  #btn-menu-home {
+    font-size: 16px !important;
+    padding: 5px 8px !important;
+    min-width: 36px;
+  }
+
+  #btn-team {
+    font-size: 16px;
+    padding: 5px 8px;
+    min-width: 36px;
+  }
+
+  #btn-pokedex {
+    font-size: 16px;
+    padding: 5px 8px;
+    min-width: 36px;
+  }
+
+  /* ── 2. Combat : noms masqués, sprites centrés et plus petits ────────────
+     Les noms sont masqués (trop chargé sur mobile).
+     Les barres HP/mana passent devant le sprite (z-index).
+     Le sprite est contenu dans son slot sans débordement.      */
+  .combat-slot-name {
+    display: none;
+  }
+
+  .combat-sprite-wrapper {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0;
+    z-index: 1;
+  }
+
+  .combat-sprite {
+    /* Sprite réduit et contenu dans le slot */
+    width:  calc(var(--slot-size) - 14px) !important;
+    height: calc(var(--slot-size) - 14px) !important;
+    object-fit: contain !important;
+    max-width:  100%;
+    max-height: 100%;
+    image-rendering: pixelated;
+  }
+
+  .combat-hp-bar-wrapper {
+    /* Barres de vie au-dessus du sprite */
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 3;
+    padding: 2px 3px;
+    background: rgba(0,0,0,0.55);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  }
+
+  .combat-mana-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    z-index: 3;
+    margin: 0;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  }
+
+  .combat-hp-label {
+    font-size: 7px;
+  }
+
+  /* ── 3. PrepUI : réorganisation pour éviter le scroll ────────────────────
+     La banque passe en 2 colonnes × 3 lignes.
+     Le SVG stats est affiché à droite de la banque (×0.6).
+     Synergies + inventaire passent à droite du terrain.
+     L'ensemble est restructuré en colonne unique scrollable.   */
+
+  /* Panel principal en colonne */
+  .prep-body {
+    flex-direction: column !important;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100%;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .prep-divider {
+    display: none;
+  }
+
+  /* Section terrain : terrain à gauche, synergies+inventaire à droite */
+  .prep-section:first-child {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    gap: 6px;
+    align-items: start;
+  }
+
+  #prep-field {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    /* Terrain en 3×2 avec slots plus petits */
+    grid-template-columns: repeat(3, var(--slot-size));
+    grid-template-rows:    repeat(2, var(--slot-size));
+  }
+
+  .synergy-section,
+  .inventory-section {
+    grid-column: 2;
+    overflow: visible;
+  }
+
+  .synergy-section { grid-row: 1; }
+  .inventory-section { grid-row: 2; }
+
+  /* Section banque : 2 colonnes × 3 lignes + SVG à droite */
+  .prep-section:last-child {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    gap: 6px;
+    align-items: start;
+  }
+
+  #prep-bank {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    /* Banque en 2 colonnes × 3 lignes */
+    grid-template-columns: repeat(2, var(--slot-size)) !important;
+    grid-template-rows:    repeat(3, var(--slot-size)) !important;
+  }
+
+  /* SVG stats : réduit à 60% (200px × 0.6 = 120px) */
+  .spider-section {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  #prep-spider {
+    width:   150px !important;
+    height:  150px !important;
+    overflow: visible !important;
+  }
+
+  /* Label banque */
+  #prep-bank-label {
+    grid-column: 1 / 3;
+    grid-row: 0;
+  }
+
+  /* Action bar : plus compacte */
+  #prep-action-bar {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border-default);
+    padding: 6px 8px;
+    z-index: 10;
+  }
+
+  .action-info-block {
+    gap: 4px;
+  }
+
+  .prep-move-block {
+    padding: 4px 7px;
+  }
+
+  /* ── Labels labels dans le SVG : masque les valeurs très petites ─────────
+     Sur mobile le SVG est 120px, les labels seraient illisibles */
+  #prep-spider text {
+    font-size: 7px !important;
+  }
+
+}
+/* ── Fin du bloc mobile ───────────────────────────────────────────────────── */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACHIEVEMENTS — Menu principal + Pokédex
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Bloc achievements dans le menu principal */
+.menu-achievements {
+  width: 100%;
+  max-width: 320px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.menu-ach-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.menu-ach-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-gold);
+  margin-bottom: 6px;
+}
+
+.menu-ach-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.menu-ach-badge {
+  font-size: 10px;
+  background: rgba(255,215,0,0.12);
+  border: 1px solid rgba(255,215,0,0.3);
+  border-radius: 8px;
+  padding: 2px 8px;
+  color: var(--color-gold);
+  cursor: default;
+}
+
+.menu-ach-more {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+}
+
+/* Onglet achievements dans le Pokédex */
+.pdx-ach-header {
+  margin-bottom: 10px;
+}
+
+.pdx-ach-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.pdx-ach-progress-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.pdx-ach-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-gold), #fdcb6e);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.pdx-ach-category {
+  margin-bottom: 10px;
+}
+
+.pdx-ach-cat-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 5px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.pdx-ach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pdx-ach-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.03);
+}
+
+.pdx-ach-item.unlocked {
+  background: rgba(255,215,0,0.07);
+  border: 1px solid rgba(255,215,0,0.2);
+}
+
+.pdx-ach-item.locked {
+  opacity: 0.45;
+}
+
+.pdx-ach-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.pdx-ach-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pdx-ach-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pdx-ach-desc {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+/* Bouton vente objet dans PrepUI */
+.btn-sell-item {
+  background: rgba(255,165,0,0.15);
+  border: 1px solid rgba(255,165,0,0.4);
+  color: #ffa500;
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-sell-item:hover {
+  background: rgba(255,165,0,0.25);
+}
+
+/* ── Journal de combat dans la fenêtre victoire/défaite ─────────────────── */
+.combat-result-log {
+  max-height: 220px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  margin: 8px 0;
+  font-size: 10px;
+  line-height: 1.7;
+  text-align: left;
+  scrollbar-width: thin;
+  scrollbar-color: #334466 transparent;
+  width: 100%;
+}
+
+/* ── Barre ATB (vitesse de chargement) ────────────────────────────────────── */
+.combat-atb-bar {
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 1px;
+}
+
+.combat-atb-fill {
+  height: 100%;
+  /* Dorée pour se distinguer de la mana violette */
+  background: linear-gradient(90deg, #f39c12, #ffd700);
+  border-radius: 2px;
+  transition: width 0.15s linear;
+}
+
+/* ── Barre mana (ultime) ────────────────────────────────────────────────── */
+.combat-mana-bar {
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 1px;
+}
+
+.combat-mana-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+/* ── Fond ultime — occupe toute la carte, derrière HP/sprite ─────────────── */
+.combat-mana-bg {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;                 /* JS: monte de 0% à 100% selon la mana */
+  z-index: 0;                 /* derrière hpWrapper(z3) et sprite(z2) */
+  pointer-events: none;
+  transition: height 0.3s ease;
+  border-radius: inherit;
+  opacity: 0.35;  /* subtil — derrière le sprite */
+}
+
+/* Masque l'ancienne barre mana horizontale (remplacée par .combat-mana-bg) */
+.combat-mana-bar { display: none; }
+
+/* ── Barre ATB : fine, mauve par défaut, dorée si prochain à jouer ──────── */
+.combat-atb-bar {
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 1px;
+}
+
+.combat-atb-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6c5ce7, #a29bfe);  /* mauve par défaut */
+  border-radius: 2px;
+  transition: width 0.15s linear, background 0.2s ease;
 }

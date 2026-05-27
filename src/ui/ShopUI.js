@@ -70,6 +70,10 @@ export const ShopUI = {
     const state = getRunState(this._registry);
     if ((state.coins ?? 0) < item.price) return;
 
+    // Fenêtre de confirmation avant achat
+    const ok = confirm(`Acheter ${item.emoji} ${item.name} pour ${item.price} 💰 ?`);
+    if (!ok) return;
+
     removeCoins(this._registry, item.price);
     addToInventory(this._registry, item.id);
 

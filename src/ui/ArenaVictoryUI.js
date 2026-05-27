@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ArenaVictoryUI.js
+// ArenaVictoryUI.js — Remplace ArenaVictoryScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getArenaForMap }                       from '../data/arenas.js';
-import { getRunState, setRunState, tryUnlockSlot } from '../data/runState.js';
+import { getArenaForMap }           from '../data/arenas.js';
+import { getRunState, setRunState } from '../data/runState.js';
 
 export const ArenaVictoryUI = {
   _data:     null,
@@ -15,42 +15,39 @@ export const ArenaVictoryUI = {
     this._registry = registry;
     this._onDone   = onDone;
 
-    const mapIndex   = data.mapIndex ?? 0;
-    const arena      = getArenaForMap(mapIndex);
-    const arenaNum   = mapIndex + 1;   // numéro humain de l'arène vaincue
-
-    // Tentative de débloquage de slot
-    const slotUnlocked = tryUnlockSlot(registry, arenaNum);
-
-    this._render(arena, mapIndex, slotUnlocked);
+    const arena = getArenaForMap(data.mapIndex ?? 0);
+    this._render(arena, data.mapIndex ?? 0);
     this._spawnParticles();
-    this._bindButton(arena, mapIndex);
+    this._bindButton(arena, data.mapIndex ?? 0);
   },
 
-  _render(arena, mapIndex, slotUnlocked) {
+  _render(arena, mapIndex) {
+    // Titre
     const title = document.getElementById('victory-title');
     if (title) title.textContent = `Arène ${mapIndex + 1} vaincue !`;
 
+    // Champion
     const champName = document.getElementById('victory-champion-name');
     if (champName) champName.textContent = arena
       ? `Champion ${arena.champion} défait` : '';
 
+    // Ville
     const city = document.getElementById('victory-city');
     if (city) city.textContent = arena?.city ?? '';
 
+    // Sprite champion
     const champDiv = document.getElementById('victory-champion');
-    // Utilise le sprite de combat (grand format) si dispo, sinon le sprite map
-    const champSrc = arena?.championSpriteCombat ?? arena?.championSprite ?? null;
-    if (champDiv && champSrc) {
+    if (champDiv && arena?.championSprite) {
       champDiv.innerHTML = `
-        <img src="${champSrc}"
+        <img src="${arena.championSprite}"
              alt="${arena.champion}"
-             style="max-height:220px;max-width:220px;image-rendering:pixelated;object-fit:contain" />
+             style="width:120px;height:120px;image-rendering:pixelated" />
       `;
     } else if (champDiv) {
-      champDiv.innerHTML = `<span style="font-size:100px">${arena?.badgeEmoji ?? '🏆'}</span>`;
+      champDiv.innerHTML = `<span style="font-size:80px">${arena?.badgeEmoji ?? '🏆'}</span>`;
     }
 
+    // Badge
     const badgeBox  = document.getElementById('victory-badge');
     const badgeImg  = document.getElementById('victory-badge-img');
     const badgeName = document.getElementById('victory-badge-name');
@@ -62,27 +59,15 @@ export const ArenaVictoryUI = {
         badgeImg.alt = arena.badgeName;
       } else if (badgeImg) {
         badgeImg.style.display = 'none';
+        // Fallback emoji dans le nom
       }
       if (badgeName) {
-        badgeName.textContent = arena.badgeName;  // sans emoji — le sprite suffit
-      }
-    }
-
-    // Notification de débloquage de slot
-    if (slotUnlocked) {
-      const victoryContent = document.getElementById('victory-content');
-      if (victoryContent) {
-        const notif = document.createElement('div');
-        notif.className = 'slot-unlock-notif';
-        notif.innerHTML = `
-          <span class="slot-unlock-icon">🔓</span>
-          <span>Nouveau slot de terrain débloqué !</span>
-        `;
-        victoryContent.appendChild(notif);
+        badgeName.textContent = `${arena.badgeEmoji} ${arena.badgeName}`;
       }
     }
   },
 
+  // Particules CSS (remplace les tweens Phaser)
   _spawnParticles() {
     const colors = ['#ffd700','#ff6b6b','#74b9ff','#55efc4','#ffeaa7'];
     for (let i = 0; i < 20; i++) {
@@ -99,6 +84,7 @@ export const ArenaVictoryUI = {
         animation-delay: ${Math.random() * 1.5}s;
       `;
       document.body.appendChild(p);
+      // Nettoie après animation
       setTimeout(() => p.remove(), 4000);
     }
   },
@@ -106,14 +92,45 @@ export const ArenaVictoryUI = {
   _bindButton(arena, mapIndex) {
     const btn = document.getElementById('btn-next-map');
     if (!btn) return;
+
+    // La ligue est sur la map 8 (index 8, 9e map)
+    // Maps 0-7 = les 8 arènes | Map 8 = Ligue Pokémon
+    const isLeagueVictory = mapIndex >= 8;
+
+    if (isLeagueVictory) {
+      // Victoire de la ligue → choix : mode infini ou retour menu
+      btn.textContent = '♾️ Continuer en mode infini';
+
+      // Bouton retour menu
+      let menuBtn = document.getElementById('btn-victory-menu');
+      if (!menuBtn) {
+        menuBtn = document.createElement('button');
+        menuBtn.id        = 'btn-victory-menu';
+        menuBtn.className = 'btn-secondary';
+        menuBtn.style.marginTop = '8px';
+        btn.parentNode.appendChild(menuBtn);
+      }
+      menuBtn.textContent = '🏠 Retour au menu principal';
+      menuBtn.onclick = () => {
+        if (this._onDone) this._onDone({ goToMenu: true });
+      };
+    } else {
+      btn.textContent = '➡️ Prochaine arène';
+    }
+
     const newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
 
     newBtn.addEventListener('click', () => {
       const state   = getRunState(this._registry);
       const nextIdx = (state.currentMap ?? 0) + 1;
-      setRunState(this._registry, { currentMap: nextIdx });
-      if (this._onDone) this._onDone({ mapIndex: nextIdx, prevArena: arena });
+      setRunState(this._registry, {
+        currentMap:   nextIdx,
+        infiniteMode: isLeagueVictory,
+      });
+      if (this._onDone) {
+        this._onDone({ mapIndex: nextIdx, prevArena: arena, infiniteMode: isLeagueVictory });
+      }
     });
   },
 };

@@ -238,15 +238,40 @@ export const CombatUI = {
     hpLabel.textContent = `${maxHp}/${maxHp}`;
     hpWrapper.appendChild(hpLabel);
 
-    // Barre mana
-    const manaBar  = document.createElement('div');
-    const manaFill = document.createElement('div');
-    manaBar.className  = 'combat-mana-bar';
-    manaFill.className = 'combat-mana-fill';
-    manaFill.id        = `mana-fill-${mapKey.replace(/_/g, '-')}`;
-    manaFill.style.width = '0%';
-    manaBar.appendChild(manaFill);
-    hpWrapper.appendChild(manaBar);
+    // Barre ATB (vitesse de chargement du prochain tour)
+    const atbBar  = document.createElement('div');
+    const atbFill = document.createElement('div');
+    atbBar.className  = 'combat-atb-bar';
+    atbFill.className = 'combat-atb-fill';
+    atbFill.id        = `atb-fill-${mapKey.replace(/_/g, '-')}`;
+    atbFill.style.width = '0%';
+    atbBar.appendChild(atbFill);
+    hpWrapper.appendChild(atbBar);
+
+    // ── Fond ultime — canvas Perlin noise aux couleurs du type ─────────────
+    const TYPE_COLS = {
+      Feu:'#e74c3c', Eau:'#3498db', Plante:'#2ecc71', Électrik:'#f1c40f',
+      Psy:'#9b59b6', Glace:'#a8d8ea', Combat:'#c0392b', Poison:'#8e44ad',
+      Sol:'#d4a017', Vol:'#85c1e9', Insecte:'#a9cce3', Roche:'#7f8c8d',
+      Spectre:'#6c3483', Dragon:'#1a5276', Ténèbres:'#2c3e50',
+      Acier:'#95a5a6', Fée:'#f1948a', Normal:'#aab7b8',
+    };
+    const t1 = unit.types?.[0] ?? 'Normal';
+    const t2 = unit.types?.[1] ?? t1;
+    const c1 = TYPE_COLS[t1] ?? '#444';
+    const c2 = TYPE_COLS[t2] ?? c1;
+
+    const manaBg = document.createElement('div');
+    manaBg.className = 'combat-mana-bg';
+    manaBg.id        = `mana-bg-${mapKey.replace(/_/g, '-')}`;
+    manaBg.style.height = '0%';
+
+    // Génère un canvas Perlin noise aux 2 couleurs du type
+    const noiseCanvas = this._makeNoiseCanvas(c1, c2, 72, 72);
+    manaBg.style.backgroundImage = `url(${noiseCanvas})`;
+    manaBg.style.backgroundSize  = 'cover';
+
+    slot.appendChild(manaBg);  // en premier → derrière tout le reste
 
     slot.appendChild(hpWrapper);
 
@@ -268,12 +293,6 @@ export const CombatUI = {
     img.draggable = false;
     spriteWrapper.appendChild(img);
     slot.appendChild(spriteWrapper);
-
-    // ── Nom (overlay en bas du slot) ──────────────────────────────────────
-    const name = document.createElement('span');
-    name.className   = 'combat-slot-name';
-    name.textContent = unit.name;
-    slot.appendChild(name);
 
     // ── Objet équipé ──────────────────────────────────────────────────────
     if (unit.heldItem) {
@@ -330,12 +349,16 @@ export const CombatUI = {
       return { ...u, attributes: u.attributes ?? [], stats: full.withSynergy };
     });
 
-    // ── Ennemi : multiplicateur map + synergies ennemies ──────────────────
+    // ── Ennemi : stats de base en facile/normal, mult seulement en hard/expert
+    // En facile/normal les stats sont celles du pokémon sans modification
+    const applyMult = (diffId === 'hard' || diffId === 'expert');
     const enemyForEngine = this._enemyUnits.map(u => {
       if (!u.stats) return { ...u, attributes: u.attributes ?? [] };
-      const scaledStats = Object.fromEntries(
-        Object.entries(u.stats).map(([k, v]) => [k, Math.round(v * mult)])
-      );
+      const scaledStats = applyMult
+        ? Object.fromEntries(
+            Object.entries(u.stats).map(([k, v]) => [k, Math.round(v * mult)])
+          )
+        : { ...u.stats };  // stats de base pures en facile/normal
       return { ...u, attributes: u.attributes ?? [], stats: scaledStats };
     });
     const enemySynergies = getActiveSynergies(enemyForEngine);
@@ -359,15 +382,26 @@ export const CombatUI = {
     this._logEvent(event);
 
     switch (event.type) {
-      case 'turn_start':
-        this._appendLog(`<span class="log-turn">— Tour ${(event.turn ?? 0) + 1} —</span>`);
+      case 'turn_start': {
+        // L'unité qui agit est "next" → barre dorée, reset après action
+        if (event.unitId) {
+          const actKey = this._buildKey(event.unitSide ?? 'player', event.unitId);
+          // Reset sa barre à 0 (elle vient d'agir)
+          this._updateATBBar(actKey, 0, true);
+          // Repasse toutes les autres barres en mauve
+          this._setNextActor(event.unitId, event.unitSide ?? 'player');
+        }
+        this._appendLog(`<span class="log-turn">⚡ ${event.unitName ?? 'Pokémon'} agit</span>`);
         return DELAY_TURN_START;
+      }
 
       case 'attack': {
         const attackerKey = this._buildKey(event.attackerSide, event.attackerId);
         const targetKey   = this._buildKey(event.targetSide,   event.targetId);
         if (event.attackerMana !== undefined) this._updateManaBar(attackerKey, event.attackerMana);
         if (event.targetMana   !== undefined) this._updateManaBar(targetKey,   event.targetMana);
+        if (event.attackerAtb  !== undefined) this._updateATBBar(attackerKey, event.attackerAtb);
+        if (event.targetAtb    !== undefined) this._updateATBBar(targetKey,   event.targetAtb);
         this._flashSlot(attackerKey, 'flash-yellow');
         if (event.isMove) this._showMoveAnimation(attackerKey, event.moveName ?? '');
         setTimeout(() => {
@@ -545,13 +579,96 @@ export const CombatUI = {
     if (labelEl) labelEl.textContent = `${Math.max(0, hpLeft)}/${maxHp}`;
   },
 
-  _updateManaBar(key, mana) {
-    const fill = document.getElementById(`mana-fill-${key.replace(/_/g, '-')}`);
+  // Met à jour la barre ATB — dorée si c'est le prochain à jouer, mauve sinon
+  _updateATBBar(key, atb, isNext = false) {
+    const fill = document.getElementById(`atb-fill-${key.replace(/_/g, '-')}`);
     if (!fill) return;
+    fill.style.width      = `${Math.max(0, Math.min(100, atb))}%`;
+    fill.style.background = isNext
+      ? 'linear-gradient(90deg, #f39c12, #ffd700)'    // dorée = prochain
+      : 'linear-gradient(90deg, #6c5ce7, #a29bfe)';   // mauve = en attente
+  },
+
+  // Marque l'acteur courant en doré, repasse les autres en mauve
+  _setNextActor(unitId, side) {
+    Object.entries(this._slots).forEach(([key]) => {
+      const fill = document.getElementById(`atb-fill-${key.replace(/_/g, '-')}`);
+      if (!fill) return;
+      const isThis = key === this._buildKey(side, unitId);
+      fill.style.background = isThis
+        ? 'linear-gradient(90deg, #f39c12, #ffd700)'
+        : 'linear-gradient(90deg, #6c5ce7, #a29bfe)';
+    });
+  },
+
+  // ── Génère un canvas de bruit (Perlin simplifié) aux 2 couleurs du type ──
+  // Retourne une dataURL utilisable comme backgroundImage
+  _makeNoiseCanvas(hex1, hex2, w = 72, h = 72) {
+    const canvas = document.createElement('canvas');
+    canvas.width  = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(w, h);
+
+    // Parse hex → RGB
+    const hexToRgb = hex => {
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      return [r, g, b];
+    };
+    const [r1,g1,b1] = hexToRgb(hex1);
+    const [r2,g2,b2] = hexToRgb(hex2);
+
+    // PRNG déterministe (Mulberry32) pour reproductibilité
+    let seed = (r1 * 31 + g1 * 17 + b1 * 7 + r2 * 13) >>> 0;
+    const rand = () => {
+      seed += 0x6D2B79F5;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+
+    // Bruit de valeur simple (smooth noise) sur grille 8×8
+    const GRID = 8;
+    const noise = [];
+    for (let gy = 0; gy <= GRID; gy++) {
+      noise[gy] = [];
+      for (let gx = 0; gx <= GRID; gx++) noise[gy][gx] = rand();
+    }
+    const smooth = (t) => t * t * (3 - 2 * t);
+    const lerp   = (a, b, t) => a + (b - a) * t;
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const fx = x / w * GRID;
+        const fy = y / h * GRID;
+        const gx = Math.floor(fx);
+        const gy = Math.floor(fy);
+        const tx = smooth(fx - gx);
+        const ty = smooth(fy - gy);
+        const v  = lerp(
+          lerp(noise[gy][gx],   noise[gy][gx+1],   tx),
+          lerp(noise[gy+1]?.[gx] ?? 0, noise[gy+1]?.[gx+1] ?? 0, tx),
+          ty
+        );
+        // Mélange les 2 couleurs selon la valeur de bruit
+        const i = (y * w + x) * 4;
+        img.data[i+0] = Math.round(lerp(r1, r2, v));
+        img.data[i+1] = Math.round(lerp(g1, g2, v));
+        img.data[i+2] = Math.round(lerp(b1, b2, v));
+        img.data[i+3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return canvas.toDataURL();
+  },
+
+  _updateManaBar(key, mana) {
+    const bg = document.getElementById(`mana-bg-${key.replace(/_/g, '-')}`);
+    if (!bg) return;
     const pct = Math.max(0, Math.min(100, mana));
-    fill.style.width = `${pct}%`;
-    if (pct >= 100) fill.classList.add('mana-ready');
-    else fill.classList.remove('mana-ready');
+    bg.style.height = `${pct}%`;
   },
 
   _updateStatusBadges(key, effects = []) {
@@ -614,6 +731,17 @@ export const CombatUI = {
     title.className   = `combat-result-title ${isWin ? 'win' : 'lose'}`;
     title.textContent = isWin ? '🏆 Victoire !' : '💀 Défaite...';
     box.appendChild(title);
+
+    // Journal de combat scrollable intégré dans la fenêtre de résultat
+    if (this._combatLog.length > 0) {
+      const logSection = document.createElement('div');
+      logSection.className = 'combat-result-log';
+      logSection.innerHTML = `
+        <div class="log-title">📋 Journal de combat</div>
+        ${this._combatLog.map(l => `<div class="log-line">${l}</div>`).join('')}
+      `;
+      box.appendChild(logSection);
+    }
 
     const btn = document.createElement('button');
     btn.className   = 'btn-primary btn-large';

@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <link rel="shortcut icon" href="./assets/favicon.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon.png">
   <title>PokeChess</title>
   <link rel="stylesheet" href="src/styles/main.css" />
 </head>
@@ -16,16 +14,16 @@
   <header id="game-header" class="hidden">
     <div class="header-left">
       <button id="btn-menu-home" class="btn-ghost btn-home" title="Menu principal">
-        ← Menu
+        🏠<span class="btn-home-text"> Menu</span>
       </button>
+      <button id="btn-pokedex" class="btn-secondary">📖<span class="btn-pokedex-text"> Pokédex</span></button>
     </div>
     <div class="header-center">
       <span class="game-title-header">PokeChess</span>
     </div>
     <div class="header-right">
       <span id="ui-coins">💰 0</span>
-      <button id="btn-team" class="btn-gold">⚔ Équipe</button>
-      <button id="btn-pokedex" class="btn-secondary">📖 Pokédex</button>
+      <button id="btn-team" class="btn-gold">⚔<span class="btn-team-text"> Équipe</span></button>
     </div>
   </header>
 
@@ -58,8 +56,14 @@
         </div>
       </div>
 
+      <div id="menu-achievements" class="menu-achievements"></div>
       <div id="menu-difficulty" class="menu-difficulty"></div>
-      <p class="version-label">v0.3</p>
+      <div class="menu-save-actions hidden" id="menu-save-actions-extra">
+        <button id="btn-reset-all" class="btn-ghost btn-danger">
+          💀 Réinitialiser toute la progression
+        </button>
+      </div>
+      <p class="version-label">v0.4</p>
     </div>
   </div>
 
@@ -198,6 +202,8 @@
 
   <!-- ── Point d'entrée JS ──────────────────────────────────────────────── -->
   <script type="module" src="src/game.js"></script>
-
+  <!-- DevTools mobile — retirer avant la mise en prod -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script>eruda.init();</script>
 </body>
 </html>

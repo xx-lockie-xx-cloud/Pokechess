@@ -144,17 +144,26 @@ export const PrepUI = {
     if (!grid) return;
     grid.innerHTML = '';
 
-    // Slots numérotés de gauche à droite, rangée 0 en premier :
-    // index = r * GRID_COLS + c  (0-5 pour une grille 3×2)
-    const unlocked = getUnlockedSlots(this._registry);
+    // Placement libre : tous les slots sont accessibles
+    // La limite porte sur le nombre TOTAL de pokémons sur le terrain
+    // (pas sur leur position). Les slots vides restent interactifs.
+    const maxUnits = getUnlockedSlots(this._registry);
 
     for (let r = 0; r < GRID_ROWS; r++) {
       for (let c = 0; c < GRID_COLS; c++) {
-        const slotIndex = r * GRID_COLS + c;
-        const isLocked  = slotIndex >= unlocked;
+        // Un slot est "bloqué" uniquement si :
+        // - il est vide ET le terrain est déjà plein (maxUnits atteint)
+        const unit = this._field[c][r];
+        const totalOnField = Object.values(this._field)
+          .flatMap(col => Object.values(col))
+          .filter(Boolean).length;
+        // Un slot vide est verrouillé seulement si le terrain est plein
+        // ET qu'on ne déplace pas un pokémon déjà sur le terrain
+        // (permettre le drag terrain→terrain même quand c'est plein)
+        const dragFromField = this._dragSource?.source === 'field';
+        const isLocked = !unit && totalOnField >= maxUnits && !dragFromField;
 
         if (isLocked) {
-          // Slot verrouillé — non interactif
           const locked = document.createElement('div');
           locked.className = 'slot slot-locked';
           locked.innerHTML = `<span class="slot-lock-icon">🔒</span>`;
@@ -165,7 +174,6 @@ export const PrepUI = {
           continue;
         }
 
-        const unit = this._field[c][r];
         const slot = this._createSlot(unit, {
           selected: this._selectedCard?.source === 'field' &&
                     this._selectedCard?.col === c &&
@@ -506,6 +514,31 @@ slot.addEventListener('drop', (e) => {
     this._saveState(this._registry);
   },
 
+  // Vend l'objet tenu par le pokémon sélectionné (moitié du prix d'achat)
+  _sellItem() {
+    if (!this._selectedCard) return;
+    const { pokemon, source, col, row, idx } = this._selectedCard;
+    if (!pokemon?.heldItem) return;
+    const item      = pokemon.heldItem;
+    const sellPrice = Math.max(0, Math.floor((item.price ?? 4) / 2));
+    const ok = confirm(`Vendre ${item.emoji} ${item.name} pour ${sellPrice} 💰 ?`);
+    if (!ok) return;
+    addCoins(this._registry, sellPrice);
+
+    // Met à jour l'unité dans field ou bank
+    const updated = { ...pokemon, heldItem: null };
+    if (source === 'field') {
+      this._field[col][row] = updated;
+      this._selectedCard.pokemon = updated;
+    } else {
+      this._bank[idx] = updated;
+      this._selectedCard.pokemon = updated;
+    }
+
+    this._renderAll();
+    this._saveState(this._registry);
+  },
+
   _sellPrice(pokemon) {
     // Prix de revente selon tier : T1=0, T2=1, T3=2, T4=3, T5=4
     const SELL = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4 };
@@ -708,9 +741,14 @@ slot.addEventListener('drop', (e) => {
         ${moveBlock}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-self:flex-start">
-        ${pokemon.heldItem ? `<button class="btn-unequip" id="btn-prep-unequip">
-          ${pokemon.heldItem.emoji} Retirer
-        </button>` : ''}
+        ${pokemon.heldItem ? `
+          <button class="btn-unequip" id="btn-prep-unequip">
+            ${pokemon.heldItem.emoji} Retirer
+          </button>
+          <button class="btn-sell btn-sell-item" id="btn-prep-sell-item">
+            Vendre objet ${Math.max(0, Math.floor((pokemon.heldItem.price ?? 4) / 2))} 💰
+          </button>
+        ` : ''}
         <button class="btn-sell" id="btn-prep-sell">
           Vendre ${price} 💰
         </button>
@@ -722,6 +760,9 @@ slot.addEventListener('drop', (e) => {
 
     document.getElementById('btn-prep-unequip')
       ?.addEventListener('click', () => this._unequip());
+
+    document.getElementById('btn-prep-sell-item')
+      ?.addEventListener('click', () => this._sellItem());
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -818,10 +859,17 @@ slot.addEventListener('drop', (e) => {
     // Polygone effectif
     const polyPts = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
+    // Tailles adaptatives mobile — les labels débordent via overflow:visible
+    // La toile reste 120px, seuls les textes sortent légèrement
+    const isMobile  = window.innerWidth <= 768;
+    const emojiSize = isMobile ? 38 : 13;
+    const valSize   = isMobile ? 56 : 8;
+    const labelDist = isMobile ? 12 : 18;  // très proche de la toile sur mobile
+
     // Icônes + valeurs
     // Priorité couleur : Doré (dominant) > Type (synergies) > Vert (item) > Gris
     const labels = axes.map(ax => {
-      const dist       = R + 18;
+      const dist       = R + labelDist;
       const lx         = cx + dist * Math.cos(toRad(ax.angle));
       const ly         = cy + dist * Math.sin(toRad(ax.angle));
       const isMain     = ax.emoji === dominantOffense;
@@ -854,9 +902,9 @@ slot.addEventListener('drop', (e) => {
       return `
         ${bgRect}
         <text x="${lx.toFixed(1)}" y="${(ly - 6).toFixed(1)}"
-              text-anchor="middle" font-size="13" dominant-baseline="middle">${ax.emoji}</text>
+              text-anchor="middle" font-size="${emojiSize}" dominant-baseline="middle">${ax.emoji}</text>
         <text x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}"
-              text-anchor="middle" font-size="8" fill="${valColor}"
+              text-anchor="middle" font-size="${valSize}" fill="${valColor}"
               font-weight="${isMain || isBoostedAny ? 'bold' : 'normal'}"
               dominant-baseline="middle">${valueStr}</text>
       `;
@@ -917,10 +965,7 @@ slot.addEventListener('drop', (e) => {
                stroke="${finalColor}" stroke-width="${finalStrokeW}"/>
       ${dots}
       ${labels}
-      <text x="${cx}" y="${cy}" text-anchor="middle"
-            font-size="9" fill="#e2e8f0" dominant-baseline="middle">
-        ${pokemon.name}
-      </text>
+
     `;
   },
 

@@ -113,10 +113,10 @@ export function getActiveSynergies(fieldUnits) {
 
   const active = [];
   Object.entries(typeCounts).forEach(([type, count]) => {
-    if (count < 3) return;
+    if (count < 2) return;  // seuil 1 : 2 pokémons
     const synergy = SYNERGIES[type];
     if (!synergy) return;
-    const tier = count >= 5 ? 3 : 2;
+    const tier = count >= 4 ? 3 : 2;  // seuil 2 : 4 pokémons
     const data  = tier === 3 ? synergy.seuil3 : synergy.seuil2;
     active.push({
       type, icon: synergy.icon, color: synergy.color,
@@ -142,9 +142,10 @@ export function getFullStats(unit, fieldUnits = [], meta = null) {
   const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean));
   const synBonus   = {};
 
+  // Bonus de synergies appliqués à TOUTE la composition
+  // (pas seulement aux pokémons du type déclencheur)
   activeSyns.forEach(syn => {
     if (!syn.statBonus) return;
-    if (!unit.types?.includes(syn.type)) return;
     Object.entries(syn.statBonus).forEach(([stat, mult]) => {
       synBonus[stat] = (synBonus[stat] ?? 1) * mult;
     });
