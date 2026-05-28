@@ -30,7 +30,8 @@ import { getRunState, setRunState,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
 import { ITEMS }                         from '../data/items.js';
 import { getActiveSynergies, getFullStats }  from '../data/synergies.js';
-import { getLevelBadgeHTML, getLevelBonus }  from '../data/levelSystem.js';
+import { getLevelBadgeHTML, getLevelBonus,
+         getPokemonPassive }          from '../data/levelSystem.js';
 import { getMove }                           from '../data/moves.js';
 import { canEvolve, getEvolutionId }     from '../data/evolutionData.js';
 
@@ -244,6 +245,10 @@ export const PrepUI = {
              onerror="this.src='assets/placeholder.png'" />
         <span class="slot-name">${unit.name}</span>
         ${unitLevel > 1 ? getLevelBadgeHTML(unitLevel) : ''}
+        ${(() => {
+          const passive = getPokemonPassive(unit.id, unitLevel);
+          return passive ? `<span class="slot-passive-badge" title="${passive.name}: ${passive.desc}">✨</span>` : '';
+        })()}
         ${itemHtml}
       `;
     } else {
@@ -514,6 +519,56 @@ slot.addEventListener('drop', (e) => {
     this._saveState(this._registry);
   },
 
+  // Rendu du bloc passif de niveau dans l'action bar
+  _renderPassiveBlock(pokemon) {
+    const meta = SaveManager?.loadMeta() ?? {};
+    const lvl  = meta.pokemonLevels?.[pokemon.id] ?? 1;
+    const all  = window.__POKEMON_PASSIVES__?.[pokemon.id];
+    if (!all) return '';
+
+    const blocks = [];
+
+    // Passif Nv.35
+    if (lvl >= 35 && all[35]) {
+      blocks.push(`
+        <div class="prep-passive-block">
+          <div class="prep-passive-title">
+            <span class="prep-passive-icon">✨</span>
+            <span class="prep-passive-name">${all[35].name}</span>
+            <span class="prep-passive-level">Nv.35</span>
+          </div>
+          <p class="prep-passive-desc">${all[35].desc}</p>
+        </div>`);
+    } else if (all[35]) {
+      blocks.push(`
+        <div class="prep-passive-block locked">
+          <span class="prep-passive-icon">🔒</span>
+          <span class="prep-passive-hint">Passif débloqué au Nv.35</span>
+        </div>`);
+    }
+
+    // Passif Nv.70
+    if (lvl >= 70 && all[70]) {
+      blocks.push(`
+        <div class="prep-passive-block">
+          <div class="prep-passive-title">
+            <span class="prep-passive-icon">✨</span>
+            <span class="prep-passive-name">${all[70].name}</span>
+            <span class="prep-passive-level">Nv.70</span>
+          </div>
+          <p class="prep-passive-desc">${all[70].desc}</p>
+        </div>`);
+    } else if (all[70]) {
+      blocks.push(`
+        <div class="prep-passive-block locked">
+          <span class="prep-passive-icon">🔒</span>
+          <span class="prep-passive-hint">Passif débloqué au Nv.70</span>
+        </div>`);
+    }
+
+    return blocks.join('');
+  },
+
   // Vend l'objet tenu par le pokémon sélectionné (moitié du prix d'achat)
   _sellItem() {
     if (!this._selectedCard) return;
@@ -739,6 +794,7 @@ slot.addEventListener('drop', (e) => {
           ${pokemon.heldItem ? `<span style="font-size:11px">${pokemon.heldItem.emoji} ${pokemon.heldItem.name}</span>` : ''}
         </div>
         ${moveBlock}
+        ${this._renderPassiveBlock(pokemon)}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-self:flex-start">
         ${pokemon.heldItem ? `

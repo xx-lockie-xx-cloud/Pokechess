@@ -4,6 +4,7 @@
 
 import { getTypeMultiplier }           from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES, getMove } from '../data/moves.js';
+import { POKEMON_PASSIVES, TALENT_TREES } from '../data/levelSystem.js';
 
 // ── Multiplicateur AoE selon le nombre de cibles ─────────────────────────────
 function aoeMult(targetCount) {
@@ -49,6 +50,7 @@ export class CombatEngine {
     const spd_def = unit.stats?.spd_def ?? unit.spd_def ?? def;
     return {
       id: unit.id, uid: unit.uid ?? `${unit.id}_${unit.col}_${unit.row}`,
+      _level: unit._level ?? 1,  // niveau persistant pour les passifs
       name: unit.name, types: unit.types ?? [], side,
       row: unit.row ?? 0, col: unit.col ?? 0,
       hp: unit.stats?.hp ?? unit.hp ?? 1,
@@ -75,6 +77,14 @@ export class CombatEngine {
       // Initialisée à (100 + SPD) / 5 → pokémon rapide démarre plus avancé
       // SPD=30 → 26 | SPD=100 → 40 | SPD=110 → 42
       atbBar: 0,  // calculé après _copyUnit via _initATBBar()
+      // Passif de niveau actif (null si niveau insuffisant)
+      _passive: null,
+      // Bouclier passif one-shot utilisé
+      _passiveShieldUsed: false,
+      // Compteur d'actions pour effets périodiques du passif
+      _passiveActionCount: 0,
+      // Premier coup du combat déjà infligé
+      _firstHitDone: false,
     };
   }
 
@@ -86,11 +96,14 @@ export class CombatEngine {
   }
   _addStatus(unit, type, turns = -1) {
     const existing = unit.statusEffects.find(s => s.type === type);
-    // Poison : stackable (max 5 stacks)
-    if (type === 'poison' && existing) {
-      existing.stacks = Math.min((existing.stacks ?? 1) + 1, 5);
+    // Poison et Brûlure : stackables
+    if ((type === 'poison' || type === 'burn') && existing) {
+      const maxStacks = type === 'poison' ? 5 : 3;
+      existing.stacks = Math.min((existing.stacks ?? 1) + 1, maxStacks);
+      const icon = type === 'poison' ? '☠️' : '🔥';
+      const name = type === 'poison' ? 'Poison' : 'Brûlure';
       this.log.push({ type: 'status_applied', effect: type,
-        label: `☠️ Poison ×${existing.stacks}`,
+        label: `${icon} ${name} ×${existing.stacks}`,
         stacks: existing.stacks,
         targetId: unit.uid, targetName: unit.name, targetSide: unit.side });
       return;
@@ -137,7 +150,7 @@ export class CombatEngine {
 
     // Taille du tick : chaque tick avance les barres de (speed/10) points
     // → barres moins saturées, différences de vitesse plus lisibles
-    const TICK_DIV = 20;
+    const TICK_DIV = 50;  // augmenté pour ralentir les barres ATB
 
     while (!this._isOver() && globalActions < MAX_ACTIONS) {
       globalActions++;
@@ -207,6 +220,10 @@ export class CombatEngine {
       u.atbBar = this._getATBSpeed(u) / 5;
     });
 
+    this._applyPassives('player', this.playerUnits, this.enemyUnits);
+    this._applyPassives('enemy',  this.enemyUnits,  this.playerUnits);
+    this._applyTalents('player',  this.playerUnits, this.enemyUnits);
+    this._applyTalents('enemy',   this.enemyUnits,  this.playerUnits);
     this._applyPreEffects('player', this.playerFx, this.enemyUnits, this.playerUnits);
     this._applyPreEffects('enemy',  this.enemyFx,  this.playerUnits, this.enemyUnits);
     // Armure Roche
@@ -232,8 +249,11 @@ export class CombatEngine {
     }
     if (fx.has('intimidate')) {
       enemies.forEach(u => {
-        this._applyPermStat(u, 'atk',   0.85);
-        this._applyPermStat(u, 'spa',   0.85);
+        ['atk','spa'].forEach(s => {
+          const ex = u.tempMods.find(m => m.stat === s && m._intimidate);
+          if (ex) { ex.mult *= 0.85; }
+          else     { u.tempMods.push({ stat: s, mult: 0.85, turnsLeft: -1, _intimidate: true }); }
+        });
         this.log.push({ type:'pre_combat', effect:'intimidate', label:'🌑 Intimidation !',
           targetId:u.uid, targetSide:u.side });
       });
@@ -250,6 +270,676 @@ export class CombatEngine {
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PASSIFS DE NIVEAU
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Applique les passifs de niveau pré-combat (stat boosts, intimidate, etc.)
+  _applyPassives(side, allies, enemies) {
+    allies.forEach(unit => {
+      const level    = unit._level ?? 1;
+      const passives = this._getUnitPassive(unit.id, level);
+      if (!passives.length) return;
+      // Stocke le tableau complet pour les triggers in-combat
+      unit._passives = passives;
+      // Compatibilité : _passive pointe sur le dernier (plus puissant)
+      unit._passive  = passives[passives.length - 1];
+
+      passives.forEach(passive => {
+      const e = passive.effect;
+      if (!e) return;
+
+      switch (e.kind) {
+        // Boosts de stats permanents
+        case 'stat_boost':
+          this._applyPermStat(unit, e.stat, e.mult);
+          break;
+        case 'dual_stat_boost':
+        case 'fury_dual':
+          (e.stats ?? []).forEach(s => this._applyPermStat(unit, s, e.mult));
+          break;
+        case 'damage_reduction':
+          unit._damageReduction = (unit._damageReduction ?? 1) * e.mult;
+          break;
+        case 'damage_reduction_physical':
+          unit._dmgReducPhysical = (unit._dmgReducPhysical ?? 1) * e.mult;
+          break;
+        case 'damage_reduction_special':
+          unit._dmgReducSpecial  = (unit._dmgReducSpecial  ?? 1) * e.mult;
+          break;
+        case 'evasion':
+          unit._evasion = (unit._evasion ?? 0) + e.chance;
+          break;
+        case 'damage_absorb':
+        case 'damage_absorb_reduction':
+          unit.armorShield = true;
+          if (e.mult) unit._damageReduction = (unit._damageReduction ?? 1) * e.mult;
+          break;
+        case 'sturdy':
+          unit._sturdy = true;
+          break;
+        case 'revive':
+          unit._reviveRate = e.rate;
+          break;
+        case 'status_immunity':
+          unit._statusImmune = true;
+          break;
+        case 'status_immunity_types':
+          unit._statusImmuneList = [...(unit._statusImmuneList ?? []), ...(e.statuses ?? [])];
+          break;
+        case 'type_immunity':
+          unit._typeImmune = [...(unit._typeImmune ?? []), e.type];
+          break;
+        case 'type_resistance':
+        case 'type_resistance_immunity':
+          unit._typeResist = unit._typeResist ?? {};
+          if (e.resist_type) unit._typeResist[e.resist_type] = (unit._typeResist[e.resist_type] ?? 1) * e.mult;
+          if (e.type)        unit._typeResist[e.type]        = (unit._typeResist[e.type]        ?? 1) * e.mult;
+          if (e.immune)      unit._statusImmuneList = [...(unit._statusImmuneList ?? []), e.immune];
+          break;
+        case 'ignore_def':
+          unit._ignoreDefPct = (unit._ignoreDefPct ?? 0) + e.pct;
+          break;
+        case 'multi_hit':
+          unit._multiHit = { hits: e.hits, mult: e.mult };
+          break;
+        case 'bonus_hit':
+          unit._bonusHit = e.mult;
+          break;
+        case 'crit_boost':
+          unit._critBoost = (unit._critBoost ?? 0) + e.chance;
+          break;
+        case 'priority_always':
+          unit._priorityAlways = true;
+          break;
+        // Intimidate passif (début de combat)
+        case 'intimidate':
+          enemies.forEach(en => {
+            (e.stats ?? []).forEach(s => {
+              // Utilise tempMod permanent pour que les débuffs soient visibles dans l'overlay
+              const existing = en.tempMods.find(m => m.stat === s && m._intimidate);
+              if (existing) {
+                existing.mult *= e.mult; // cumule si plusieurs intimidate
+              } else {
+                en.tempMods.push({ stat: s, mult: e.mult, turnsLeft: -1, _intimidate: true });
+              }
+            });
+          });
+          this.log.push({ type:'pre_combat', effect:'passive_intimidate',
+            label:`😤 ${passive.name} (${unit.name}) — ${e.stats.join('/')} ${Math.round((1-e.mult)*100)}%▼`,
+            targetSide: side === 'player' ? 'enemy' : 'player' });
+          break;
+        case 'intimidate_proc':
+          enemies.forEach(en => {
+            (e.stats ?? []).forEach(s => this._applyPermStat(en, s, e.mult));
+            if (e.status && Math.random() < e.chance) this._addStatus(en, e.status, 2);
+          });
+          break;
+        // AoE statut au début
+        case 'aoe_start_status': {
+          const targets = e.row === 'all' ? enemies
+            : enemies.filter(en => en.row === 0);
+          targets.forEach(en => {
+            if (en.hp <= 0) return;
+            if (e.chance && Math.random() > e.chance) return;
+            for (let i = 0; i < (e.stacks ?? 1); i++)
+              this._addStatus(en, e.status, e.turns ?? -1);
+          });
+          this.log.push({ type:'pre_combat', effect:'passive_aoe_status',
+            label:`✨ ${passive.name} (${unit.name})`, targetSide: side === 'player' ? 'enemy' : 'player' });
+          break;
+        }
+        case 'aoe_start_status_stack': {
+          // Comme aoe_start_status mais force un stack supplémentaire
+          // même si le statut est déjà présent (ex: Sulfura + synergie Feu)
+          const targets2 = e.row === 'all' ? enemies
+            : enemies.filter(en => en.row === 0);
+          targets2.forEach(en => {
+            if (en.hp <= 0) return;
+            if (e.chance && Math.random() > e.chance) return;
+            // Force le stack même si statut existant
+            const existing = en.statusEffects.find(s => s.type === e.status);
+            if (existing) {
+              existing.stacks = (existing.stacks ?? 1) + (e.stacks ?? 1);
+              this.log.push({ type:'status_applied', effect: e.status,
+                label:`🔥 ${passive.name} — stack brûlure ×${existing.stacks}`,
+                stacks: existing.stacks,
+                targetId:en.uid, targetName:en.name, targetSide:en.side });
+            } else {
+              this._addStatus(en, e.status, e.turns ?? 3);
+            }
+          });
+          this.log.push({ type:'pre_combat', effect:'passive_aoe_status_stack',
+            label:`🔥 ${passive.name} (${unit.name})`, targetSide: side === 'player' ? 'enemy' : 'player' });
+          break;
+        }
+        // Aura boost (alliés d'un type)
+        case 'aura_type_boost':
+          allies.filter(a => a.types.includes(e.type) && a !== unit)
+            .forEach(a => {
+              this._applyPermStat(a, 'atk',     e.mult);
+              this._applyPermStat(a, 'spa',     e.mult);
+              this._applyPermStat(a, 'def',     e.mult);
+              this._applyPermStat(a, 'spd_def', e.mult);
+            });
+          break;
+        case 'aura_all_boost':
+          allies.filter(a => a !== unit).forEach(a => {
+            ['atk','spa','def','spd_def','spd'].forEach(s => this._applyPermStat(a, s, e.mult));
+          });
+          break;
+        // Timing boost initial
+        case 'temporary_boost':
+          unit.tempMods.push({ stat: e.stat, mult: e.mult, turnsLeft: e.duration });
+          break;
+        // Type absorb (immunité + soin)
+        case 'type_absorb':
+          unit._typeAbsorb = [...(unit._typeAbsorb ?? []), e.type];
+          break;
+        // First hit boost
+        case 'first_hit_boost':
+          unit._firstHitMult = e.mult;
+          break;
+        // Boost highest stat
+        case 'boost_highest_stat': {
+          const stats = ['atk','spa','def','spd_def','spd'];
+          const best  = stats.reduce((b, s) => unit[s] > unit[b] ? s : b, stats[0]);
+          this._applyPermStat(unit, best, e.mult);
+          break;
+        }
+        case 'status_immunity_boost':
+          unit._statusImmune = true;
+          ['atk','spa','def','spd_def','spd'].forEach(s => this._applyPermStat(unit, s, e.mult));
+          break;
+        case 'lone_type_boost': {
+          const countSameType = allies.filter(a => a !== unit && a.types.some(t => unit.types.includes(t))).length;
+          if (countSameType === 0) this._applyPermStat(unit, e.stat, e.mult);
+          break;
+        }
+        case 'boost_from_strongest': {
+          // Gagne ratio × stats du pokémon le plus puissant (allié ou ennemi)
+          const allU  = [...this.playerUnits, ...this.enemyUnits];
+          const strg  = allU.filter(u => u !== unit)
+            .sort((a,b) => (b.atk+b.spa+b.def+b.spd_def+b.spd+b.hp)
+                         - (a.atk+a.spa+a.def+a.spd_def+a.spd+a.hp))[0];
+          const ratio = e.ratio ?? (1/3);
+          if (strg) {
+            ['atk','spa','def','spd_def','spd','hp'].forEach(s => {
+              const bonus = Math.round(strg[s] * ratio);
+              unit[s]  += bonus;
+              if (s === 'hp') unit.maxHp += bonus;
+            });
+            this.log.push({ type:'pre_combat', effect:'boost_from_strongest',
+              label:`⭐ ${passive.name} — +1/3 stats de ${strg.name}`,
+              targetId:unit.uid, targetName:unit.name, targetSide:unit.side });
+          }
+          break;
+        }
+        case 'sleep_n_start': {
+          const shuffled = [...enemies].sort(() => Math.random() - 0.5);
+          shuffled.slice(0, e.count ?? 1).forEach(en => {
+            if (en.hp > 0) this._addStatus(en, 'sleep', e.turns ?? 2);
+          });
+          break;
+        }
+        case 'sleep_one_start': {
+          const target = enemies.filter(en => en.hp > 0)[Math.floor(Math.random() * enemies.length)];
+          if (target) this._addStatus(target, 'sleep', e.turns ?? 2);
+          break;
+        }
+        // Régén périodique de zone (setup, déclenché dans _resolveEndOfTurn)
+        case 'regen_all_period':
+        case 'regen_ally':
+          // stocké dans _passive, déclenché dans _resolveEndOfTurn
+          break;
+        case 'random_passive': {
+          // Métronome : tire un passif aléatoire parmi tous les existants
+          const allDefs   = Object.values(POKEMON_PASSIVES);
+          const allKinds  = [];
+          allDefs.forEach(def => {
+            [35, 70].forEach(lvl => {
+              if (def[lvl]?.effect?.kind && def[lvl].effect.kind !== 'random_passive')
+                allKinds.push(def[lvl]);
+            });
+          });
+          if (allKinds.length > 0) {
+            const picked = allKinds[Math.floor(Math.random() * allKinds.length)];
+            // Stocke le passif tiré pour les triggers in-combat
+            unit._metronomePassive = picked;
+            // Applique les effets de setup du passif tiré
+            const savedPassive = passive;
+            const tmpUnit = { ...unit, _passive: picked };
+            // Log visible en fin de combat
+            this.log.push({ type:'pre_combat', effect:'metronome',
+              label:`🎲 Métronome → ${picked.name} : ${picked.desc}`,
+              targetId:unit.uid, targetName:unit.name, targetSide:unit.side });
+          }
+          break;
+        }
+        // Passifs actifs (in-combat) — stockés pour _checkPassiveTriggers
+        default:
+          break;
+      }
+      }); // fin passives.forEach
+    });
+  }
+
+  // Récupère le passif d'un pokémon selon son niveau
+  // Retourne un tableau de tous les passifs actifs selon le niveau
+  // Nv.35 ET Nv.70 sont actifs si level >= 70
+  _getUnitPassive(pokemonId, level) {
+    const all = POKEMON_PASSIVES[pokemonId];
+    if (!all) return [];
+    const result = [];
+    if (level >= 35 && all[35]) result.push(all[35]);
+    if (level >= 70 && all[70]) result.push(all[70]);
+    return result;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TALENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Applique les effets des talents débloqués (injectés via talentEffects)
+  _applyTalents(side, allies, enemies) {
+    const talentEffects = side === 'player'
+      ? (this._playerTalents ?? [])
+      : (this._enemyTalents  ?? []);
+
+    talentEffects.forEach(e => {
+      switch (e.kind) {
+        case 'type_stat':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => this._applyPermStat(u, e.stat, e.mult));
+          break;
+        case 'type_dual_stat':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => (e.stats ?? []).forEach(s => this._applyPermStat(u, s, e.mult)));
+          break;
+        case 'type_evasion':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._evasion = (u._evasion ?? 0) + e.chance; });
+          break;
+        case 'type_status_immunity':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._statusImmuneList = [...(u._statusImmuneList ?? []), e.status]; });
+          break;
+        case 'type_start_shield':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u.armorShield = true; });
+          break;
+        case 'type_start_debuff':
+          enemies.forEach(en => this._applyPermStat(en, e.stat, e.mult));
+          break;
+        case 'type_start_status':
+          enemies.forEach(en => {
+            for (let i = 0; i < (e.stacks ?? 1); i++)
+              this._addStatus(en, e.status, -1);
+          });
+          break;
+        case 'type_start_aoe_status':
+          enemies.filter(en => e.row === 'all' || en.row === 0).forEach(en => {
+            if (Math.random() < (e.chance ?? 1)) this._addStatus(en, e.status, 2);
+          });
+          break;
+        case 'type_once_aoe':
+          // déclenché via _talentAoeUsed dans le moteur
+          this._pendingTalentAoe = this._pendingTalentAoe ?? [];
+          this._pendingTalentAoe.push({ side, ...e });
+          break;
+        case 'type_revive':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._reviveRate = Math.max(u._reviveRate ?? 0, e.rate); });
+          break;
+        case 'type_proc':
+          // stocké dans _talentProcs, vérifié dans _checkPassiveTriggers
+          this._talentProcs = this._talentProcs ?? [];
+          this._talentProcs.push({ side, ...e });
+          break;
+        case 'type_aoe_immunity':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._immuneToAoe = true; });
+          break;
+        case 'type_ignore_def':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._ignoreDefPct = (u._ignoreDefPct ?? 0) + e.pct; });
+          break;
+        case 'type_counter':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._counterRate = (u._counterRate ?? 0) + e.rate; });
+          break;
+        case 'type_ignore_resistance':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._ignoreResistance = true; });
+          break;
+        case 'all_immunity_type':
+          allies.forEach(u => { u._typeImmune = [...(u._typeImmune ?? []), e.immune_type]; });
+          break;
+        case 'bonus_slot':
+          // géré côté UI (runState)
+          break;
+        case 'type_damage_reduction_special':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._dmgReducSpecial = (u._dmgReducSpecial ?? 1) * e.mult; });
+          break;
+        case 'type_group_reduction':
+          if (allies.filter(u => u.types.includes(e.type)).length >= e.count)
+            allies.filter(u => u.types.includes(e.type))
+              .forEach(u => { u._damageReduction = (u._damageReduction ?? 1) * e.mult; });
+          break;
+        case 'type_boost_highest':
+          allies.filter(u => u.types.includes(e.type)).forEach(u => {
+            const stats = ['atk','spa','def','spd_def','spd'];
+            const best  = stats.reduce((b, s) => u[s] > u[b] ? s : b, stats[0]);
+            this._applyPermStat(u, best, e.mult);
+          });
+          break;
+        case 'type_regen_all':
+          // stocké dans _talentRegens, déclenché dans _resolveEndOfTurn
+          this._talentRegens = this._talentRegens ?? [];
+          this._talentRegens.push({ side, ...e });
+          break;
+        case 'type_aoe_row':
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._aoeRow = e.row; });
+          break;
+        case 'type_dot_boost':
+          // boostPoison : géré dans _applyDot
+          this._poisonBoost = (this._poisonBoost ?? 1) * e.mult;
+          break;
+        case 'type_status_boost':
+          // durée statut : géré dans _addStatus (via _statusDurationMult)
+          this._statusDurationMult = (this._statusDurationMult ?? 1) * e.mult;
+          break;
+        case 'type_swarm_boost':
+          this._swarmChance = e.chance;
+          break;
+        default: break;
+      }
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VÉRIFICATION DES PASSIFS EN COMBAT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Appelé après chaque attaque de 'attacker' sur 'target' — procs passifs
+  _checkPassiveTriggers(attacker, target, damage) {
+    const allPassives = attacker._passives ?? (attacker._passive ? [attacker._passive] : []);
+    allPassives.forEach(p => {
+      if (!p?.effect) return;
+      const e = p.effect;
+      this._checkSinglePassiveTrigger(p, e, attacker, target, damage);
+    });
+  }
+
+  _checkSinglePassiveTrigger(p, e, attacker, target, damage) {
+    const allies  = attacker.side === 'player' ? this.playerUnits : this.enemyUnits;
+    const enemies = attacker.side === 'player' ? this.enemyUnits  : this.playerUnits;
+
+    switch (e.kind) {
+      case 'on_attack_proc':
+      case 'on_attack_proc_drain':
+      case 'on_attack_proc_debuff': {
+        if (Math.random() < e.chance) {
+          for (let i = 0; i < (e.stacks ?? 1); i++)
+            this._addStatus(target, e.status, e.turns ?? -1);
+          if (e.drain) {
+            const heal = Math.max(1, Math.ceil(damage * e.drain));
+            attacker.hp = Math.min(attacker.maxHp, attacker.hp + heal);
+            this.log.push({ type:'effect_heal', effect:'passive_drain', label:`🩸 ${p.name}`,
+              targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side,
+              heal, targetHpLeft:attacker.hp, targetMaxHp:attacker.maxHp });
+          }
+          if (e.stat && e.debuff) this._applyPermStat(target, e.stat, e.debuff);
+        }
+        break;
+      }
+      case 'drain_attack': {
+        const heal = Math.max(1, Math.ceil(damage * e.rate));
+        attacker.hp = Math.min(attacker.maxHp, attacker.hp + heal);
+        this.log.push({ type:'effect_heal', effect:'passive_drain', label:`🩸 ${p.name}`,
+          targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side,
+          heal, targetHpLeft:attacker.hp, targetMaxHp:attacker.maxHp });
+        break;
+      }
+      case 'on_hit_debuff':
+      case 'multi_hit_debuff':
+        this._applyPermStat(target, e.stat, e.mult);
+        break;
+      case 'ramp_stat':
+      case 'ramp_dual': {
+        const stats = e.stats ?? [e.stat];
+        let totalPct = 0;
+        stats.forEach(s => {
+          const cur  = attacker._rampMult?.[s] ?? 0;
+          const next = Math.min(cur + (e.per_action ?? 0.05), e.max ?? 0.50);
+          attacker._rampMult = attacker._rampMult ?? {};
+          attacker._rampMult[s] = next;
+          attacker.tempMods = attacker.tempMods.filter(m => m.stat !== s || m._ramp !== true);
+          attacker.tempMods.push({ stat: s, mult: 1 + next, turnsLeft: -1, _ramp: true });
+          totalPct = Math.round(next * 100);
+        });
+        this.log.push({ type:'passive_trigger', effect:'ramp',
+          label:`⬆ ${p.name} (${attacker.name}) +${totalPct}%`,
+          targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side });
+        break;
+      }
+      case 'bonus_vs_status':
+        // géré dans _calcDamage
+        break;
+      case 'rage_stack': {
+        if (!attacker._isReceivingHit) break; // déclenché seulement sur réception
+        attacker.rageStack = attacker.rageStack ?? { stat: e.stat, count: 0, mult: 1 + (e.per_hit ?? 0.05) };
+        const maxCount = Math.floor((e.max ?? 0.50) / (e.per_hit ?? 0.05));
+        attacker.rageStack.count = Math.min(attacker.rageStack.count + 1, maxCount);
+        break;
+      }
+      case 'flat_bonus_dmg':
+        // ajouté dans _calcDamage
+        break;
+      case 'periodic_aoe':
+      case 'periodic_aoe_status': {
+        attacker._passiveActionCount = (attacker._passiveActionCount ?? 0) + 1;
+        if (attacker._passiveActionCount % (e.period ?? 8) === 0) {
+          enemies.filter(en => en.hp > 0).forEach(en => {
+            this._addStatus(en, e.status ?? 'paralyze', 2);
+          });
+          this.log.push({ type:'pre_combat', effect:'passive_periodic_aoe',
+            label:`✨ ${p.name} (${attacker.name})` });
+        }
+        break;
+      }
+      case 'dot_target': {
+        // applique un dot sur la cible (8% HP/action)
+        if (!target._passDots) target._passDots = [];
+        if (!target._passDots.includes(attacker.uid)) {
+          target._passDots.push(attacker.uid);
+          target._passiveDotRate = Math.max(target._passiveDotRate ?? 0, e.rate ?? 0.08);
+        }
+        break;
+      }
+      default: break;
+    }
+
+    // Procs talents aussi
+    (this._talentProcs ?? [])
+      .filter(tp => tp.side === attacker.side && attacker.types.includes(tp.type))
+      .forEach(tp => {
+        if (Math.random() < tp.chance) {
+          this._addStatus(target, tp.status, tp.turns ?? 2);
+        }
+      });
+  }
+
+  // Passifs sur réception d'un coup
+  _checkPassiveOnReceive(unit, attacker, damage) {
+    const allPassives = unit._passives ?? (unit._passive ? [unit._passive] : []);
+    allPassives.forEach(p => {
+      if (!p?.effect) return;
+      const e = p.effect;
+      this._checkSinglePassiveOnReceive(p, e, unit, attacker, damage);
+    });
+  }
+
+  _checkSinglePassiveOnReceive(p, e, unit, attacker, damage) {
+    switch (e.kind) {
+      case 'drain_on_receive': {
+        // Enracinement : absorbe X% des dégâts reçus comme soins
+        const heal = Math.max(1, Math.ceil(damage * e.rate));
+        unit.hp = Math.min(unit.maxHp, unit.hp + heal);
+        this.log.push({ type:'effect_heal', effect:'drain_on_receive', label:`🌿 ${p.name}`,
+          targetId:unit.uid, targetName:unit.name, targetSide:unit.side,
+          heal, targetHpLeft:unit.hp, targetMaxHp:unit.maxHp });
+        break;
+      }
+      case 'counter':
+      case 'damage_reduction_counter': {
+        const rate = e.counter ?? e.rate ?? 0;
+        if (rate > 0) {
+          const counterDmg = Math.max(1, Math.ceil(damage * rate));
+          attacker.hp = Math.max(0, attacker.hp - counterDmg);
+          this.log.push({ type:'attack', effect:'counter', label:`🔄 ${p.name}`,
+            attackerId:unit.uid, attackerName:unit.name, attackerSide:unit.side,
+            targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side,
+            damage:counterDmg, targetHpLeft:attacker.hp, targetMaxHp:attacker.maxHp,
+            attackerMana:unit.mana, targetMana:attacker.mana,
+            attackerAtb:unit.atbBar, targetAtb:attacker.atbBar });
+          if (attacker.hp <= 0) this._handleFaint(attacker);
+        }
+        break;
+      }
+      case 'rage_stack': {
+        unit.rageStack = unit.rageStack ?? { stat: e.stat, count: 0, mult: 1 + (e.per_hit ?? 0.05) };
+        const maxCount = Math.floor((e.max ?? 0.50) / (e.per_hit ?? 0.05));
+        unit.rageStack.count = Math.min(unit.rageStack.count + 1, maxCount);
+        const totalBoost = Math.round(unit.rageStack.count * (e.per_hit ?? 0.05) * 100);
+        this.log.push({ type:'passive_trigger', effect:'rage',
+          label:`😤 ${p.name} (${unit.name}) +${totalBoost}% ${e.stat}`,
+          targetId:unit.uid, targetName:unit.name, targetSide:unit.side });
+        break;
+      }
+      case 'on_receive_proc': {
+        if (Math.random() < e.chance) {
+          this._addStatus(attacker, e.status, e.turns ?? 2);
+        }
+        break;
+      }
+      case 'status_reflect':
+      case 'status_reflect_once': {
+        const chance = e.chance ?? 1.0;
+        if (e.kind === 'status_reflect_once' && unit._reflectUsed) break;
+        if (Math.random() < chance) {
+          attacker.statusEffects.filter(s => !['sleep'].includes(s.type)).forEach(s => {
+            this._addStatus(attacker, s.type, s.turnsLeft);
+          });
+          if (e.kind === 'status_reflect_once') unit._reflectUsed = true;
+        }
+        break;
+      }
+      default: break;
+    }
+  }
+
+  // Passifs à la mort d'une unité
+  _checkDeathPassives(unit) {
+    const p = unit._passive;
+    const allies  = unit.side === 'player' ? this.playerUnits : this.enemyUnits;
+    const enemies = unit.side === 'player' ? this.enemyUnits  : this.playerUnits;
+
+    if (p?.effect) {
+      const e = p.effect;
+      switch (e.kind) {
+        case 'on_death_aoe': {
+          const dmg = Math.max(1, Math.ceil(unit.maxHp * e.rate));
+          enemies.filter(en => en.hp > 0).forEach(en => {
+            en.hp = Math.max(0, en.hp - dmg);
+            en.maxHp = Math.max(1, en.maxHp - Math.max(1, Math.floor(dmg * 0.1)));
+            this.log.push({ type:'attack', effect:'death_passive', label:`💥 ${p.name}`,
+              attackerId:unit.uid, attackerName:unit.name, attackerSide:unit.side,
+              targetId:en.uid, targetName:en.name, targetSide:en.side,
+              damage:dmg, targetHpLeft:en.hp, targetMaxHp:en.maxHp,
+              attackerMana:unit.mana, targetMana:en.mana,
+              attackerAtb:unit.atbBar, targetAtb:en.atbBar });
+            if (en.hp <= 0) this._handleFaint(en);
+          });
+          break;
+        }
+        case 'on_death_aoe_pct': {
+          enemies.filter(en => en.hp > 0).forEach(en => {
+            const dmg = Math.max(1, Math.ceil(en.maxHp * e.rate));
+            en.hp = Math.max(0, en.hp - dmg);
+            this.log.push({ type:'attack', effect:'death_passive', label:`👻 ${p.name}`,
+              attackerId:unit.uid, attackerName:unit.name, attackerSide:unit.side,
+              targetId:en.uid, targetName:en.name, targetSide:en.side,
+              damage:dmg, targetHpLeft:en.hp, targetMaxHp:en.maxHp,
+              attackerMana:unit.mana, targetMana:en.mana,
+              attackerAtb:unit.atbBar, targetAtb:en.atbBar });
+            if (en.hp <= 0) this._handleFaint(en);
+          });
+          break;
+        }
+        case 'on_death_target': {
+          const target = enemies.filter(en => en.hp > 0)
+            .sort((a,b) => b.hp - a.hp)[0];
+          if (target) {
+            const dmg = Math.max(1, Math.ceil(unit.maxHp * e.rate));
+            target.hp = Math.max(0, target.hp - dmg);
+            this.log.push({ type:'attack', effect:'death_passive', label:`💀 ${p.name}`,
+              attackerId:unit.uid, attackerName:unit.name, attackerSide:unit.side,
+              targetId:target.uid, targetName:target.name, targetSide:target.side,
+              damage:dmg, targetHpLeft:target.hp, targetMaxHp:target.maxHp,
+              attackerMana:unit.mana, targetMana:target.mana,
+              attackerAtb:unit.atbBar, targetAtb:target.atbBar });
+            if (target.hp <= 0) this._handleFaint(target);
+          }
+          break;
+        }
+        case 'revive': {
+          if (!unit._revived) {
+            unit._revived = true;
+            unit.hp = Math.max(1, Math.ceil(unit.maxHp * e.rate));
+            this.log.push({ type:'effect_heal', effect:'revive', label:`✨ ${p.name}`,
+              targetId:unit.uid, targetName:unit.name, targetSide:unit.side,
+              heal:unit.hp, targetHpLeft:unit.hp, targetMaxHp:unit.maxHp });
+            return; // annule la mort
+          }
+          break;
+        }
+        default: break;
+      }
+    }
+
+    // Revive via talent
+    if (unit._reviveRate && !unit._revived) {
+      unit._revived = true;
+      unit.hp = Math.max(1, Math.ceil(unit.maxHp * unit._reviveRate));
+      this.log.push({ type:'effect_heal', effect:'revive', label:'✨ Phénix (talent)',
+        targetId:unit.uid, targetName:unit.name, targetSide:unit.side,
+        heal:unit.hp, targetHpLeft:unit.hp, targetMaxHp:unit.maxHp });
+      return; // annule la mort
+    }
+
+    // Sturdy
+    if (unit._sturdy && !unit._sturdyUsed && unit.hp <= 0) {
+      unit._sturdyUsed = true;
+      unit.hp = 1;
+      this.log.push({ type:'pre_combat', effect:'sturdy', label:`🪨 Robustesse (${unit.name})` });
+      return;
+    }
+
+    // Ko boost alliés
+    const alliesAlive = allies.filter(a => a.hp > 0 && a !== unit);
+    alliesAlive.forEach(ally => {
+      const ap = ally._passive?.effect;
+      if (ap?.kind === 'on_ko_boost') {
+        this._applyPermStat(ally, ap.stat, 1 + ap.mult);
+        this.log.push({ type:'pre_combat', effect:'on_ko_boost',
+          label:`⬆ ${ally._passive.name} (${ally.name})` });
+      }
+    });
+  }
+
   _applyPermStat(unit, stat, mult) {
     unit[stat] = Math.round(unit[stat] * mult);
   }
@@ -260,6 +950,91 @@ export class CombatEngine {
   // Action d'une unité
   // ─────────────────────────────────────────────────────────────────────────
   _takeTurn(unit) {
+    // ── Passifs actifs à chaque tour — itère sur TOUS les passifs débloqués ──
+    const passives = unit._passives ?? (unit._passive ? [unit._passive] : []);
+    const p = unit._passive?.effect; // garde pour les blocs fury/stack ci-dessous
+
+
+    // regen_self : soigne 5% HP à chaque action du pokémon
+    passives.forEach(passive => {
+      if (passive.effect?.kind !== 'regen_self') return;
+      const rate = passive.effect.rate ?? 0.05;
+      const heal = Math.max(1, Math.ceil(unit.maxHp * rate));
+      unit.hp    = Math.min(unit.maxHp, unit.hp + heal);
+      this.log.push({ type:'effect_heal', effect:'passive_regen', label:`💚 ${passive.name}`,
+        targetId:unit.uid, targetName:unit.name, targetSide:unit.side,
+        heal, targetHpLeft:unit.hp, targetMaxHp:unit.maxHp });
+    });
+
+    // fury / conditional_boost : applique un tempMod selon PV
+    passives.forEach(passive => {
+      const ep = passive.effect;
+      if (ep?.kind !== 'fury' && ep?.kind !== 'fury_dual') return;
+      const threshold = ep.threshold ?? 0.5;
+      const active    = (unit.hp / unit.maxHp) < threshold;
+      const stats     = ep.kind === 'fury_dual' ? (ep.stats ?? [ep.stat]) : [ep.stat];
+      const modKey    = `_fury_${passive.id}_${unit.uid}`;
+      const wasActive = unit._furyActive?.[modKey];
+      unit.tempMods   = unit.tempMods.filter(m => m._furyKey !== modKey);
+      if (active) {
+        stats.forEach(s => unit.tempMods.push({ stat: s, mult: ep.mult, turnsLeft: -1, _furyKey: modKey }));
+        if (!wasActive) {
+          unit._furyActive = unit._furyActive ?? {};
+          unit._furyActive[modKey] = true;
+          this.log.push({ type:'passive_trigger', effect:'fury',
+            label:`🔥 ${passive.name} activé ! (${unit.name} PV<${Math.round(threshold*100)}%)`,
+            targetId:unit.uid, targetName:unit.name, targetSide:unit.side });
+        }
+      } else {
+        if (unit._furyActive) delete unit._furyActive[modKey];
+      }
+    });
+
+    // conditional_boost : boost si condition remplie (hp_above)
+    if (p?.kind === 'conditional_boost') {
+      const hpPct   = unit.hp / unit.maxHp;
+      const active  = p.condition === 'hp_above'
+        ? hpPct >= (p.threshold ?? 0.75)
+        : hpPct < (p.threshold ?? 0.75);
+      const modKey  = `_cond_${unit.uid}`;
+      unit.tempMods = unit.tempMods.filter(m => m._condKey !== modKey);
+      if (active) {
+        unit.tempMods.push({ stat: p.stat, mult: p.mult, turnsLeft: -1, _condKey: modKey });
+      }
+    }
+
+    // stack_per_ally : recalcule le bonus selon les alliés vivants
+    if (p?.kind === 'stack_per_ally') {
+      const allies  = unit.side === 'player' ? this.playerUnits : this.enemyUnits;
+      const count   = p.type === 'all'
+        ? allies.filter(a => a.hp > 0 && a !== unit).length
+        : allies.filter(a => a.hp > 0 && a !== unit && a.types.includes(p.type)).length;
+      const mult    = 1 + count * (p.per_ally ?? 0.05);
+      const modKey  = `_stack_${unit.uid}`;
+      unit.tempMods = unit.tempMods.filter(m => m._stackKey !== modKey);
+      unit.tempMods.push({ stat: p.stat, mult, turnsLeft: -1, _stackKey: modKey });
+    }
+
+    // dodge_once : marque l'unité comme esquivant la prochaine attaque
+    if (p?.kind === 'dodge_once' && !unit._dodgeUsed) {
+      unit._dodgeOnce = true;
+    }
+
+    // emergency_heal : soigne si PV critiques
+    if (p?.kind === 'emergency_heal' && !unit._emergencyUsed) {
+      if ((unit.hp / unit.maxHp) < (p.threshold ?? 0.25)) {
+        unit._emergencyUsed = true;
+        const heal = Math.max(1, Math.ceil(unit.maxHp * p.rate));
+        unit.hp = Math.min(unit.maxHp, unit.hp + heal);
+        this.log.push({ type:'effect_heal', effect:'passive_emergency', label:`💚 ${unit._passive.name}`,
+          targetId:unit.uid, targetName:unit.name, targetSide:unit.side,
+          heal, targetHpLeft:unit.hp, targetMaxHp:unit.maxHp });
+      }
+    }
+
+    // heal_on_ko : soigne après avoir K.O. un ennemi (géré dans _handleFaint via callback)
+    // on_ko_boost : géré dans _checkDeathPassives
+
     // Statuts qui bloquent l'action
     if (this._hasStatus(unit, 'sleep')) {
       const s = unit.statusEffects.find(e => e.type === 'sleep');
@@ -282,10 +1057,27 @@ export class CombatEngine {
         attackerId:unit.uid, attackerSide:unit.side });
       return;
     }
-    if (this._hasStatus(unit, 'freeze') && Math.random() < 0.30) {
-      this.log.push({ type:'attack_skipped', reason:'freeze', label:'❄️ Gelé !',
-        attackerId:unit.uid, attackerSide:unit.side });
-      return;
+    if (this._hasStatus(unit, 'freeze')) {
+      // Gel : -25% VIT, se lève après 2 actions propres du pokémon
+      const freezeSt = unit.statusEffects.find(s => s.type === 'freeze');
+      if (freezeSt) {
+        freezeSt._actionsLeft = (freezeSt._actionsLeft ?? 2);
+        // Applique le malus VIT via tempMod si pas encore présent
+        if (!unit.tempMods.some(m => m._freeze)) {
+          unit.tempMods.push({ stat:'spd', mult:0.75, turnsLeft:-1, _freeze:true });
+        }
+        freezeSt._actionsLeft--;
+        this.log.push({ type:'passive_trigger', effect:'freeze',
+          label:`❄️ Gel (${unit.name}) — VIT -25% (${freezeSt._actionsLeft} action${freezeSt._actionsLeft>1?'s':''} restante${freezeSt._actionsLeft>1?'s':''})`,
+          targetId:unit.uid, targetName:unit.name, targetSide:unit.side });
+        if (freezeSt._actionsLeft <= 0) {
+          this._removeStatus(unit, 'freeze');
+          unit.tempMods = unit.tempMods.filter(m => !m._freeze);
+          this.log.push({ type:'passive_trigger', effect:'freeze',
+            label:`🌡 ${unit.name} n'est plus gelé !`,
+            targetId:unit.uid, targetName:unit.name, targetSide:unit.side });
+        }
+      }
     }
     if (this._hasStatus(unit, 'paralyze') && Math.random() < 0.25) {
       this.log.push({ type:'attack_skipped', reason:'paralyze', label:'⚡ Paralysé !',
@@ -819,10 +1611,13 @@ export class CombatEngine {
       isMove:       !!move, moveName: move?.name ?? null,
       targetHpLeft: target.hp, targetMaxHp: target.maxHp,
       attackerMana: attacker.mana, targetMana: target.mana,
-      // Barres ATB pour l'UI (après reset, valeur 0-100)
       attackerAtb:  Math.max(0, Math.min(100, attacker.atbBar ?? 0)),
       targetAtb:    Math.max(0, Math.min(100, target.atbBar   ?? 0)),
     });
+
+    // Passifs post-attaque
+    this._checkPassiveTriggers(attacker, target, damage);
+    this._checkPassiveOnReceive(target, attacker, damage);
 
     if (target.hp <= 0) this._handleFaint(target);
   }
@@ -864,7 +1659,13 @@ export class CombatEngine {
     let   defStat = isPhys ? this._getStat(target, 'def')   : this._getStat(target, 'spd_def');
 
     if (move.ignoreDefPct) defStat = Math.max(1, Math.round(defStat * (1 - move.ignoreDefPct)));
-    const safeDef = Math.max(1, defStat);
+
+    // Passif ignore_def / ignore_def_chance
+    let defMult = 1.0;
+    if (attacker._ignoreDefPct > 0)   defMult -= Math.min(attacker._ignoreDefPct, 1.0);
+    const ep = attacker._passive?.effect;
+    if (ep?.kind === 'ignore_def_chance' && Math.random() < ep.chance) defMult = 0;
+    const safeDef = Math.max(1, Math.round(defStat * defMult));
 
     let damage = (((22 * atkStat * basePower / safeDef) / 50) + 2) / 3;
 
@@ -872,8 +1673,24 @@ export class CombatEngine {
     const isCrit   = (move.effects ?? []).some(e => e.kind === 'guaranteed_crit');
     const random   = (85 + Math.random() * 15) / 100;
 
-    damage = damage * 1.1 * typeMult * random;
-    if (isCrit) damage *= 1.5;
+    // Passif bonus_vs_status / bonus_vs_stun / type_damage_boost
+    let bonusMult = 1.0;
+    if (ep?.kind === 'bonus_vs_status' && target.statusEffects.length > 0)
+      bonusMult *= (ep.mult ?? 1.20);
+    if (ep?.kind === 'bonus_vs_stun' && this._hasStatus(target, 'stun'))
+      bonusMult *= (ep.mult ?? 1.50);
+    if (ep?.kind === 'type_damage_boost' && attacker.types.includes(ep.type))
+      bonusMult *= (ep.mult ?? 1.15);
+
+    // crit_boost passif
+    const critChance = attacker._critBoost ?? 0;
+    const isCritPassive = critChance > 0 && Math.random() < critChance;
+    // guaranteed_crit si PV > threshold
+    const isGuarCrit = ep?.kind === 'guaranteed_crit_threshold'
+      && (attacker.hp / attacker.maxHp) >= (ep.threshold ?? 0.75);
+
+    damage = damage * 1.1 * typeMult * random * bonusMult;
+    if (isCrit || isCritPassive || isGuarCrit) damage *= 1.5;
 
     return Math.max(1, Math.round(damage));
   }
@@ -885,10 +1702,14 @@ export class CombatEngine {
   _resolveEndOfTurn() {
     const all = [...this.playerUnits, ...this.enemyUnits].filter(u => u.hp > 0);
     all.forEach(u => {
-      if (this._hasStatus(u, 'burn')) {
-        const dmg = Math.max(1, Math.ceil(u.maxHp * 0.05));
+      const burnStatus = u.statusEffects.find(s => s.type === 'burn');
+      if (burnStatus) {
+        const burnStacks = burnStatus.stacks ?? 1;
+        const dmg = Math.max(1, Math.ceil(u.maxHp * 0.05 * burnStacks));
         u.hp = Math.max(0, u.hp - dmg);
-        this.log.push({ type:'effect_damage', effect:'burn', label:'🔥',
+        this.log.push({ type:'effect_damage', effect:'burn',
+          label: burnStacks > 1 ? `🔥×${burnStacks}` : '🔥',
+          stacks: burnStacks,
           targetId:u.uid, targetName:u.name, targetSide:u.side,
           damage:dmg, targetHpLeft:u.hp, targetMaxHp:u.maxHp });
         if (u.hp <= 0) this._handleFaint(u);
@@ -917,6 +1738,120 @@ export class CombatEngine {
     this._applyCurse('enemy',  this.enemyFx,  this.playerUnits);
     this._applySynergyRegen('player', this.playerFx, this.playerUnits);
     this._applySynergyRegen('enemy',  this.enemyFx,  this.enemyUnits);
+
+    // Passifs de regen périodique (regen_self, regen_all_period, regen_ally)
+    [...this.playerUnits, ...this.enemyUnits].filter(u => u.hp > 0).forEach(u => {
+      const p = u._passive?.effect;
+      if (!p) return;
+      // regen_self géré dans _takeTurn
+      if (p.kind === 'regen_all_period') {
+        const allies = u.side === 'player' ? this.playerUnits : this.enemyUnits;
+        allies.filter(a => a.hp > 0).forEach(ally => {
+          const heal = Math.max(1, Math.ceil(ally.maxHp * p.rate));
+          ally.hp = Math.min(ally.maxHp, ally.hp + heal);
+          this.log.push({ type:'effect_heal', effect:'passive_regen', label:`💚 ${u._passive.name}`,
+            targetId:ally.uid, targetName:ally.name, targetSide:ally.side,
+            heal, targetHpLeft:ally.hp, targetMaxHp:ally.maxHp });
+        });
+      }
+    });
+
+    // Talents de regen
+    (this._talentRegens ?? []).forEach(tr => {
+      const allies = tr.side === 'player' ? this.playerUnits : this.enemyUnits;
+      allies.filter(a => a.hp > 0).forEach(a => {
+        const heal = Math.max(1, Math.ceil(a.maxHp * tr.rate));
+        a.hp = Math.min(a.maxHp, a.hp + heal);
+        this.log.push({ type:'effect_heal', effect:'talent_regen', label:`💚 Talent ${tr.type}`,
+          targetId:a.uid, targetName:a.name, targetSide:a.side,
+          heal, targetHpLeft:a.hp, targetMaxHp:a.maxHp });
+      });
+    });
+
+    // Dot passifs (malédiction, parasite, etc.)
+    [...this.playerUnits, ...this.enemyUnits].filter(u => u.hp > 0).forEach(u => {
+      if (u._passiveDotRate) {
+        const dmg = Math.max(1, Math.ceil(u.maxHp * u._passiveDotRate));
+        u.hp = Math.max(0, u.hp - dmg);
+        this.log.push({ type:'attack', effect:'passive_dot', label:'💀 Malédiction',
+          targetId:u.uid, targetName:u.name, targetSide:u.side,
+          damage:dmg, targetHpLeft:u.hp, targetMaxHp:u.maxHp });
+        if (u.hp <= 0) this._handleFaint(u);
+      }
+    });
+
+    // dot_on_sleep : cibles endormies perdent des HP
+    // dot_on_stun  : cibles immobilisées perdent des HP
+    // dot_drain    : drain passif ennemi (Parasite)
+    [...this.playerUnits, ...this.enemyUnits].filter(u => u.hp > 0).forEach(attacker => {
+      const ep = attacker._passive?.effect;
+      if (!ep) return;
+      const enemies = attacker.side === 'player' ? this.enemyUnits : this.playerUnits;
+      const allies  = attacker.side === 'player' ? this.playerUnits : this.enemyUnits;
+
+      if (ep.kind === 'dot_on_sleep') {
+        enemies.filter(en => en.hp > 0 && this._hasStatus(en, 'sleep')).forEach(en => {
+          const dmg = Math.max(1, Math.ceil(en.maxHp * ep.rate));
+          en.hp = Math.max(0, en.hp - dmg);
+          this.log.push({ type:'attack', effect:'dot_on_sleep', label:`💤 ${attacker._passive.name}`,
+            attackerId:attacker.uid, attackerSide:attacker.side,
+            targetId:en.uid, targetName:en.name, targetSide:en.side,
+            damage:dmg, targetHpLeft:en.hp, targetMaxHp:en.maxHp });
+          if (en.hp <= 0) this._handleFaint(en);
+        });
+      }
+
+      if (ep.kind === 'dot_on_stun') {
+        enemies.filter(en => en.hp > 0 && this._hasStatus(en, 'stun')).forEach(en => {
+          const dmg = Math.max(1, Math.ceil(en.maxHp * ep.rate));
+          en.hp = Math.max(0, en.hp - dmg);
+          this.log.push({ type:'attack', effect:'dot_on_stun', label:`🔒 ${attacker._passive.name}`,
+            attackerId:attacker.uid, attackerSide:attacker.side,
+            targetId:en.uid, targetName:en.name, targetSide:en.side,
+            damage:dmg, targetHpLeft:en.hp, targetMaxHp:en.maxHp });
+          if (en.hp <= 0) this._handleFaint(en);
+        });
+      }
+
+      if (ep.kind === 'dot_drain') {
+        enemies.filter(en => en.hp > 0).forEach(en => {
+          const dmg  = Math.max(1, Math.ceil(en.maxHp * ep.rate));
+          const heal = dmg;
+          en.hp = Math.max(0, en.hp - dmg);
+          attacker.hp = Math.min(attacker.maxHp, attacker.hp + heal);
+          this.log.push({ type:'effect_heal', effect:'dot_drain', label:`🩸 ${attacker._passive.name}`,
+            targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side,
+            heal, targetHpLeft:attacker.hp, targetMaxHp:attacker.maxHp });
+          if (en.hp <= 0) this._handleFaint(en);
+        });
+      }
+
+      if (ep.kind === 'slow_enemy_atb') {
+        // Ralentit les barres ATB ennemies (appliqué une fois au setup, pas en boucle)
+      }
+    });
+
+    // poison : dégâts selon stacks + effets spéciaux (double_poison_dmg, poison_slow, etc.)
+    [...this.playerUnits, ...this.enemyUnits].filter(u => u.hp > 0).forEach(u => {
+      const poisonStatus = u.statusEffects.find(s => s.type === 'poison');
+      if (!poisonStatus) return;
+      const stacks = poisonStatus.stacks ?? 1;
+
+      // Cherche si l'attaquant a double_poison_dmg ou poison_dmg_boost
+      const attackers = u.side === 'player' ? this.enemyUnits : this.playerUnits;
+      const hasDblPoison = attackers.some(a => a._passive?.effect?.kind === 'double_poison_dmg');
+      const hasPoison_slow = attackers.some(a => a._passive?.effect?.kind === 'poison_slow');
+
+      if (hasDblPoison) {
+        // Poison inflige ×2 → géré via rate × 2
+        // (la base est déjà dans _applyDot, on ne double pas ici pour éviter le triple)
+      }
+      if (hasPoison_slow && !u._poisonSlowed) {
+        u._poisonSlowed = true;
+        const slowAttacker = attackers.find(a => a._passive?.effect?.kind === 'poison_slow');
+        this._applyPermStat(u, 'spd', slowAttacker._passive.effect.mult ?? 0.80);
+      }
+    });
   }
 
   _applyCurse(side, fx, targets) {

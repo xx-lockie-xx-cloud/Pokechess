@@ -57,6 +57,9 @@
       </div>
 
       <div id="menu-achievements" class="menu-achievements"></div>
+      <button id="btn-talent-tree" class="btn-secondary btn-talent-tree-menu">
+        🌟 Arbres de Talents
+      </button>
       <div id="menu-difficulty" class="menu-difficulty"></div>
       <div class="menu-save-actions hidden" id="menu-save-actions-extra">
         <button id="btn-reset-all" class="btn-ghost btn-danger">
@@ -131,6 +134,7 @@
   <div id="overlay-arena-victory" class="game-overlay">
     <div class="screen-content centered arena-victory">
       <div id="victory-champion" class="victory-champion"></div>
+      <div id="arena-unlock-msg" class="arena-unlock-msg hidden"></div>
       <div id="victory-content" class="victory-content">
         <h2 id="victory-title"></h2>
         <p id="victory-champion-name"></p>
@@ -146,6 +150,28 @@
       <button id="btn-next-map" class="btn-primary btn-large">
         ➡ Continuer
       </button>
+    </div>
+  </div>
+
+  <!-- ── Overlay Arbre de Talents ────────────────────────────────────────────── -->
+  <div id="overlay-talent-tree" class="game-overlay">
+    <div class="talent-tree-container">
+      <div class="talent-tree-header">
+        <span class="tt-header-title">🌟 Arbres de Talents</span>
+        <button id="btn-talent-tree-close" class="btn-close">✕</button>
+      </div>
+      <div id="talent-tree-content" class="talent-tree-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Overlay Tutoriel ─────────────────────────────────────────────────── -->
+  <div id="overlay-tutorial" class="game-overlay">
+    <div class="tutorial-container">
+      <div class="tutorial-header">
+        <span class="tut-header-title">PokeChess <span style="color:#718096;font-size:12px;font-weight:400">Guide du joueur</span></span>
+        <button id="btn-tutorial-close" class="btn-close">✕</button>
+      </div>
+      <div id="tutorial-content" class="tutorial-content"></div>
     </div>
   </div>
 

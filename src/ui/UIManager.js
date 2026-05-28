@@ -6,7 +6,8 @@
 
 import { getRunState, addSeenPokemon,
          saveMapProgress, getMapProgress } from '../data/runState.js';
-import { DIFFICULTIES, getUnlockedDifficultiesWithMeta } from '../data/levelSystem.js';
+import { DIFFICULTIES, getUnlockedDifficultiesWithMeta,
+         POKEMON_PASSIVES }               from '../data/levelSystem.js';
 import { SaveManager }                from '../SaveManager.js';
 import { MapUI }          from './MapUI.js';
 import { MapGenerator }   from '../map/MapGenerator.js';
@@ -18,6 +19,8 @@ import { ItemUI }         from './ItemUI.js';
 import { PrepUI }         from './PrepUI.js';
 import { CombatUI }       from './CombatUI.js';
 import { ArenaVictoryUI } from './ArenaVictoryUI.js';
+import { TutorialUI }      from './TutorialUI.js';
+import { TalentTreeUI }   from './TalentTreeUI.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
@@ -65,6 +68,21 @@ class UIManagerClass {
 
     // Pokédex
     PokedexUI.init(registry);
+
+    // ── Tutoriel ────────────────────────────────────────────────────────────
+    // Expose POKEMON_PASSIVES sur window pour PrepUI (pas d'import dynamique)
+    window.__POKEMON_PASSIVES__ = POKEMON_PASSIVES;
+    TutorialUI.init();
+    TalentTreeUI.init();
+    // Bouton arbre de talents
+    document.getElementById('btn-talent-tree')?.addEventListener('click', () => TalentTreeUI.open());
+
+    // Affiche le tutoriel au premier lancement (jamais vu)
+    const meta = SaveManager.loadMeta();
+    if (!meta.hasSeenTutorial) {
+      setTimeout(() => TutorialUI.open('intro'), 300);
+      SaveManager.saveMeta({ ...meta, hasSeenTutorial: true });
+    }
 
     // ── Sauvegarde ──────────────────────────────────────────────────────────
     this._initSaveButtons();

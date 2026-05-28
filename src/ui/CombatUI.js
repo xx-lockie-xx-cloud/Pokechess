@@ -6,6 +6,7 @@ import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
 import { addCoins, getEnemyMultiplier }     from '../data/runState.js';
+import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
 import { getActiveSynergies, getFullStats } from '../data/synergies.js';
 import { getArenaForMap }                   from '../data/arenas.js';
@@ -303,7 +304,115 @@ export const CombatUI = {
       slot.appendChild(item);
     }
 
+    // Clic → affiche les infos du pokémon
+    slot.addEventListener('click', () => this._showUnitInfo(unit, side));
+
     return slot;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Info pokémon au clic (stats effectives, buffs, debuffs, passifs)
+  // ─────────────────────────────────────────────────────────────────────────
+  _showUnitInfo(unit, side) {
+    const liveUnits = side === 'player' ? this._livePlayerUnits : this._liveEnemyUnits;
+    const uid       = unit.uid ?? `${unit.id}_${unit.col}_${unit.row}`;
+    const live      = liveUnits?.find(u => u.uid === uid) ?? unit;
+
+    const TYPE_COLS = {
+      Feu:'#e74c3c',Eau:'#3498db',Plante:'#2ecc71',Électrik:'#f1c40f',
+      Psy:'#9b59b6',Glace:'#a8d8ea',Combat:'#c0392b',Poison:'#8e44ad',
+      Sol:'#d4a017',Vol:'#85c1e9',Insecte:'#a9cce3',Roche:'#7f8c8d',
+      Spectre:'#6c3483',Dragon:'#1a5276',Ténèbres:'#2c3e50',
+      Acier:'#95a5a6',Fée:'#f1948a',Normal:'#aab7b8',
+    };
+    const STATUS_ICONS = {burn:'🔥',poison:'☠️',paralyze:'⚡',freeze:'❄️',sleep:'💤',confuse:'😵',stun:'🔒'};
+    const STAT_LABELS  = {atk:'⚔️ ATK',spa:'🔮 SpATK',def:'🛡 DEF',spd_def:'💎 SpDEF',spd:'👟 VIT',hp:'❤️ HP'};
+
+    const tc = TYPE_COLS[live.types?.[0]] ?? '#888';
+
+    // Stats effectives (base + tempMods + rageStack)
+    const effStats = ['hp','atk','spa','def','spd_def','spd'].map(s => {
+      const base = live[s] ?? 0;
+      let val    = base;
+      (live.tempMods ?? []).filter(m => m.stat === s).forEach(m => { val = Math.round(val * m.mult); });
+      if (live.rageStack?.stat === s && live.rageStack.count > 0)
+        val = Math.round(val * Math.pow(live.rageStack.mult, live.rageStack.count));
+      return { s, base, val, up: val > base, down: val < base };
+    });
+
+    const statuses  = (live.statusEffects ?? []).map(st =>
+      `<span class="cinfo-status">${STATUS_ICONS[st.type]??'●'}${(st.stacks??1)>1?`×${st.stacks}`:''}</span>`
+    ).join('') || '<span class="cinfo-none">Aucun</span>';
+
+    const passives  = (live._passives ?? (live._passive ? [live._passive] : []));
+    const passHtml  = passives.length
+      ? passives.map(p => `<div class="cinfo-passive"><b>✨ ${p.name}</b> — ${p.desc}</div>`).join('')
+      : '<span class="cinfo-none">Aucun</span>';
+
+    const mods      = (live.tempMods ?? []).filter(m => m.mult !== 1);
+    const modsHtml  = mods.length
+      ? mods.map(m => {
+          const pct = Math.round(Math.abs(m.mult - 1) * 100);
+          return `<span class="cinfo-mod ${m.mult>1?'up':'down'}">${STAT_LABELS[m.stat]??m.stat} ${m.mult>1?'▲':'▼'}${pct}%</span>`;
+        }).join('')
+      : '<span class="cinfo-none">Aucun</span>';
+
+    const hpPct   = live.maxHp > 0 ? Math.round((live.hp / live.maxHp) * 100) : 0;
+    const hpColor = hpPct > 60 ? '#55efc4' : hpPct > 30 ? '#f39c12' : '#fc5c65';
+
+    const overlay = document.getElementById('overlay-combat');
+    overlay?.querySelector('.combat-unit-info')?.remove();
+
+    const panel = document.createElement('div');
+    panel.className = 'combat-unit-info';
+    panel.innerHTML = `
+      <div class="cinfo-header" style="border-left-color:${tc}">
+        <img src="${live.spriteUrl??''}" class="cinfo-sprite" onerror="this.style.display='none'">
+        <div class="cinfo-title-block">
+          <div class="cinfo-name">${live.name}</div>
+          <div class="cinfo-types">${(live.types??[]).map(t=>
+            `<span class="cinfo-type" style="background:${TYPE_COLS[t]??'#888'}">${t}</span>`).join('')}</div>
+        </div>
+        <button class="cinfo-close btn-close">✕</button>
+      </div>
+
+      <div class="cinfo-hp-wrap">
+        <div class="cinfo-hp-track"><div class="cinfo-hp-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
+        <span class="cinfo-hp-label" style="color:${hpColor}">${live.hp}/${live.maxHp}</span>
+      </div>
+
+      ${live.mana !== undefined ? `
+      <div class="cinfo-mana-wrap">
+        <div class="cinfo-mana-track"><div class="cinfo-mana-fill" style="width:${Math.min(100,live.mana??0)}%"></div></div>
+        <span class="cinfo-mana-label">🔮 ${Math.round(live.mana??0)}/100</span>
+      </div>` : ''}
+
+      <div class="cinfo-section">📊 Stats effectives</div>
+      <div class="cinfo-stats">
+        ${effStats.map(({s,val,up,down})=>`
+          <div class="cinfo-stat-row ${up?'up':down?'down':''}">
+            <span>${STAT_LABELS[s]??s}</span>
+            <span class="cinfo-stat-val">${val}</span>
+          </div>`).join('')}
+      </div>
+
+      <div class="cinfo-section">⚡ Statuts</div>
+      <div class="cinfo-row">${statuses}</div>
+
+      <div class="cinfo-section">🔄 Buffs / Débuffs</div>
+      <div class="cinfo-row">${modsHtml}</div>
+
+      <div class="cinfo-section">✨ Passifs</div>
+      <div class="cinfo-passives-list">${passHtml}</div>
+    `;
+
+    panel.querySelector('.cinfo-close')?.addEventListener('click', () => panel.remove());
+    // Ferme aussi si on clique en dehors
+    setTimeout(() => {
+      const close = (e) => { if (!panel.contains(e.target)) { panel.remove(); document.removeEventListener('click', close); } };
+      document.addEventListener('click', close);
+    }, 100);
+    overlay?.appendChild(panel);
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -336,14 +445,14 @@ export const CombatUI = {
     const mapIndex    = this._data.mapIndex ?? 0;
     const baseMult    = getEnemyMultiplier(mapIndex);
     // Multiplicateur de difficulté (persistant via meta save)
-    const diffId      = window.SaveManager?.getDifficulty() ?? 'normal';
+    const diffId      = SaveManager.getDifficulty() ?? 'normal';
     const diffMults   = { easy: 0.8, normal: 1.0, hard: 1.3, expert: 1.7 };
     const diffMult    = diffMults[diffId] ?? 1.0;
     const mult        = baseMult * diffMult;
 
     // ── Joueur : item stats + synergy stats ──────────────────────────────
     const playerSynergies = getActiveSynergies(this._playerUnits);
-    const meta = window.SaveManager?.loadMeta() ?? null;
+    const meta = SaveManager.loadMeta() ?? {};
     const playerForEngine = this._playerUnits.map(u => {
       const full = getFullStats(u, this._playerUnits, meta);
       return { ...u, attributes: u.attributes ?? [], stats: full.withSynergy };
@@ -363,10 +472,24 @@ export const CombatUI = {
     });
     const enemySynergies = getActiveSynergies(enemyForEngine);
 
-    const engine          = new CombatEngine(playerForEngine, enemyForEngine, playerSynergies, enemySynergies);
-    const { log, winner } = engine.resolve();
+    // Injecte les niveaux dans les unités joueur (meta déjà déclaré plus haut)
+    const withLevels = units => units.map(u => ({
+      ...u, _level: meta.pokemonLevels?.[u.id] ?? 1,
+    }));
+    const activeTalentEffects = this._getActiveTalentEffects(meta, playerForEngine);
 
-    this._animateLog(log, 0, () => this._onCombatEnd(winner));
+    const engine = new CombatEngine(
+      withLevels(playerForEngine), withLevels(enemyForEngine),
+      playerSynergies, enemySynergies
+    );
+    engine._playerTalents = activeTalentEffects;
+    engine._enemyTalents  = [];
+    const { log, winner } = engine.resolve();
+    // Stocke les unités finales du moteur pour l'overlay info
+    this._livePlayerUnits = engine.playerUnits;
+    this._liveEnemyUnits  = engine.enemyUnits;
+
+    this._animateLog(log, 0, () => this._onCombatEnd(winner, log));
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -511,6 +634,11 @@ export const CombatUI = {
         return 80;
       }
 
+      case 'passive_trigger': {
+        const icon = {fury:'🔥',ramp:'⬆',rage:'😤',metronome:'🎲',boost:'⭐'}[event.effect]??'✨';
+        this._appendLog(`<span class="log-passive">${icon} ${event.label}</span>`);
+        return 50;
+      }
       default:
         return 50;
     }
@@ -579,7 +707,68 @@ export const CombatUI = {
     if (labelEl) labelEl.textContent = `${Math.max(0, hpLeft)}/${maxHp}`;
   },
 
+  // Calcule les effets de talents actifs selon la meta et l'équipe
+  _getActiveTalentEffects(meta, playerUnits) {
+    if (!meta?.talentTree) return [];
+    const effects = [];
+    // Importe dynamiquement (synchrone ici car déjà chargé)
+    const TALENT_TREES = window.__TALENT_TREES__;
+    if (!TALENT_TREES) return [];  // fallback si pas encore chargé
+    Object.entries(meta.talentTree).forEach(([type, unlockedArr]) => {
+      const tree = TALENT_TREES[type];
+      if (!tree) return;
+      tree.forEach((node, i) => {
+        if (unlockedArr[i]) effects.push({ ...node.effect, _name: node.name });
+      });
+    });
+    return effects;
+  },
+
   // Met à jour la barre ATB — dorée si c'est le prochain à jouer, mauve sinon
+  // Construit les stats de récap depuis le log de combat
+  _buildCombatRecap(log) {
+    const stats = {};
+    const addStat = (uid, name, side, key, val) => {
+      if (!stats[uid]) stats[uid] = { uid, name, side, dmg:0, heal:0, ko:0, passiveNote:null };
+      stats[uid][key] = (stats[uid][key] ?? 0) + val;
+    };
+    log.forEach(ev => {
+      if (ev.type === 'attack' && !ev.effect) {
+        addStat(ev.attackerId, ev.attackerName, ev.attackerSide, 'dmg', ev.damage ?? 0);
+      }
+      if (ev.type === 'effect_heal') {
+        addStat(ev.targetId, ev.targetName, ev.targetSide, 'heal', ev.heal ?? 0);
+      }
+      if (ev.type === 'faint') {
+        const lastAtk = [...log].reverse().find(
+          e => e.type === 'attack' && e.targetId === ev.targetId
+        );
+        if (lastAtk) addStat(lastAtk.attackerId, lastAtk.attackerName, lastAtk.attackerSide, 'ko', 1);
+      }
+      // Passifs spéciaux : Métronome + Transformation
+      if (ev.type === 'pre_combat' && (ev.effect === 'metronome' || ev.effect === 'boost_from_strongest')) {
+        if (!stats[ev.targetId]) stats[ev.targetId] = { uid:ev.targetId, name:ev.targetName,
+          side:ev.targetSide, dmg:0, heal:0, ko:0, passiveNote:null };
+        stats[ev.targetId].passiveNote = ev.label;
+      }
+    });
+    const all    = Object.values(stats);
+    const player = all.filter(r => r.side === 'player').sort((a,b) => b.dmg - a.dmg);
+    const enemy  = all.filter(r => r.side === 'enemy').sort((a,b) => b.dmg - a.dmg);
+    return { player, enemy };
+  },
+
+  _recapRow(r) {
+    return `
+      <div class="recap-row">
+        <span class="recap-name">${r.name}</span>
+        <span class="recap-stat dmg" title="Dégâts infligés">⚔️ ${r.dmg}</span>
+        ${r.heal > 0 ? `<span class="recap-stat heal" title="Soins">💚 ${r.heal}</span>` : ''}
+        ${r.ko   > 0 ? `<span class="recap-stat ko"   title="K.O. infligés">💀 ${r.ko}</span>` : ''}
+        ${r.passiveNote ? `<div class="recap-passive-note">${r.passiveNote}</div>` : ''}
+      </div>`;
+  },
+
   _updateATBBar(key, atb, isNext = false) {
     const fill = document.getElementById(`atb-fill-${key.replace(/_/g, '-')}`);
     if (!fill) return;
@@ -690,19 +879,19 @@ export const CombatUI = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  _onCombatEnd(winner) {
+  _onCombatEnd(winner, log = []) {
     const isWin = winner === 'player';
 
     const phase = document.getElementById('combat-phase-text');
     if (phase) phase.textContent = isWin ? '🏆 Victoire !' : '💀 Défaite...';
 
     // Gain de niveau pour les pokémons survivants après une victoire
-    if (isWin && window.SaveManager) {
+    if (isWin && SaveManager) {
       const playerUnits = this._registry.get('playerUnits') ?? [];
       const levelUps    = [];
       playerUnits.forEach(u => {
         if (!u.id) return;
-        const result = window.SaveManager.gainPokemonLevel(u.id);
+        const result = SaveManager.gainPokemonLevel(u.id);
         if (result.gained) {
           levelUps.push({ name: u.name, level: result.newLevel, id: u.id });
         }
@@ -732,7 +921,32 @@ export const CombatUI = {
     title.textContent = isWin ? '🏆 Victoire !' : '💀 Défaite...';
     box.appendChild(title);
 
-    // Journal de combat scrollable intégré dans la fenêtre de résultat
+    // ── Récap de combat (dégâts/soins par pokémon) ──────────────────────────
+    const recap = this._buildCombatRecap(log);
+    if (recap.player.length + recap.enemy.length > 0) {
+      const recapEl = document.createElement('div');
+      recapEl.className = 'combat-recap';
+      recapEl.innerHTML = `
+        <div class="recap-title">📊 Récap du combat</div>
+        <div class="recap-cols">
+          <div class="recap-side">
+            <div class="recap-side-label ${isWin ? 'win' : 'lose'}">
+              ${isWin ? '🏆 Votre équipe' : '💀 Votre équipe'}
+            </div>
+            ${recap.player.map(r => this._recapRow(r)).join('')}
+          </div>
+          <div class="recap-side">
+            <div class="recap-side-label ${isWin ? 'lose' : 'win'}">
+              ${isWin ? '💀 Adversaire' : '🏆 Adversaire'}
+            </div>
+            ${recap.enemy.map(r => this._recapRow(r)).join('')}
+          </div>
+        </div>
+      `;
+      box.appendChild(recapEl);
+    }
+
+    // Journal de combat scrollable
     if (this._combatLog.length > 0) {
       const logSection = document.createElement('div');
       logSection.className = 'combat-result-log';

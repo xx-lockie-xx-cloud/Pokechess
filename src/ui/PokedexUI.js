@@ -7,8 +7,8 @@ import { TYPE_CHART }         from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES } from '../data/moves.js';
 import { getSeenPokemon }     from '../data/runState.js';
 import { POKEMONS }           from '../data/pokemons.js';
-import { ACHIEVEMENTS }       from '../data/levelSystem.js';
-import { getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
+import { ACHIEVEMENTS, POKEMON_PASSIVES,
+         getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
 
 const TYPES = [
   'Normal','Feu','Eau','Électrik','Plante','Glace','Combat','Poison',
@@ -94,12 +94,13 @@ export const PokedexUI = {
   _render() {
     const content = document.getElementById('pokedex-content');
     if (!content) return;
-    const tabs = ['synergies', 'types', 'moves', 'achievements'];
+    const tabs = ['synergies', 'types', 'moves', 'achievements', 'tutorial'];
     const tabLabels = {
       synergies:    '🔗 Synergies',
       types:        '⚔️ Types',
       moves:        '⚡ Capacités',
       achievements: '🏅 Succès',
+      tutorial:     '📖 Guide',
     };
     content.innerHTML = `
       <div class="pdx-tabs">
@@ -122,6 +123,7 @@ export const PokedexUI = {
     if (this._tab === 'types')        this._renderTypes(body);
     if (this._tab === 'moves')        this._renderMoves(body);
     if (this._tab === 'achievements') this._renderAchievements(body);
+    if (this._tab === 'tutorial') { TutorialUI.open('intro'); this._tab = 'synergies'; this._render(); }
   },
 
   // ── Onglet Synergies ──────────────────────────────────────────────────────
@@ -209,13 +211,19 @@ export const PokedexUI = {
     const meta     = window.SaveManager?.loadMeta() ?? null;
     const metaSeen = new Set(meta?.seenPokemon ?? []);
     const seen     = new Set([...runSeen, ...metaSeen]);
-    const entries  = POKEMONS.filter(p => seen.has(p.id)).sort((a, b) => a.id - b.id);
+
+    // Inclut aussi tous les pokémons avec niveau > 1 (déjà utilisés par le joueur)
+    const usedIds  = new Set(Object.entries(meta?.pokemonLevels ?? {})
+      .filter(([, lvl]) => lvl > 1).map(([id]) => parseInt(id)));
+
+    const entries  = POKEMONS.filter(p => seen.has(p.id) || usedIds.has(p.id))
+                             .sort((a, b) => a.id - b.id);
 
     if (!entries.length) {
       body.innerHTML = `
         <div class="pdx-empty">
-          <p>Aucun Pokémon rencontré pour l'instant.</p>
-          <p style="font-size:11px;color:var(--text-muted)">Explorez la map pour débloquer des entrées.</p>
+          <p>Aucun Pokémon utilisé pour l'instant.</p>
+          <p style="font-size:11px;color:var(--text-muted)">Les Pokémon apparaîtront après leur premier combat.</p>
         </div>`;
       return;
     }
@@ -282,6 +290,29 @@ export const PokedexUI = {
             <div class="pdx-move-tags">${tags.map(t => `<span class="pdx-tag">${t}</span>`).join('')}</div>
             ${effects ? `<div class="pdx-move-fx">${effects}</div>` : ''}
           </div>
+          ${(() => {
+            const allPassives = POKEMON_PASSIVES[pokemon.id];
+            if (!allPassives) return '';
+            const lines = [35, 70].map(threshold => {
+              const p = allPassives[threshold];
+              if (!p) return '';
+              const unlocked = pLevel >= threshold;
+              return `
+                <div class="pdx-passive-row ${unlocked ? 'unlocked' : 'locked'}">
+                  <span class="pdx-passive-lvl" style="opacity:${unlocked?1:0.4}">
+                    ${unlocked ? '✨' : '🔒'} Nv.${threshold}
+                  </span>
+                  ${unlocked
+                    ? `<div>
+                        <span class="pdx-passive-name">${p.name}</span>
+                        <span class="pdx-passive-desc">${p.desc}</span>
+                       </div>`
+                    : `<span class="pdx-passive-hint">Passif masqué — atteindre le niveau ${threshold}</span>`
+                  }
+                </div>`;
+            }).join('');
+            return lines ? `<div class="pdx-passives">${lines}</div>` : '';
+          })()}
         </div>`;
     }).join('');
   },

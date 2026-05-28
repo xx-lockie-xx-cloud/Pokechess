@@ -7,12 +7,10 @@ export const BANK_MAX_SIZE = 6;
 //   Arène 2   → 4 slots (+1 rangée 1 col 0)
 //   Arène 4   → 5 slots (+1 rangée 1 col 1)
 //   Arène 6   → 6 slots (+1 rangée 1 col 2, terrain complet)
-// Slots débloqués après chaque badge (2e, 4e, 6e arène)
-// Correspond à badgesEarned.length dans runState
 export const SLOT_UNLOCK_MAP = {
-  2: 4,   // 2 badges → 4 slots
-  4: 5,   // 4 badges → 5 slots
-  6: 6,   // 6 badges → 6 slots
+  2: 4,   // après avoir battu l'arène 2 (mapIndex 1) → 4 slots
+  4: 5,   // après avoir battu l'arène 4 (mapIndex 3) → 5 slots
+  6: 6,   // après avoir battu l'arène 6 (mapIndex 5) → 6 slots
 };
 
 // Multiplicateur de stats ennemies par map (progression exponentielle douce)
@@ -124,11 +122,11 @@ export function getMapBudget(mapIndex) {
 }
 
 // ── Tiers BST ─────────────────────────────────────────────────────────────
-// T1: 180-310  T2: 311-390  T3: 391-470  T4: 471-550  T5: 551+
+// T1: 180-300  T2: 311-390  T3: 391-470  T4: 471-550  T5: 551+
 export function getBSTTier(pokemon) {
   const bst = pokemon.stats.hp  + pokemon.stats.atk + pokemon.stats.spa +
               pokemon.stats.def + pokemon.stats.spd_def + pokemon.stats.spd;
-  if (bst <= 308) return 1;  // Salamèche (309) passe en T2
+  if (bst <= 300) return 1;  // Salamèche (309) passe en T2
   if (bst <= 390) return 2;
   if (bst <= 470) return 3;
   if (bst <= 550) return 4;

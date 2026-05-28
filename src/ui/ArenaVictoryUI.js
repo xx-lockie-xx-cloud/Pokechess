@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getArenaForMap }           from '../data/arenas.js';
-import { getRunState, setRunState } from '../data/runState.js';
+import { getRunState, setRunState, tryUnlockSlot } from '../data/runState.js';
 
 export const ArenaVictoryUI = {
   _data:     null,
@@ -22,6 +22,29 @@ export const ArenaVictoryUI = {
   },
 
   _render(arena, mapIndex) {
+    // +1 point de talent par arène vaincue (sauf ligue)
+    if (mapIndex < 8) {
+      const meta = getRunState(this._registry);
+      const savedMeta = window.SaveManager?.loadMeta() ?? {};
+      const newPoints  = (savedMeta.talentPoints ?? 0) + 1;
+      window.SaveManager?.saveMeta({ ...savedMeta, talentPoints: newPoints });
+    }
+    // Déverrouille un slot si applicable (2e/4e/6e badge)
+    const arenaNumber = mapIndex + 1;  // mapIndex 0-7 → arenaNumber 1-8
+    if (tryUnlockSlot(this._registry, arenaNumber)) {
+      const slots = { 2: 4, 4: 5, 6: 6 };
+      const newCount = slots[arenaNumber];
+      if (newCount) {
+        // Petit message de déverrouillage dans le titre
+        setTimeout(() => {
+          const msg = document.getElementById('arena-unlock-msg');
+          if (msg) {
+            msg.textContent = `🔓 ${newCount} emplacements terrain débloqués !`;
+            msg.classList.remove('hidden');
+          }
+        }, 600);
+      }
+    }
     // Titre
     const title = document.getElementById('victory-title');
     if (title) title.textContent = `Arène ${mapIndex + 1} vaincue !`;
