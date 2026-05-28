@@ -30,8 +30,8 @@ import { getRunState, setRunState,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
 import { ITEMS }                         from '../data/items.js';
 import { getActiveSynergies, getFullStats }  from '../data/synergies.js';
-import { getLevelBadgeHTML, getLevelBonus,
-         getPokemonPassive }          from '../data/levelSystem.js';
+import { getLevelBadgeHTML, getLevelBonus }  from '../data/levelSystem.js';
+import { getPokemonPassive }                 from '../data/passiveHooks.js';
 import { getMove }                           from '../data/moves.js';
 import { canEvolve, getEvolutionId }     from '../data/evolutionData.js';
 

@@ -7,8 +7,8 @@ import { TYPE_CHART }         from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES } from '../data/moves.js';
 import { getSeenPokemon }     from '../data/runState.js';
 import { POKEMONS }           from '../data/pokemons.js';
-import { ACHIEVEMENTS, POKEMON_PASSIVES,
-         getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
+import { ACHIEVEMENTS, getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
+import { POKEMON_PASSIVES, getPokemonPassive }   from '../data/passiveHooks.js';
 
 const TYPES = [
   'Normal','Feu','Eau','Électrik','Plante','Glace','Combat','Poison',

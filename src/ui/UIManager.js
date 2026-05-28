@@ -6,8 +6,8 @@
 
 import { getRunState, addSeenPokemon,
          saveMapProgress, getMapProgress } from '../data/runState.js';
-import { DIFFICULTIES, getUnlockedDifficultiesWithMeta,
-         POKEMON_PASSIVES }               from '../data/levelSystem.js';
+import { DIFFICULTIES, getUnlockedDifficultiesWithMeta } from '../data/levelSystem.js';
+import { POKEMON_PASSIVES }                               from '../data/passiveHooks.js';
 import { SaveManager }                from '../SaveManager.js';
 import { MapUI }          from './MapUI.js';
 import { MapGenerator }   from '../map/MapGenerator.js';
