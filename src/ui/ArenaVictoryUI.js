@@ -152,6 +152,11 @@ export const ArenaVictoryUI = {
         infiniteMode: isLeagueVictory,
       });
       if (this._onDone) {
+        // Mode infini : incrémente loopCount
+        if (isLeagueVictory) {
+          const rs = getRunState(this._registry);
+          setRunState(this._registry, { ...rs, loopCount: (rs.loopCount ?? 0) + 1 });
+        }
         this._onDone({ mapIndex: nextIdx, prevArena: arena, infiniteMode: isLeagueVictory });
       }
     });
