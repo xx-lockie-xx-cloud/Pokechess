@@ -4,7 +4,7 @@
 
 import { MapGenerator, NODE_TYPES } from '../map/MapGenerator.js';
 import { getRunState }              from '../data/runState.js';
-import { TRAINER_ARCHETYPES }       from '../data/trainers.js';
+import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES }       from '../data/trainers.js';
 import { getArenaForMap, ARENAS }   from '../data/arenas.js';
 
 // ── Constantes de base (à zoom=1) ────────────────────────────────────────────
@@ -474,7 +474,7 @@ export const MapUI = {
       return a?.championSprite ?? null;
     }
     if (node.type === NODE_TYPES.COMBAT && node.trainer?.archetypeId) {
-      const a = TRAINER_ARCHETYPES.find(x => x.id === node.trainer.archetypeId);
+      const a = ALL_TRAINER_ARCHETYPES.find(x => x.id === node.trainer.archetypeId);
       return a?.spriteMap ?? null;
     }
     return null;
