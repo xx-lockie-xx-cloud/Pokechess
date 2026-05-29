@@ -363,7 +363,6 @@ export const SaveManager = {
     }
 
     // Achievements niveau 100 par type (nécessite POKEMONS pour connaître les types)
-    const POKEMONS = window.__POKEMONS__;
     if (POKEMONS) {
       const TYPES_LIST = ['Feu','Eau','Plante','Électrik','Psy','Glace','Combat','Poison',
         'Sol','Vol','Insecte','Roche','Spectre','Dragon','Ténèbres','Acier','Fée','Normal'];
