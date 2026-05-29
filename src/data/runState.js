@@ -7,16 +7,24 @@ export const BANK_MAX_SIZE = 6;
 //   Arène 2   → 4 slots (+1 rangée 1 col 0)
 //   Arène 4   → 5 slots (+1 rangée 1 col 1)
 //   Arène 6   → 6 slots (+1 rangée 1 col 2, terrain complet)
+// Slots débloqués après chaque badge (2e, 4e, 6e arène)
+// Correspond à badgesEarned.length dans runState
 export const SLOT_UNLOCK_MAP = {
-  2: 4,   // après avoir battu l'arène 2 (mapIndex 1) → 4 slots
-  4: 5,   // après avoir battu l'arène 4 (mapIndex 3) → 5 slots
-  6: 6,   // après avoir battu l'arène 6 (mapIndex 5) → 6 slots
+  2: 4,   // 2 badges → 4 slots
+  4: 5,   // 4 badges → 5 slots
+  6: 6,   // 6 badges → 6 slots
 };
 
 // Multiplicateur de stats ennemies par map (progression exponentielle douce)
 // map 0 → ×1.00 | map 4 → ×1.48 | map 7 → ×1.84
-export function getEnemyMultiplier(mapIndex) {
-  return Number((1 + mapIndex * 0.12).toFixed(2));
+export function getEnemyMultiplier(mapIndex, loopCount = 0) {
+  // Maps 0-8 : progression normale
+  // Mode infini (mapIndex > 8) : chaque boucle complète ajoute +30% de difficulté de base
+  const loopBonus = loopCount * 0.30;
+  const mapBonus  = Math.min(mapIndex, 8) * 0.12;
+  // Au-delà de la map 8, chaque map supplémentaire ajoute encore +8%
+  const infiniteBonus = mapIndex > 8 ? (mapIndex - 8) * 0.08 : 0;
+  return Number((1 + mapBonus + infiniteBonus + loopBonus).toFixed(2));
 }
 
 export function initRun(registry, starterPokemon) {
@@ -30,6 +38,7 @@ export function initRun(registry, starterPokemon) {
     playerBank:    [],
     unlockedSlots: 3,
     seenPokemon:   [],      // IDs des pokémons rencontrés
+    loopCount:     0,       // nombre de fois que la ligue a été battue (mode infini)
   });
 
   registry.set('playerUnits', [starter]);
@@ -122,11 +131,11 @@ export function getMapBudget(mapIndex) {
 }
 
 // ── Tiers BST ─────────────────────────────────────────────────────────────
-// T1: 180-300  T2: 311-390  T3: 391-470  T4: 471-550  T5: 551+
+// T1: 180-310  T2: 311-390  T3: 391-470  T4: 471-550  T5: 551+
 export function getBSTTier(pokemon) {
   const bst = pokemon.stats.hp  + pokemon.stats.atk + pokemon.stats.spa +
               pokemon.stats.def + pokemon.stats.spd_def + pokemon.stats.spd;
-  if (bst <= 300) return 1;  // Salamèche (309) passe en T2
+  if (bst <= 308) return 1;  // Salamèche (309) passe en T2
   if (bst <= 390) return 2;
   if (bst <= 470) return 3;
   if (bst <= 550) return 4;
