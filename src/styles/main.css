@@ -2209,6 +2209,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   padding: 10px 12px 0;
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
+  overflow-x: auto;        /* scroll horizontal des onglets */
+  scrollbar-width: none;   /* cache la scrollbar sur Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+.pdx-tabs::-webkit-scrollbar { display: none; }
+
+.pdx-tab {
+  flex-shrink: 0;          /* empêche les onglets de se comprimer */
 }
 
 .pdx-tab {
