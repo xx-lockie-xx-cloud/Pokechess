@@ -212,6 +212,187 @@ export const ACHIEVEMENTS = {
     id: 'legendaire_team', label: '👑 Légendaire',
     desc: 'Avoir 2 pokémons T5 dans son équipe', category: 'roguelite',
   },
+
+  lv100_feu_1: {
+    id: 'lv100_feu_1', label: '🔥 Maître Feu',
+    desc: 'Monter 1 pokémon de type Feu au niveau 100', category: 'level',
+    typeFilter: 'Feu', countNeeded: 1,
+  },
+  lv100_feu_3: {
+    id: 'lv100_feu_3', label: '🔥 Grand Maître Feu',
+    desc: 'Monter 3 pokémons de type Feu au niveau 100', category: 'level',
+    typeFilter: 'Feu', countNeeded: 3,
+  },
+  lv100_eau_1: {
+    id: 'lv100_eau_1', label: '💧 Maître Eau',
+    desc: 'Monter 1 pokémon de type Eau au niveau 100', category: 'level',
+    typeFilter: 'Eau', countNeeded: 1,
+  },
+  lv100_eau_3: {
+    id: 'lv100_eau_3', label: '💧 Grand Maître Eau',
+    desc: 'Monter 3 pokémons de type Eau au niveau 100', category: 'level',
+    typeFilter: 'Eau', countNeeded: 3,
+  },
+  lv100_plante_1: {
+    id: 'lv100_plante_1', label: '🌿 Maître Plante',
+    desc: 'Monter 1 pokémon de type Plante au niveau 100', category: 'level',
+    typeFilter: 'Plante', countNeeded: 1,
+  },
+  lv100_plante_3: {
+    id: 'lv100_plante_3', label: '🌿 Grand Maître Plante',
+    desc: 'Monter 3 pokémons de type Plante au niveau 100', category: 'level',
+    typeFilter: 'Plante', countNeeded: 3,
+  },
+  lv100_electrik_1: {
+    id: 'lv100_electrik_1', label: '⚡ Maître Électrik',
+    desc: 'Monter 1 pokémon de type Électrik au niveau 100', category: 'level',
+    typeFilter: 'Électrik', countNeeded: 1,
+  },
+  lv100_electrik_3: {
+    id: 'lv100_electrik_3', label: '⚡ Grand Maître Électrik',
+    desc: 'Monter 3 pokémons de type Électrik au niveau 100', category: 'level',
+    typeFilter: 'Électrik', countNeeded: 3,
+  },
+  lv100_psy_1: {
+    id: 'lv100_psy_1', label: '🔮 Maître Psy',
+    desc: 'Monter 1 pokémon de type Psy au niveau 100', category: 'level',
+    typeFilter: 'Psy', countNeeded: 1,
+  },
+  lv100_psy_3: {
+    id: 'lv100_psy_3', label: '🔮 Grand Maître Psy',
+    desc: 'Monter 3 pokémons de type Psy au niveau 100', category: 'level',
+    typeFilter: 'Psy', countNeeded: 3,
+  },
+  lv100_glace_1: {
+    id: 'lv100_glace_1', label: '❄️ Maître Glace',
+    desc: 'Monter 1 pokémon de type Glace au niveau 100', category: 'level',
+    typeFilter: 'Glace', countNeeded: 1,
+  },
+  lv100_glace_3: {
+    id: 'lv100_glace_3', label: '❄️ Grand Maître Glace',
+    desc: 'Monter 3 pokémons de type Glace au niveau 100', category: 'level',
+    typeFilter: 'Glace', countNeeded: 3,
+  },
+  lv100_combat_1: {
+    id: 'lv100_combat_1', label: '🥊 Maître Combat',
+    desc: 'Monter 1 pokémon de type Combat au niveau 100', category: 'level',
+    typeFilter: 'Combat', countNeeded: 1,
+  },
+  lv100_combat_3: {
+    id: 'lv100_combat_3', label: '🥊 Grand Maître Combat',
+    desc: 'Monter 3 pokémons de type Combat au niveau 100', category: 'level',
+    typeFilter: 'Combat', countNeeded: 3,
+  },
+  lv100_poison_1: {
+    id: 'lv100_poison_1', label: '☠️ Maître Poison',
+    desc: 'Monter 1 pokémon de type Poison au niveau 100', category: 'level',
+    typeFilter: 'Poison', countNeeded: 1,
+  },
+  lv100_poison_3: {
+    id: 'lv100_poison_3', label: '☠️ Grand Maître Poison',
+    desc: 'Monter 3 pokémons de type Poison au niveau 100', category: 'level',
+    typeFilter: 'Poison', countNeeded: 3,
+  },
+  lv100_sol_1: {
+    id: 'lv100_sol_1', label: '🏔 Maître Sol',
+    desc: 'Monter 1 pokémon de type Sol au niveau 100', category: 'level',
+    typeFilter: 'Sol', countNeeded: 1,
+  },
+  lv100_sol_3: {
+    id: 'lv100_sol_3', label: '🏔 Grand Maître Sol',
+    desc: 'Monter 3 pokémons de type Sol au niveau 100', category: 'level',
+    typeFilter: 'Sol', countNeeded: 3,
+  },
+  lv100_vol_1: {
+    id: 'lv100_vol_1', label: '🦅 Maître Vol',
+    desc: 'Monter 1 pokémon de type Vol au niveau 100', category: 'level',
+    typeFilter: 'Vol', countNeeded: 1,
+  },
+  lv100_vol_3: {
+    id: 'lv100_vol_3', label: '🦅 Grand Maître Vol',
+    desc: 'Monter 3 pokémons de type Vol au niveau 100', category: 'level',
+    typeFilter: 'Vol', countNeeded: 3,
+  },
+  lv100_insecte_1: {
+    id: 'lv100_insecte_1', label: '🦋 Maître Insecte',
+    desc: 'Monter 1 pokémon de type Insecte au niveau 100', category: 'level',
+    typeFilter: 'Insecte', countNeeded: 1,
+  },
+  lv100_insecte_3: {
+    id: 'lv100_insecte_3', label: '🦋 Grand Maître Insecte',
+    desc: 'Monter 3 pokémons de type Insecte au niveau 100', category: 'level',
+    typeFilter: 'Insecte', countNeeded: 3,
+  },
+  lv100_roche_1: {
+    id: 'lv100_roche_1', label: '🪨 Maître Roche',
+    desc: 'Monter 1 pokémon de type Roche au niveau 100', category: 'level',
+    typeFilter: 'Roche', countNeeded: 1,
+  },
+  lv100_roche_3: {
+    id: 'lv100_roche_3', label: '🪨 Grand Maître Roche',
+    desc: 'Monter 3 pokémons de type Roche au niveau 100', category: 'level',
+    typeFilter: 'Roche', countNeeded: 3,
+  },
+  lv100_spectre_1: {
+    id: 'lv100_spectre_1', label: '👻 Maître Spectre',
+    desc: 'Monter 1 pokémon de type Spectre au niveau 100', category: 'level',
+    typeFilter: 'Spectre', countNeeded: 1,
+  },
+  lv100_spectre_3: {
+    id: 'lv100_spectre_3', label: '👻 Grand Maître Spectre',
+    desc: 'Monter 3 pokémons de type Spectre au niveau 100', category: 'level',
+    typeFilter: 'Spectre', countNeeded: 3,
+  },
+  lv100_dragon_1: {
+    id: 'lv100_dragon_1', label: '🐉 Maître Dragon',
+    desc: 'Monter 1 pokémon de type Dragon au niveau 100', category: 'level',
+    typeFilter: 'Dragon', countNeeded: 1,
+  },
+  lv100_dragon_3: {
+    id: 'lv100_dragon_3', label: '🐉 Grand Maître Dragon',
+    desc: 'Monter 3 pokémons de type Dragon au niveau 100', category: 'level',
+    typeFilter: 'Dragon', countNeeded: 3,
+  },
+  lv100_tenebres_1: {
+    id: 'lv100_tenebres_1', label: '🌑 Maître Ténèbres',
+    desc: 'Monter 1 pokémon de type Ténèbres au niveau 100', category: 'level',
+    typeFilter: 'Ténèbres', countNeeded: 1,
+  },
+  lv100_tenebres_3: {
+    id: 'lv100_tenebres_3', label: '🌑 Grand Maître Ténèbres',
+    desc: 'Monter 3 pokémons de type Ténèbres au niveau 100', category: 'level',
+    typeFilter: 'Ténèbres', countNeeded: 3,
+  },
+  lv100_acier_1: {
+    id: 'lv100_acier_1', label: '⚙️ Maître Acier',
+    desc: 'Monter 1 pokémon de type Acier au niveau 100', category: 'level',
+    typeFilter: 'Acier', countNeeded: 1,
+  },
+  lv100_acier_3: {
+    id: 'lv100_acier_3', label: '⚙️ Grand Maître Acier',
+    desc: 'Monter 3 pokémons de type Acier au niveau 100', category: 'level',
+    typeFilter: 'Acier', countNeeded: 3,
+  },
+  lv100_fee_1: {
+    id: 'lv100_fee_1', label: '🧚 Maître Fée',
+    desc: 'Monter 1 pokémon de type Fée au niveau 100', category: 'level',
+    typeFilter: 'Fée', countNeeded: 1,
+  },
+  lv100_fee_3: {
+    id: 'lv100_fee_3', label: '🧚 Grand Maître Fée',
+    desc: 'Monter 3 pokémons de type Fée au niveau 100', category: 'level',
+    typeFilter: 'Fée', countNeeded: 3,
+  },
+  lv100_normal_1: {
+    id: 'lv100_normal_1', label: '⭐ Maître Normal',
+    desc: 'Monter 1 pokémon de type Normal au niveau 100', category: 'level',
+    typeFilter: 'Normal', countNeeded: 1,
+  },
+  lv100_normal_3: {
+    id: 'lv100_normal_3', label: '⭐ Grand Maître Normal',
+    desc: 'Monter 3 pokémons de type Normal au niveau 100', category: 'level',
+    typeFilter: 'Normal', countNeeded: 3,
+  },
 };
 
 // Compte les achievements de catégorie "league"
