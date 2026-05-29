@@ -462,7 +462,7 @@ class UIManagerClass {
       }
     } else {
       // Vérifie les achievements de fin de run
-    const runStateFinal = Object.fromEntries([...(this.registry?.entries?.() ?? [])]);
+    const runStateFinal = this.registry?.get?.('runState') ?? {};
     SaveManager.checkAchievements(runStateFinal, null);
     this.registry.reset();
     this.registry.set('playerUnits', []);
