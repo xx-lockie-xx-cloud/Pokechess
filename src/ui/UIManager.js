@@ -6,8 +6,10 @@
 
 import { getRunState, addSeenPokemon,
          saveMapProgress, getMapProgress } from '../data/runState.js';
-import { DIFFICULTIES, getUnlockedDifficultiesWithMeta } from '../data/levelSystem.js';
+import { DIFFICULTIES, getUnlockedDifficultiesWithMeta,
+         ACHIEVEMENTS }                        from '../data/levelSystem.js';
 import { POKEMON_PASSIVES }                               from '../data/passiveHooks.js';
+import { POKEMONS }                                       from '../data/pokemons.js';
 import { SaveManager }                from '../SaveManager.js';
 import { MapUI }          from './MapUI.js';
 import { MapGenerator }   from '../map/MapGenerator.js';
@@ -72,6 +74,8 @@ class UIManagerClass {
     // ── Tutoriel ────────────────────────────────────────────────────────────
     // Expose POKEMON_PASSIVES sur window pour PrepUI (pas d'import dynamique)
     window.__POKEMON_PASSIVES__ = POKEMON_PASSIVES;
+    window.__POKEMONS__          = POKEMONS;
+    window.__ACHIEVEMENTS__     = ACHIEVEMENTS;
     TutorialUI.init();
     TalentTreeUI.init();
     // Bouton arbre de talents
@@ -457,8 +461,11 @@ class UIManagerClass {
         });
       }
     } else {
-      this.registry.reset();
-      this.registry.set('playerUnits', []);
+      // Vérifie les achievements de fin de run
+    const runStateFinal = Object.fromEntries([...(this.registry?.entries?.() ?? [])]);
+    SaveManager.checkAchievements(runStateFinal, null);
+    this.registry.reset();
+    this.registry.set('playerUnits', []);
       // Nettoie l'inline style posé par MapUI + retire la classe active
       const mapEl = document.getElementById('screen-map');
       if (mapEl) {
