@@ -2,7 +2,7 @@
 // MapGenerator.js — Génération déterministe par seed (Slay the Spire style)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { TRAINER_ARCHETYPES, generateEnemyTeam } from '../data/trainers.js';
+import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES, generateEnemyTeam } from '../data/trainers.js';
 import { getArenaForMap, generateArenaTeam,
          generateLeagueTeam }              from '../data/arenas.js';
 
@@ -124,9 +124,9 @@ export class MapGenerator {
 
         const budget    = budgetForStep(mapIndex, col, this.cols);
         const maxUnits  = maxUnitsForStep(mapIndex, col, this.cols);
-        const archIdx   = Math.floor(rng() * TRAINER_ARCHETYPES.length);
+        const archIdx   = Math.floor(rng() * ALL_TRAINER_ARCHETYPES.length);
         const archetype = type === NODE_TYPES.COMBAT
-          ? TRAINER_ARCHETYPES[archIdx] : null;
+          ? ALL_TRAINER_ARCHETYPES[archIdx] : null;
 
         let trainerData = null;
         if (type === NODE_TYPES.COMBAT && archetype) {
