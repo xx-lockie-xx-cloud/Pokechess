@@ -22,7 +22,8 @@ import { PrepUI }         from './PrepUI.js';
 import { CombatUI }       from './CombatUI.js';
 import { ArenaVictoryUI } from './ArenaVictoryUI.js';
 import { TutorialUI }      from './TutorialUI.js';
-import { TalentTreeUI }   from './TalentTreeUI.js';
+import { TalentTreeUI }      from './TalentTreeUI.js';
+import { AchievementsUI }    from './AchievementsUI.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
@@ -78,8 +79,9 @@ class UIManagerClass {
     window.__ACHIEVEMENTS__     = ACHIEVEMENTS;
     TutorialUI.init();
     TalentTreeUI.init();
-    // Bouton arbre de talents
+    AchievementsUI.init();
     document.getElementById('btn-talent-tree')?.addEventListener('click', () => TalentTreeUI.open());
+    document.getElementById('btn-achievements')?.addEventListener('click', () => AchievementsUI.open());
 
     // Affiche le tutoriel au premier lancement (jamais vu)
     const meta = SaveManager.loadMeta();

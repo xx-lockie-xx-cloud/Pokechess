@@ -122,7 +122,7 @@ export const PokedexUI = {
     if (this._tab === 'synergies')    this._renderSynergies(body);
     if (this._tab === 'types')        this._renderTypes(body);
     if (this._tab === 'moves')        this._renderMoves(body);
-    if (this._tab === 'achievements') this._renderAchievements(body);
+    if (this._tab === 'achievements') { AchievementsUI.open(); this._tab = 'synergies'; this._render(); return; }
     if (this._tab === 'tutorial') { TutorialUI.open('intro'); this._tab = 'synergies'; this._render(); }
   },
 
