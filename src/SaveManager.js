@@ -296,6 +296,124 @@ export const SaveManager = {
     this.saveMeta(meta);
   },
 
+  // ── Vérifie et débloque les achievements ─────────────────────────────────
+  // Retourne un tableau des achievements nouvellement débloqués
+  checkAchievements(runState, combatResult = null) {
+    const meta    = this.loadMeta();
+    const ach     = meta.achievements ?? {};
+    const newly   = [];
+
+    const unlock = (id) => {
+      if (!ach[id]) {
+        ach[id] = { unlockedAt: Date.now() };
+        newly.push(id);
+      }
+    };
+
+    // ── Progression ──────────────────────────────────────────────────────────
+    const badges = runState?.badgesEarned ?? [];
+    if (badges.length >= 1) unlock('premier_badge');
+    if (badges.length >= 8) unlock('champion_kanto');
+
+    // ── Ligue par type ───────────────────────────────────────────────────────
+    // Déclenché si la run est terminée (8 badges) et que l'équipe est mono-type
+    if (badges.length >= 8 && combatResult?.playerUnits) {
+      const units = combatResult.playerUnits;
+      const TYPES = ['Feu','Eau','Plante','Électrik','Psy','Glace','Combat','Poison',
+        'Sol','Vol','Insecte','Roche','Spectre','Dragon','Ténèbres','Acier','Fée','Normal'];
+      TYPES.forEach(type => {
+        const count = units.filter(u => u.types?.includes(type)).length;
+        if (count >= 6) unlock(`league_${type.toLowerCase()}`);
+      });
+    }
+
+    // ── Collection / Pokédex ────────────────────────────────────────────────
+    const seen = (meta.seenPokemon ?? []).length;
+    if (seen >= 50)  unlock('curieux');
+    if (seen >= 151) unlock('encyclopedie');
+
+    // T5 capturé (tier 5 = légendaire, dans caughtPokemon)
+    const legendaryIds = [144, 145, 146, 147, 148, 149, 150, 151];
+    if ((meta.caughtPokemon ?? []).some(id => legendaryIds.includes(id)))
+      unlock('coup_de_chance');
+
+    // ── Niveaux pokémon ──────────────────────────────────────────────────────
+    const levels   = meta.pokemonLevels ?? {};
+    const maxLevel = Math.max(...Object.values(levels), 1);
+    if (maxLevel >= 25)  unlock('lv25');
+    if (maxLevel >= 50)  unlock('lv50');
+    if (maxLevel >= 100) unlock('lv100');
+    if ((levels[5] ?? 1) >= 100) unlock('reptincel_100');
+
+    // Achievements niveau 100 par type
+    const POKEMONS = window.__POKEMONS__;
+    if (POKEMONS) {
+      const TYPES_100 = ['Feu','Eau','Plante','Électrik','Psy','Glace','Combat','Poison',
+        'Sol','Vol','Insecte','Roche','Spectre','Dragon','Ténèbres','Acier','Fée','Normal'];
+      TYPES_100.forEach(type => {
+        const key = type.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        const count = Object.entries(levels).filter(([id, lvl]) => {
+          if (lvl < 100) return false;
+          const poke = POKEMONS.find(p => p.id === parseInt(id));
+          return poke?.types?.includes(type);
+        }).length;
+        if (count >= 1) unlock('lv100_' + key + '_1');
+        if (count >= 3) unlock('lv100_' + key + '_3');
+      });
+    }
+
+    // Achievements niveau 100 par type (nécessite POKEMONS pour connaître les types)
+    const POKEMONS = window.__POKEMONS__;
+    if (POKEMONS) {
+      const TYPES_LIST = ['Feu','Eau','Plante','Électrik','Psy','Glace','Combat','Poison',
+        'Sol','Vol','Insecte','Roche','Spectre','Dragon','Ténèbres','Acier','Fée','Normal'];
+      TYPES_LIST.forEach(type => {
+        const key = type.toLowerCase().replace(/[éêè]/g, 'e');
+        // Compte les pokémons de ce type au niveau 100
+        const count = Object.entries(levels).filter(([id, lvl]) => {
+          if (lvl < 100) return false;
+          const poke = POKEMONS.find(p => p.id === parseInt(id));
+          return poke?.types?.includes(type);
+        }).length;
+        if (count >= 1) unlock(\`lv100_\${key}_1\`);
+        if (count >= 3) unlock(\`lv100_\${key}_3\`);
+      });
+    }
+
+    // ── Combat (depuis combatResult) ─────────────────────────────────────────
+    if (combatResult) {
+      // Ultime déclenché
+      if (combatResult.ultimateUsed) unlock('ultime');
+
+      // Exterminateur : victoire sans perte
+      if (combatResult.winner === 'player' && combatResult.playerLosses === 0)
+        unlock('exterminateur');
+
+      // Synergiste : 3 synergies actives
+      if ((combatResult.activeSynergies ?? 0) >= 3) unlock('synergiste');
+
+      // Empoisonneur : 5 stacks poison en un combat
+      if ((combatResult.maxPoisonStacks ?? 0) >= 5) unlock('empoisonneur');
+
+      // Sacrifice : victoire grâce à une Explosion
+      if (combatResult.explosionWin) unlock('sacrifice');
+
+      // Riche : finir une arène avec 20+ pièces
+      if ((runState?.coins ?? 0) >= 20) unlock('riche');
+
+      // Légendaire : 2 T5 dans l'équipe
+      const t5count = (combatResult.playerUnits ?? [])
+        .filter(u => u.tier >= 5).length;
+      if (t5count >= 2) unlock('legendaire_team');
+    }
+
+    if (newly.length > 0) {
+      meta.achievements = ach;
+      this.saveMeta(meta);
+    }
+    return newly;
+  },
+
   // ── Réinitialise la meta (debug) ───────────────────────────────────────────
   resetMeta() {
     localStorage.removeItem(META_KEY);
