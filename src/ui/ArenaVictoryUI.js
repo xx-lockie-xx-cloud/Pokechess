@@ -29,6 +29,15 @@ export const ArenaVictoryUI = {
       const newPoints  = (savedMeta.talentPoints ?? 0) + 1;
       window.SaveManager?.saveMeta({ ...savedMeta, talentPoints: newPoints });
     }
+    // Enregistre le badge dans runState.badgesEarned
+    const arenaId = arena?.id ?? ('arena_' + mapIndex);
+    const rs       = getRunState(this._registry);
+    if (!(rs.badgesEarned ?? []).includes(arenaId)) {
+      setRunState(this._registry, {
+        badgesEarned: [...(rs.badgesEarned ?? []), arenaId],
+      });
+    }
+
     // Déverrouille un slot si applicable (2e/4e/6e badge)
     const arenaNumber = mapIndex + 1;  // mapIndex 0-7 → arenaNumber 1-8
     if (tryUnlockSlot(this._registry, arenaNumber)) {
