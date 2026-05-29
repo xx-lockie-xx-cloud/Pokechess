@@ -9,6 +9,8 @@ import { getSeenPokemon }     from '../data/runState.js';
 import { POKEMONS }           from '../data/pokemons.js';
 import { ACHIEVEMENTS, getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
 import { POKEMON_PASSIVES, getPokemonPassive }   from '../data/passiveHooks.js';
+import { AchievementsUI }                         from './AchievementsUI.js';
+import { TutorialUI }                             from './TutorialUI.js';
 
 const TYPES = [
   'Normal','Feu','Eau','Électrik','Plante','Glace','Combat','Poison',
@@ -103,7 +105,7 @@ export const PokedexUI = {
       tutorial:     '📖 Guide',
     };
     content.innerHTML = `
-      <div class="pdx-tabs">
+      <div class="pdx-tabs" id="pdx-tabs-bar">
         ${tabs.map(t => `
           <button class="pdx-tab${this._tab === t ? ' active' : ''}" data-tab="${t}">
             ${tabLabels[t]}
@@ -118,6 +120,33 @@ export const PokedexUI = {
         this._render();
       });
     });
+    // Auto-scroll vers l'onglet actif
+    requestAnimationFrame(() => {
+      document.querySelector('.pdx-tab.active')
+        ?.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+    });
+
+    // Swipe horizontal → onglet suivant/précédent
+    const pdxBody = document.getElementById('pdx-body');
+    if (pdxBody && !pdxBody._swipe) {
+      pdxBody._swipe = true;
+      let sx = 0, sy = 0;
+      pdxBody.addEventListener('touchstart', e => {
+        sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      }, { passive: true });
+      pdxBody.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].clientX - sx;
+        const dy = Math.abs(e.changedTouches[0].clientY - sy);
+        if (Math.abs(dx) < 50 || dy > Math.abs(dx) * 0.8) return;
+        const visibleTabs = tabs.filter(t => t !== 'achievements' && t !== 'tutorial');
+        const idx = visibleTabs.indexOf(this._tab);
+        if (dx < 0 && idx < visibleTabs.length - 1) {
+          this._tab = visibleTabs[idx + 1]; this._render();
+        } else if (dx > 0 && idx > 0) {
+          this._tab = visibleTabs[idx - 1]; this._render();
+        }
+      }, { passive: true });
+    }
     const body = document.getElementById('pdx-body');
     if (this._tab === 'synergies')    this._renderSynergies(body);
     if (this._tab === 'types')        this._renderTypes(body);
