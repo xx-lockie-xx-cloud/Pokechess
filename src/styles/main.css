@@ -3701,3 +3701,34 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 /* Log passif */
 .log-passive { color: #a29bfe; font-style: italic; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACHIEVEMENT TOAST
+   ═══════════════════════════════════════════════════════════════════════════ */
+.achievement-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: linear-gradient(135deg, #12122a, #1e1e3a);
+  border: 1px solid #ffd700;
+  border-radius: 12px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 9999;
+  opacity: 0;
+  transition: all 0.35s ease;
+  box-shadow: 0 4px 20px rgba(255,215,0,0.3);
+  max-width: min(340px, 90vw);
+}
+.achievement-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.ach-toast-icon { font-size: 24px; flex-shrink: 0; }
+.ach-toast-title { font-size: 9px; color: #ffd700; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px; }
+.ach-toast-label { font-size: 13px; font-weight: 800; color: #e2e8f0; }
+.ach-toast-desc  { font-size: 10px; color: #718096; margin-top: 1px; }
