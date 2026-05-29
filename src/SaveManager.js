@@ -224,8 +224,10 @@ export const SaveManager = {
     if (badges.length >= 1) unlock('premier_badge');
     if (badges.length >= 8) unlock('champion_kanto');
 
-    // Ligue par type
-    if (badges.length >= 8 && combatResult?.playerUnits) {
+    // Ligue par type (mapIndex >= 8 = combat de ligue, ou 8 badges gagnés)
+    const isLeague = (combatResult?.mapIndex ?? -1) >= 8
+                  || badges.length >= 8;
+    if (isLeague && combatResult?.winner === 'player' && combatResult?.playerUnits) {
       const units = combatResult.playerUnits;
       const LEAGUE_TYPES = ['Feu','Eau','Plante','Électrik','Psy','Glace','Combat','Poison',
         'Sol','Vol','Insecte','Roche','Spectre','Dragon','Ténèbres','Acier','Fée','Normal'];
