@@ -5,7 +5,7 @@
 import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
-import { addCoins, getEnemyMultiplier }     from '../data/runState.js';
+import { addCoins, getEnemyMultiplier, getRunState } from '../data/runState.js';
 import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
 import { getActiveSynergies, getFullStats } from '../data/synergies.js';
@@ -443,7 +443,8 @@ export const CombatUI = {
   // ─────────────────────────────────────────────────────────────────────────
   _startCombat() {
     const mapIndex    = this._data.mapIndex ?? 0;
-    const baseMult    = getEnemyMultiplier(mapIndex);
+    const loopCount   = getRunState ? (this._registry ? getRunState(this._registry)?.loopCount ?? 0 : 0) : 0;
+    const baseMult    = getEnemyMultiplier(mapIndex, loopCount);
     // Multiplicateur de difficulté (persistant via meta save)
     const diffId      = SaveManager.getDifficulty() ?? 'normal';
     const diffMults   = { easy: 0.8, normal: 1.0, hard: 1.3, expert: 1.7 };
@@ -966,6 +967,35 @@ export const CombatUI = {
     btn.addEventListener('click', () => {
       overlay.remove();
       if (this._onDone) {
+        // Collecte les données pour checkAchievements
+        const playerUnits    = this._livePlayerUnits ?? this._playerUnits ?? [];
+        const playerLosses   = playerUnits.filter(u => u.hp <= 0).length;
+        const ultimateUsed   = (log ?? []).some(e => e.type === 'ultimate');
+        const activeSynergies = Object.keys(this._playerFx ?? {}).length;
+        const maxPoisonStacks = Math.max(0, ...(this._liveEnemyUnits ?? [])
+          .flatMap(u => u.statusEffects ?? [])
+          .filter(s => s.type === 'poison')
+          .map(s => s.stacks ?? 1));
+        const explosionWin   = (log ?? []).some(e => e.effect === 'death_passive'
+          && (e.label ?? '').includes('Explosion'));
+
+        const combatResult = {
+          winner, playerUnits, playerLosses, ultimateUsed,
+          activeSynergies, maxPoisonStacks, explosionWin,
+        };
+
+        // Vérifie les achievements
+        const runState = this._registry
+          ? Object.fromEntries([...this._registry.entries()])
+          : {};
+        const newAch = SaveManager.checkAchievements(runState, combatResult);
+        if (newAch.length > 0) {
+          // Notifie les nouveaux achievements
+          newAch.forEach((id, i) => {
+            setTimeout(() => this._showAchievementToast(id), i * 600);
+          });
+        }
+
         this._onDone({
           winner,
           nodeType:  this._data.nodeType  ?? 'combat',
@@ -979,6 +1009,28 @@ export const CombatUI = {
     box.appendChild(btn);
     overlay.appendChild(box);
     screen.appendChild(overlay);
+  },
+
+  _showAchievementToast(id) {
+    // Import dynamique pour éviter la dépendance circulaire
+    const ACHIEVEMENTS = window.__ACHIEVEMENTS__;
+    const ach = ACHIEVEMENTS?.[id];
+    if (!ach) return;
+    const toast = document.createElement('div');
+    toast.className = 'achievement-toast';
+    toast.innerHTML = `
+      <span class="ach-toast-icon">🏅</span>
+      <div>
+        <div class="ach-toast-title">Achievement débloqué !</div>
+        <div class="ach-toast-label">${ach.label}</div>
+        <div class="ach-toast-desc">${ach.desc}</div>
+      </div>`;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('visible'));
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      setTimeout(() => toast.remove(), 400);
+    }, 3500);
   },
 
   _showLevelUps(levelUps) {
