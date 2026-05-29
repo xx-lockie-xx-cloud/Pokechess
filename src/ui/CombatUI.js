@@ -986,7 +986,7 @@ export const CombatUI = {
 
         // Vérifie les achievements
         const runState = this._registry
-          ? Object.fromEntries([...this._registry.entries()])
+          ? (this._registry.get?.('runState') ?? {})
           : {};
         const newAch = SaveManager.checkAchievements(runState, combatResult);
         if (newAch.length > 0) {
