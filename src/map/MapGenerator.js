@@ -133,9 +133,9 @@ export class MapGenerator {
         const maxUnits  = maxUnitsForStep(mapIndex, col, this.cols);
         // Filtre les archétypes selon minMap par difficulté
         const eligible  = ALL_TRAINER_ARCHETYPES.filter(a => {
-          if (!a.minMap) return true;
-          const min = a.minMap[difficulty] ?? a.minMap.normal ?? 0;
-          return mapIndex >= min;
+          const min = a.minMap ? (a.minMap[difficulty] ?? a.minMap.normal ?? 0) : 0;
+          const max = a.maxMap ?? 99;
+          return mapIndex >= min && mapIndex <= max;
         });
         const archPool  = eligible.length ? eligible : ALL_TRAINER_ARCHETYPES;
         const archIdx   = Math.floor(rng() * archPool.length);
