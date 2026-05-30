@@ -285,6 +285,9 @@ export const SaveManager = {
       if (t5count >= 2) unlock('legendaire_team');
     }
 
+    // Bénit : finir une run avec une relique active
+    if (runState?.relic?.id) unlock('relique_terminee');
+
     if (newly.length > 0) {
       meta.achievements = ach;
       this.saveMeta(meta);
