@@ -227,6 +227,16 @@ export const SaveManager = {
     // Ligue par type (mapIndex >= 8 = combat de ligue, ou 8 badges gagnés)
     const isLeague = (combatResult?.mapIndex ?? -1) >= 8
                   || badges.length >= 8;
+    const runDiff  = runState?.difficulty ?? 'easy';
+    const hasRelic = !!(runState?.relic?.id);
+
+    // Déblocage des difficultés
+    if (isLeague && combatResult?.winner === 'player') {
+      if (runDiff === 'easy')   unlock('ligue_easy');
+      if (runDiff === 'normal') unlock('ligue_normal');
+      if (runDiff === 'hard' && hasRelic) unlock('ligue_hard_relic');
+    }
+
     if (isLeague && combatResult?.winner === 'player' && combatResult?.playerUnits) {
       const units = combatResult.playerUnits;
       const LEAGUE_TYPES = ['Feu','Eau','Plante','Électrik','Psy','Glace','Combat','Poison',
