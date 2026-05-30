@@ -422,11 +422,8 @@ class UIManagerClass {
   // _initMenu()
   // ─────────────────────────────────────────────────────────────────────────
   _initMenu() {
-    const btn = document.getElementById('btn-new-game');
-    if (!btn) return;
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-    newBtn.addEventListener('click', () => this.show('starter'));
+    // Le listener btn-new-game est déjà posé dans _bindMenuButtons avec RelicUI
+    // Cette méthode ne doit plus le remplacer
   }
 
   // ─────────────────────────────────────────────────────────────────────────
