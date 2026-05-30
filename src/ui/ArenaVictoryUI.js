@@ -2,8 +2,9 @@
 // ArenaVictoryUI.js — Remplace ArenaVictoryScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { SaveManager }    from '../SaveManager.js';
 import { getArenaForMap }           from '../data/arenas.js';
-import { getRunState, setRunState, tryUnlockSlot } from '../data/runState.js';
+import { getRunState, setRunState, tryUnlockSlot, addCoins } from '../data/runState.js';
 
 export const ArenaVictoryUI = {
   _data:     null,
