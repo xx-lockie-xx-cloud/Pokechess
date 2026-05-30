@@ -422,6 +422,16 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   // _initMenu()
   // ─────────────────────────────────────────────────────────────────────────
+  _applyRelicStartEffects(relicId) {
+    const rs = this.registry.get('runState') ?? {};
+    if (relicId === 'contrat_maudit') {
+      this.registry.set('runState', { ...rs, coins: (rs.coins ?? 5) + 8 });
+    }
+    if (relicId === 'pochette_surprise') {
+      this.registry.set('runState', { ...rs, _startRandomItem: true });
+    }
+  }
+
   _initMenu() {
     // Le listener btn-new-game est déjà posé dans _bindMenuButtons avec RelicUI
     // Cette méthode ne doit plus le remplacer
