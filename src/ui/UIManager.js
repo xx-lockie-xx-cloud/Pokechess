@@ -225,36 +225,9 @@ class UIManagerClass {
     });
 
     // Affiche les achievements débloqués dans le menu
-    this._renderMenuAchievements();
 
     // ── Sélecteur de difficulté ──────────────────────────────────────────
     this._renderDifficultySelector();
-  }
-
-  // Affiche un résumé des achievements débloqués dans le menu principal
-  _renderMenuAchievements() {
-    const container = document.getElementById('menu-achievements');
-    if (!container) return;
-    import('../data/levelSystem.js').then(({ ACHIEVEMENTS }) => {
-      const meta     = SaveManager.loadMeta();
-      const unlocked = meta.achievements ?? {};
-      const done     = Object.values(ACHIEVEMENTS)
-        .filter(a => unlocked[a.id]?.unlocked);
-      const total    = Object.values(ACHIEVEMENTS).length;
-      if (!done.length) {
-        container.innerHTML = `<span class="menu-ach-empty">Aucun succès débloqué</span>`;
-        return;
-      }
-      container.innerHTML = `
-        <div class="menu-ach-title">🏅 Succès (${done.length}/${total})</div>
-        <div class="menu-ach-list">
-          ${done.slice(0, 6).map(a =>
-            `<span class="menu-ach-badge" title="${a.desc}">${a.label}</span>`
-          ).join('')}
-          ${done.length > 6 ? `<span class="menu-ach-more">+${done.length - 6}</span>` : ''}
-        </div>
-      `;
-    }).catch(() => {});
   }
 
   _renderDifficultySelector() {
