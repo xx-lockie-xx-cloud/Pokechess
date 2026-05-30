@@ -430,7 +430,7 @@ class UIManagerClass {
     if (relicId === 'pochette_surprise') {
       this.registry.set('runState', { ...rs, _startRandomItem: true });
     }
-  },
+  }
 
   _initMenu() {
     // Le listener btn-new-game est déjà posé dans _bindMenuButtons avec RelicUI
