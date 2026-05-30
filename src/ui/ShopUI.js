@@ -27,7 +27,7 @@ export const ShopUI = {
     const optional  = Object.keys(ITEMS)
       .filter(id => !mandatory.includes(id) && ITEMS[id].type === 'equippable')
       .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
+      .slice(0, this._registry?.get?.('runState')?.relic?.id === 'loupe' ? 4 : 3);
     return [...mandatory, ...optional];
   },
 

@@ -264,6 +264,30 @@ export const StarterUI = {
       console.log('Starter confirmé :', this._selected.name);
       initRun(this._registry, this._selected);
       console.log('playerUnits après initRun :', this._registry.get('playerUnits'));
+
+      // Étoile Montante : double le starter
+      const rsS = this._registry.get('runState') ?? {};
+      if (rsS?.relic?.id === 'etoile_montante') {
+        const units = this._registry.get('playerUnits') ?? [];
+        const clone = { ...this._selected,
+          uid: this._selected.id + '_clone_' + Date.now(),
+          col: 1, row: 0, isInTeam: true };
+        this._registry.set('playerUnits', [...units, clone]);
+      }
+
+      // Pochette Surprise : item aléatoire
+      if (rsS?._startRandomItem) {
+        const ITEMS = window.__ITEMS__;
+        if (ITEMS) {
+          const ids    = Object.keys(ITEMS).filter(id => ITEMS[id].type === 'equippable');
+          const picked = ids[Math.floor(Math.random() * ids.length)];
+          this._registry.set('runState', {
+            ...rsS, _startRandomItem: false,
+            inventory: [...(rsS.inventory ?? []), picked],
+          });
+        }
+      }
+
       if (this._onConfirm) this._onConfirm(this._selected);
     });
   },

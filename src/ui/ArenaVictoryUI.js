@@ -22,6 +22,16 @@ export const ArenaVictoryUI = {
   },
 
   _render(arena, mapIndex) {
+    // Médaille : +1 niveau à tous les pokémons après chaque arène
+    const rsCheck = getRunState(this._registry);
+    if (rsCheck?.relic?.id === 'medaille' && mapIndex < 8) {
+      const meta = SaveManager.loadMeta();
+      const playerUnits = this._registry?.get?.('playerUnits') ?? [];
+      playerUnits.forEach(u => {
+        if (u?.id) SaveManager.gainPokemonLevel(u.id);
+      });
+    }
+
     // +1 point de talent par arène vaincue (sauf ligue)
     if (mapIndex < 8) {
       const meta = getRunState(this._registry);

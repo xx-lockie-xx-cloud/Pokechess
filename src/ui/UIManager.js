@@ -10,6 +10,7 @@ import { DIFFICULTIES, getUnlockedDifficultiesWithMeta,
          ACHIEVEMENTS }                        from '../data/levelSystem.js';
 import { POKEMON_PASSIVES }                               from '../data/passiveHooks.js';
 import { POKEMONS }                                       from '../data/pokemons.js';
+import { ITEMS }                                          from '../data/items.js';
 import { SaveManager }                from '../SaveManager.js';
 import { MapUI }          from './MapUI.js';
 import { MapGenerator }   from '../map/MapGenerator.js';
@@ -24,6 +25,8 @@ import { ArenaVictoryUI } from './ArenaVictoryUI.js';
 import { TutorialUI }      from './TutorialUI.js';
 import { TalentTreeUI }      from './TalentTreeUI.js';
 import { AchievementsUI }    from './AchievementsUI.js';
+import { RelicUI }           from './RelicUI.js';
+import { RelicEngine }       from '../combat/RelicEngine.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
@@ -76,10 +79,13 @@ class UIManagerClass {
     // Expose POKEMON_PASSIVES sur window pour PrepUI (pas d'import dynamique)
     window.__POKEMON_PASSIVES__ = POKEMON_PASSIVES;
     window.__POKEMONS__          = POKEMONS;
+    window.__ITEMS__             = ITEMS;
+    window.__ITEMS__             = window.__ITEMS__ || {}; // défini depuis items.js
     window.__ACHIEVEMENTS__     = ACHIEVEMENTS;
     TutorialUI.init();
     TalentTreeUI.init();
     AchievementsUI.init();
+    RelicUI.init();
     document.getElementById('btn-talent-tree')?.addEventListener('click', () => TalentTreeUI.open());
     document.getElementById('btn-achievements')?.addEventListener('click', () => AchievementsUI.open());
 
@@ -154,8 +160,27 @@ class UIManagerClass {
 
     // Nouvelle partie — écrase toujours la save de run en cours (roguelite)
     document.getElementById('btn-new-game')?.addEventListener('click', () => {
-      SaveManager.deleteRunSave();  // efface uniquement la save de run (pas la meta)
-      this.show('starter');
+      SaveManager.deleteRunSave();
+      // Initialise un run vide (seed) avant la sélection de relique
+      const seed = String(Date.now());
+      this.registry.reset();
+      this.registry.set('runState', { currentMap:0, coins:5, inventory:[],
+        playerBank:[], unlockedSlots:3, seenPokemon:[], loopCount:0, seed });
+      // Sélection de relique avant le starter
+      RelicUI.open((relicId) => {
+        if (relicId) {
+          const rs = this.registry.get('runState') ?? {};
+          this.registry.set('runState', {
+            ...rs,
+            relic:       { id: relicId },
+            anomalyTypes: relicId === 'anomalie'
+              ? RelicEngine.generateAnomalyTypes(seed)
+              : null,
+          });
+          this._applyRelicStartEffects(relicId);
+        }
+        this.show('starter');
+      });
     });
 
     // Export JSON

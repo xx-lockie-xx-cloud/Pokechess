@@ -6,6 +6,7 @@ import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
 import { addCoins, getEnemyMultiplier, getRunState } from '../data/runState.js';
+import { RelicEngine }                                 from '../combat/RelicEngine.js';
 import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
 import { getActiveSynergies, getFullStats } from '../data/synergies.js';
@@ -452,7 +453,12 @@ export const CombatUI = {
     const mult        = baseMult * diffMult;
 
     // ── Joueur : item stats + synergy stats ──────────────────────────────
-    const playerSynergies = getActiveSynergies(this._playerUnits);
+    const rawPlayerSynergies = getActiveSynergies(
+      this._playerUnits.map(u => anomalyTypes ? { ...u, types: anomalyTypes[u.id] ?? u.types } : u)
+    );
+    const playerSynergies = relicId
+      ? RelicEngine.modifySynergies(relicId, rawPlayerSynergies, this._playerUnits)
+      : rawPlayerSynergies;
     const meta = SaveManager.loadMeta() ?? {};
     const playerForEngine = this._playerUnits.map(u => {
       const full = getFullStats(u, this._playerUnits, meta);
@@ -474,9 +480,20 @@ export const CombatUI = {
     const enemySynergies = getActiveSynergies(enemyForEngine);
 
     // Injecte les niveaux dans les unités joueur (meta déjà déclaré plus haut)
-    const withLevels = units => units.map(u => ({
-      ...u, _level: meta.pokemonLevels?.[u.id] ?? 1,
-    }));
+    const relic     = rs?.relic ?? null;
+    const relicId   = relic?.id ?? null;
+    const anomalyTypes = rs?.anomalyTypes ?? null;
+
+    const withLevels = units => units.map(u => {
+      let unit = { ...u, _level: meta.pokemonLevels?.[u.id] ?? 1 };
+      // Anomalie : réassigne les types
+      if (anomalyTypes) RelicEngine.applyAnomalyTypes(unit, anomalyTypes);
+      // Modificateurs de stats de la relique (Pacte de Sang, Bénédiction, Contrat Maudit)
+      if (relicId) RelicEngine.applyStatModifier(relicId, unit);
+      // Alternance de type d'attaque (bitype)
+      unit._attackTypeTurn = 0;
+      return unit;
+    });
     const activeTalentEffects = this._getActiveTalentEffects(meta, playerForEngine);
 
     const engine = new CombatEngine(
@@ -485,6 +502,7 @@ export const CombatUI = {
     );
     engine._playerTalents = activeTalentEffects;
     engine._enemyTalents  = [];
+    engine.relicId        = relicId;
     const { log, winner } = engine.resolve();
     // Stocke les unités finales du moteur pour l'overlay info
     this._livePlayerUnits = engine.playerUnits;
