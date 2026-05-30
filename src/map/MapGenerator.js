@@ -37,20 +37,26 @@ export const NODE_TYPES = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-function budgetForStep(mapIndex, col, totalCols) {
+const DIFF_BUDGETS = {
+  easy:   { exp: 0.8, min: 400, max: 1800 },
+  normal: { exp: 1.0, min: 480, max: 2400 },
+  hard:   { exp: 1.3, min: 560, max: 3200 },
+  expert: { exp: 1.7, min: 640, max: 4200 },
+};
+
+function budgetForStep(mapIndex, col, totalCols, difficulty = 'normal') {
   const globalStep = mapIndex * totalCols + col;
   const totalSteps = 8 * totalCols;
-  const MIN_BUDGET = 800;
-  const MAX_BUDGET = 2400;
   const ratio      = Math.min(globalStep / Math.max(totalSteps - 1, 1), 1);
-  const curved     = Math.pow(ratio, 1.3);
-  return Math.round(MIN_BUDGET + (MAX_BUDGET - MIN_BUDGET) * curved);
+  const { exp, min, max } = DIFF_BUDGETS[difficulty] ?? DIFF_BUDGETS.normal;
+  return Math.round(min + (max - min) * Math.pow(ratio, exp));
 }
 
 function maxUnitsForStep(mapIndex, col, totalCols) {
   const isBoss = col === totalCols;
   let base;
-  if (mapIndex < 2) base = 3;
+  if (mapIndex === 0) base = 2;       // map 0 : max 2 unités
+  else if (mapIndex < 2) base = 3;
   else if (mapIndex < 4) base = 4;
   else if (mapIndex < 6) base = 5;
   else base = 6;
@@ -122,11 +128,19 @@ export class MapGenerator {
           }
         }
 
-        const budget    = budgetForStep(mapIndex, col, this.cols);
+        const difficulty = window.SaveManager?.getDifficulty?.() ?? 'normal';
+        const budget    = budgetForStep(mapIndex, col, this.cols, difficulty);
         const maxUnits  = maxUnitsForStep(mapIndex, col, this.cols);
-        const archIdx   = Math.floor(rng() * ALL_TRAINER_ARCHETYPES.length);
+        // Filtre les archétypes selon minMap par difficulté
+        const eligible  = ALL_TRAINER_ARCHETYPES.filter(a => {
+          if (!a.minMap) return true;
+          const min = a.minMap[difficulty] ?? a.minMap.normal ?? 0;
+          return mapIndex >= min;
+        });
+        const archPool  = eligible.length ? eligible : ALL_TRAINER_ARCHETYPES;
+        const archIdx   = Math.floor(rng() * archPool.length);
         const archetype = type === NODE_TYPES.COMBAT
-          ? ALL_TRAINER_ARCHETYPES[archIdx] : null;
+          ? archPool[archIdx] : null;
 
         let trainerData = null;
         if (type === NODE_TYPES.COMBAT && archetype) {
@@ -139,7 +153,7 @@ export class MapGenerator {
         } else if (isBoss) {
           const arenaData    = getArenaForMap(mapIndex);
           const bossMaxUnits = maxUnitsForStep(mapIndex, col, this.cols);
-          const bossBudget   = budgetForStep(mapIndex, col, this.cols);
+          const bossBudget   = budgetForStep(mapIndex, col, this.cols, difficulty);
 
           let bossTeam, bossName;
           if (mapIndex >= 8) {
