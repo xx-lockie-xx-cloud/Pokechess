@@ -452,6 +452,11 @@ export const CombatUI = {
     const diffMult    = diffMults[diffId] ?? 1.0;
     const mult        = baseMult * diffMult;
 
+    // ── Relique active ───────────────────────────────────────────────────
+    const relic        = rs?.relic ?? null;
+    const relicId      = relic?.id ?? null;
+    const anomalyTypes = rs?.anomalyTypes ?? null;
+
     // ── Joueur : item stats + synergy stats ──────────────────────────────
     const rawPlayerSynergies = getActiveSynergies(
       this._playerUnits.map(u => anomalyTypes ? { ...u, types: anomalyTypes[u.id] ?? u.types } : u)
@@ -480,10 +485,6 @@ export const CombatUI = {
     const enemySynergies = getActiveSynergies(enemyForEngine);
 
     // Injecte les niveaux dans les unités joueur (meta déjà déclaré plus haut)
-    const relic     = rs?.relic ?? null;
-    const relicId   = relic?.id ?? null;
-    const anomalyTypes = rs?.anomalyTypes ?? null;
-
     const withLevels = units => units.map(u => {
       let unit = { ...u, _level: meta.pokemonLevels?.[u.id] ?? 1 };
       // Anomalie : réassigne les types
