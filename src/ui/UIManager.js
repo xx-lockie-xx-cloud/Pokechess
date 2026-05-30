@@ -163,9 +163,11 @@ class UIManagerClass {
       SaveManager.deleteRunSave();
       // Initialise un run vide (seed) avant la sélection de relique
       const seed = String(Date.now());
+      const diff = SaveManager.getDifficulty() ?? 'easy';
       this.registry.reset();
       this.registry.set('runState', { currentMap:0, coins:5, inventory:[],
-        playerBank:[], unlockedSlots:3, seenPokemon:[], loopCount:0, seed });
+        playerBank:[], unlockedSlots:3, seenPokemon:[], loopCount:0, seed,
+        difficulty: diff });
       // Sélection de relique avant le starter
       RelicUI.open((relicId) => {
         if (relicId) {
@@ -272,7 +274,7 @@ class UIManagerClass {
           </button>
         `).join('')}
         ${DIFFICULTIES.filter(d => !unlocked.includes(d)).map(d => `
-          <button class="btn-difficulty locked" disabled title="Complète ${d.unlockAt} run(s) pour débloquer">
+          <button class="btn-difficulty locked" disabled title="Succès requis : ${d.unlockAchievement}">
             🔒 ${d.label.split(' ')[1]}
           </button>
         `).join('')}
