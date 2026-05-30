@@ -212,6 +212,14 @@ export const ACHIEVEMENTS = {
     id: 'legendaire_team', label: '👑 Légendaire',
     desc: 'Avoir 2 pokémons T5 dans son équipe', category: 'roguelite',
   },
+  collectionneur: {
+    id: 'collectionneur', label: '🎒 Collectionneur',
+    desc: 'Posséder 5 objets différents simultanément', category: 'combat',
+  },
+  relique_terminee: {
+    id: 'relique_terminee', label: '💎 Béni',
+    desc: 'Finir une run avec une relique active', category: 'roguelite',
+  },
 
   lv100_feu_1: {
     id: 'lv100_feu_1', label: '🔥 Maître Feu',
