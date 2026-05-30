@@ -534,10 +534,11 @@ export const TRAINER_ARCHETYPES_EXTRA = [
   {
     id:    'gamin',
     name:  'Gamin',
-    types: ['Normal'], // pool varié, 1ers stades uniquement
+    types: ['Normal'],
     color:       0xffeaa7,
     spriteMap:    'assets/trainers/map/gamin.png',
     spriteCombat: 'assets/trainers/combat/gamin_c.png',
+    maxMap: 4,
     // Pokémons au 1er stade d'évolution (ou pas d'évolution)
     pool: [
       { id: 1,   name: 'Bulbizarre',  types: ['Plante','Poison'],
