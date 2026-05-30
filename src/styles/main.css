@@ -3988,3 +3988,78 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 .relic-empty { text-align: center; padding: 20px; color: #718096; }
 .relic-empty-hint { font-size: 11px; margin-bottom: 12px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BIBLIOTHÈQUE DES RELIQUES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.rl-progress {
+  margin-bottom: 14px;
+}
+.rl-progress-label {
+  font-size: 12px; color: #718096; margin-bottom: 4px;
+}
+.rl-progress-bar {
+  height: 6px; background: rgba(255,255,255,0.08);
+  border-radius: 3px; overflow: hidden;
+}
+.rl-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #a29bfe, #6c5ce7);
+  border-radius: 3px; transition: width 0.3s;
+}
+
+.rl-category { margin-bottom: 16px; }
+.rl-cat-title {
+  font-size: 11px; font-weight: 700; color: #718096;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-bottom: 8px; padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.rl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.rl-card {
+  background: #12122a;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  transition: border-color 0.15s;
+}
+.rl-card.unlocked {
+  border-color: rgba(162,155,254,0.3);
+  background: rgba(162,155,254,0.05);
+}
+.rl-card.locked {
+  opacity: 0.55;
+}
+.rl-card-icon { font-size: 22px; flex-shrink: 0; }
+.rl-card-body { flex: 1; min-width: 0; }
+.rl-card-name {
+  font-size: 11px; font-weight: 800; color: #e2e8f0;
+  margin-bottom: 2px;
+}
+.rl-card.locked .rl-card-name { color: #718096; }
+.rl-card-desc {
+  font-size: 9px; color: #a0aec0; line-height: 1.4;
+}
+.rl-card-sym {
+  font-size: 9px; color: #fc5c65; margin-top: 3px;
+}
+.rl-card-ach {
+  font-size: 9px; color: #ffd700; margin-top: 3px;
+}
+.rl-card-unlock {
+  font-size: 9px; color: #718096; font-style: italic; margin-top: 2px;
+}
+.rl-card-unlock em { color: #a0aec0; }
+
+@media (max-width: 380px) {
+  .rl-grid { grid-template-columns: 1fr; }
+}
