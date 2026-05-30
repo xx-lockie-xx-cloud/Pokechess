@@ -24,7 +24,8 @@ import { CombatUI }       from './CombatUI.js';
 import { ArenaVictoryUI } from './ArenaVictoryUI.js';
 import { TutorialUI }      from './TutorialUI.js';
 import { TalentTreeUI }      from './TalentTreeUI.js';
-import { AchievementsUI }    from './AchievementsUI.js';
+import { AchievementsUI }      from './AchievementsUI.js';
+import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
 import { RelicEngine }       from '../combat/RelicEngine.js';
 
@@ -86,8 +87,10 @@ class UIManagerClass {
     TalentTreeUI.init();
     AchievementsUI.init();
     RelicUI.init();
+    RelicsLibraryUI.init();
     document.getElementById('btn-talent-tree')?.addEventListener('click', () => TalentTreeUI.open());
     document.getElementById('btn-achievements')?.addEventListener('click', () => AchievementsUI.open());
+    document.getElementById('btn-relics-library')?.addEventListener('click', () => RelicsLibraryUI.open());
 
     // Affiche le tutoriel au premier lancement (jamais vu)
     const meta = SaveManager.loadMeta();
