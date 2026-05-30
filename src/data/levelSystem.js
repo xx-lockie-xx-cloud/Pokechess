@@ -75,33 +75,28 @@ export function getLevelBadgeHTML(level) {
 // ─────────────────────────────────────────────────────────────────────────────
 export const DIFFICULTIES = [
   {
-    id:       'easy',
-    label:    '🌿 Facile',
-    desc:     'Ennemis à -20%. Idéal pour découvrir.',
-    mult:     0.8,
-    unlockAt: 0,  // toujours disponible
+    id:    'easy',
+    label: '🌿 Facile',
+    desc:  'Idéal pour découvrir le jeu.',
+    unlockAchievement: null,
   },
   {
-    id:       'normal',
-    label:    '⚔️ Normal',
-    desc:     'L\'expérience de base.',
-    mult:     1.0,
-    unlockAt: 0,
+    id:    'normal',
+    label: '⚔️ Normal',
+    desc:  'Débloqué en finissant la Ligue en Facile.',
+    unlockAchievement: 'ligue_easy',
   },
   {
-    id:       'hard',
-    label:    '🔥 Difficile',
-    desc:     'Ennemis à +30%. Débloqué après 1 run complète.',
-    mult:     1.3,
-    unlockAt: 1,  // après 1 run complète (toutes les arènes)
+    id:    'hard',
+    label: '🔥 Difficile',
+    desc:  'Débloqué en finissant la Ligue en Normal.',
+    unlockAchievement: 'ligue_normal',
   },
   {
-    id:       'expert',
-    label:    '💀 Expert',
-    desc:     'Ennemis à +70%. Requiert 3 succès Ligue.',
-    mult:     1.7,
-    unlockAt: 3,
-    unlockType: 'league_achievements',  // 3 succès "Ligue" requis
+    id:    'expert',
+    label: '💀 Expert',
+    desc:  'Débloqué en finissant une run en Difficile avec une relique active.',
+    unlockAchievement: 'ligue_hard_relic',
   },
 ];
 
@@ -110,9 +105,13 @@ export function getDifficulty(id) {
 }
 
 export function getUnlockedDifficulties(meta) {
-  const completedRuns = meta?.completedRuns ?? 0;
-  return DIFFICULTIES.filter(d => completedRuns >= d.unlockAt);
+  const ach = meta?.achievements ?? {};
+  return DIFFICULTIES.filter(d => !d.unlockAchievement || !!ach[d.unlockAchievement]);
 }
+
+// Alias pour compatibilité
+export const getUnlockedDifficultiesWithMeta = getUnlockedDifficulties;
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ACHIEVEMENTS — Définitions
@@ -219,6 +218,18 @@ export const ACHIEVEMENTS = {
   relique_terminee: {
     id: 'relique_terminee', label: '💎 Béni',
     desc: 'Finir une run avec une relique active', category: 'roguelite',
+  },
+  ligue_easy: {
+    id: 'ligue_easy', label: '🌿 Vainqueur Facile',
+    desc: 'Finir la Ligue en mode Facile', category: 'progression',
+  },
+  ligue_normal: {
+    id: 'ligue_normal', label: '⚔️ Vainqueur Normal',
+    desc: 'Finir la Ligue en mode Normal', category: 'progression',
+  },
+  ligue_hard_relic: {
+    id: 'ligue_hard_relic', label: '🔥 Maître Difficile',
+    desc: 'Finir la Ligue en Difficile avec une relique active', category: 'progression',
   },
 
   lv100_feu_1: {
@@ -411,15 +422,6 @@ export function countLeagueAchievements(meta) {
     .length;
 }
 
-// Met à jour getUnlockedDifficulties pour utiliser countLeagueAchievements
-export function getUnlockedDifficultiesWithMeta(meta) {
-  const leagueCount   = countLeagueAchievements(meta);
-  const completedRuns = meta?.completedRuns ?? 0;
-  return DIFFICULTIES.filter(d => {
-    if (d.unlockType === 'league_achievements') return leagueCount >= d.unlockAt;
-    return completedRuns >= d.unlockAt;
-  });
-}
 
 // Passifs de niveau — maintenant dans passiveHooks.js
 // Re-export pour compatibilité
