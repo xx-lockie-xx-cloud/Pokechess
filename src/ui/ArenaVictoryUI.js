@@ -154,7 +154,13 @@ export const ArenaVictoryUI = {
       }
       menuBtn.textContent = '🏠 Retour au menu principal';
       menuBtn.onclick = () => {
-        if (this._onDone) this._onDone({ goToMenu: true });
+        // Bourse Dorée : +2 pièces après chaque victoire
+    const rsBourse = getRunState(this._registry);
+    if (rsBourse?.relic?.id === 'bourse_doree') {
+      addCoins(this._registry, 2);
+    }
+
+    if (this._onDone) this._onDone({ goToMenu: true });
       };
     } else {
       btn.textContent = '➡️ Prochaine arène';

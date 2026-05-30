@@ -459,8 +459,13 @@ export const CombatUI = {
     const anomalyTypes = rs?.anomalyTypes ?? null;
 
     // ── Joueur : item stats + synergy stats ──────────────────────────────
+    const playerUnitsForSyn = this._playerUnits.map(u =>
+      anomalyTypes ? { ...u, types: anomalyTypes[u.id] ?? u.types } : u);
     const rawPlayerSynergies = getActiveSynergies(
-      this._playerUnits.map(u => anomalyTypes ? { ...u, types: anomalyTypes[u.id] ?? u.types } : u)
+      playerUnitsForSyn,
+      relicId === 'cristal_pur'
+        ? (counts, units) => RelicEngine.modifyTypeCounts(relicId, counts, units)
+        : null
     );
     const playerSynergies = relicId
       ? RelicEngine.modifySynergies(relicId, rawPlayerSynergies, this._playerUnits)
