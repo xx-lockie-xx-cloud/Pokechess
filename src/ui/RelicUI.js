@@ -27,11 +27,21 @@ export const RelicUI = {
 
   // Ouvre la sélection — onDone(relicId) ou onDone(null) si skip
   open(onDone) {
-    if (!this._overlay) this.init();
+    console.log('[RelicUI] open() appelé');
+    if (!this._overlay) {
+      console.log('[RelicUI] overlay absent, appel init()');
+      this.init();
+    }
+    if (!this._overlay) {
+      console.error('[RelicUI] ❌ overlay toujours absent après init(), passage direct au starter');
+      onDone?.(null);
+      return;
+    }
     this._onDone = onDone;
     this._render();
-    this._overlay?.classList.add('active');
+    this._overlay.classList.add('active');
     document.body.classList.add('overlay-open');
+    console.log('[RelicUI] overlay affiché, classes :', this._overlay.className);
   },
 
   close() {
@@ -45,11 +55,16 @@ export const RelicUI = {
   },
 
   _render() {
+    console.log('[RelicUI] _render() appelé');
     const container = document.getElementById('relic-content');
-    if (!container) return;
-
+    console.log('[RelicUI] relic-content trouvé :', !!container);
+    if (!container) {
+      console.error('[RelicUI] ❌ relic-content introuvable');
+      return;
+    }
     const meta     = SaveManager.loadMeta();
     const unlocked = getUnlockedRelics(meta);
+    console.log('[RelicUI] reliques débloquées :', unlocked.length, unlocked.map(r => r.id));
 
     // Propose 3 reliques aléatoires parmi les débloquées
     const shuffled = [...unlocked].sort(() => Math.random() - 0.5);

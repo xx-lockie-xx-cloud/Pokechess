@@ -163,16 +163,17 @@ class UIManagerClass {
 
     // Nouvelle partie — écrase toujours la save de run en cours (roguelite)
     document.getElementById('btn-new-game')?.addEventListener('click', () => {
+      console.log('[UIManager] btn-new-game cliqué');
       SaveManager.deleteRunSave();
-      // Initialise un run vide (seed) avant la sélection de relique
       const seed = String(Date.now());
       const diff = SaveManager.getDifficulty() ?? 'easy';
       this.registry.reset();
       this.registry.set('runState', { currentMap:0, coins:5, inventory:[],
         playerBank:[], unlockedSlots:3, seenPokemon:[], loopCount:0, seed,
         difficulty: diff });
-      // Sélection de relique avant le starter
+      console.log('[UIManager] appel RelicUI.open()');
       RelicUI.open((relicId) => {
+        console.log('[UIManager] RelicUI callback, relicId =', relicId);
         if (relicId) {
           const rs = this.registry.get('runState') ?? {};
           this.registry.set('runState', {
