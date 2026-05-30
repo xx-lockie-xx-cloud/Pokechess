@@ -2,8 +2,9 @@
 // ArenaVictoryUI.js — Remplace ArenaVictoryScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { SaveManager }    from '../SaveManager.js';
 import { getArenaForMap }           from '../data/arenas.js';
-import { getRunState, setRunState, tryUnlockSlot } from '../data/runState.js';
+import { getRunState, setRunState, tryUnlockSlot, addCoins } from '../data/runState.js';
 
 export const ArenaVictoryUI = {
   _data:     null,
@@ -22,6 +23,16 @@ export const ArenaVictoryUI = {
   },
 
   _render(arena, mapIndex) {
+    // Médaille : +1 niveau à tous les pokémons après chaque arène
+    const rsCheck = getRunState(this._registry);
+    if (rsCheck?.relic?.id === 'medaille' && mapIndex < 8) {
+      const meta = SaveManager.loadMeta();
+      const playerUnits = this._registry?.get?.('playerUnits') ?? [];
+      playerUnits.forEach(u => {
+        if (u?.id) SaveManager.gainPokemonLevel(u.id);
+      });
+    }
+
     // +1 point de talent par arène vaincue (sauf ligue)
     if (mapIndex < 8) {
       const meta = getRunState(this._registry);
@@ -29,6 +40,15 @@ export const ArenaVictoryUI = {
       const newPoints  = (savedMeta.talentPoints ?? 0) + 1;
       window.SaveManager?.saveMeta({ ...savedMeta, talentPoints: newPoints });
     }
+    // Enregistre le badge dans runState.badgesEarned
+    const arenaId = arena?.id ?? ('arena_' + mapIndex);
+    const rs       = getRunState(this._registry);
+    if (!(rs.badgesEarned ?? []).includes(arenaId)) {
+      setRunState(this._registry, {
+        badgesEarned: [...(rs.badgesEarned ?? []), arenaId],
+      });
+    }
+
     // Déverrouille un slot si applicable (2e/4e/6e badge)
     const arenaNumber = mapIndex + 1;  // mapIndex 0-7 → arenaNumber 1-8
     if (tryUnlockSlot(this._registry, arenaNumber)) {
@@ -135,7 +155,13 @@ export const ArenaVictoryUI = {
       }
       menuBtn.textContent = '🏠 Retour au menu principal';
       menuBtn.onclick = () => {
-        if (this._onDone) this._onDone({ goToMenu: true });
+        // Bourse Dorée : +2 pièces après chaque victoire
+    const rsBourse = getRunState(this._registry);
+    if (rsBourse?.relic?.id === 'bourse_doree') {
+      addCoins(this._registry, 2);
+    }
+
+    if (this._onDone) this._onDone({ goToMenu: true });
       };
     } else {
       btn.textContent = '➡️ Prochaine arène';
@@ -152,6 +178,11 @@ export const ArenaVictoryUI = {
         infiniteMode: isLeagueVictory,
       });
       if (this._onDone) {
+        // Mode infini : incrémente loopCount
+        if (isLeagueVictory) {
+          const rs = getRunState(this._registry);
+          setRunState(this._registry, { ...rs, loopCount: (rs.loopCount ?? 0) + 1 });
+        }
         this._onDone({ mapIndex: nextIdx, prevArena: arena, infiniteMode: isLeagueVictory });
       }
     });
