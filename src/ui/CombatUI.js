@@ -453,6 +453,7 @@ export const CombatUI = {
     const mult        = baseMult * diffMult;
 
     // ── Relique active ───────────────────────────────────────────────────
+    const rs           = this._registry ? getRunState(this._registry) : {};
     const relic        = rs?.relic ?? null;
     const relicId      = relic?.id ?? null;
     const anomalyTypes = rs?.anomalyTypes ?? null;
