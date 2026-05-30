@@ -6,8 +6,11 @@
 
 import { getRunState, addSeenPokemon,
          saveMapProgress, getMapProgress } from '../data/runState.js';
-import { DIFFICULTIES, getUnlockedDifficultiesWithMeta } from '../data/levelSystem.js';
+import { DIFFICULTIES, getUnlockedDifficultiesWithMeta,
+         ACHIEVEMENTS }                        from '../data/levelSystem.js';
 import { POKEMON_PASSIVES }                               from '../data/passiveHooks.js';
+import { POKEMONS }                                       from '../data/pokemons.js';
+import { ITEMS }                                          from '../data/items.js';
 import { SaveManager }                from '../SaveManager.js';
 import { MapUI }          from './MapUI.js';
 import { MapGenerator }   from '../map/MapGenerator.js';
@@ -20,7 +23,11 @@ import { PrepUI }         from './PrepUI.js';
 import { CombatUI }       from './CombatUI.js';
 import { ArenaVictoryUI } from './ArenaVictoryUI.js';
 import { TutorialUI }      from './TutorialUI.js';
-import { TalentTreeUI }   from './TalentTreeUI.js';
+import { TalentTreeUI }      from './TalentTreeUI.js';
+import { AchievementsUI }      from './AchievementsUI.js';
+import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
+import { RelicUI }           from './RelicUI.js';
+import { RelicEngine }       from '../combat/RelicEngine.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
@@ -72,10 +79,18 @@ class UIManagerClass {
     // ── Tutoriel ────────────────────────────────────────────────────────────
     // Expose POKEMON_PASSIVES sur window pour PrepUI (pas d'import dynamique)
     window.__POKEMON_PASSIVES__ = POKEMON_PASSIVES;
+    window.__POKEMONS__          = POKEMONS;
+    window.__ITEMS__             = ITEMS;
+    window.__ITEMS__             = window.__ITEMS__ || {}; // défini depuis items.js
+    window.__ACHIEVEMENTS__     = ACHIEVEMENTS;
     TutorialUI.init();
     TalentTreeUI.init();
-    // Bouton arbre de talents
+    AchievementsUI.init();
+    RelicUI.init();
+    RelicsLibraryUI.init();
     document.getElementById('btn-talent-tree')?.addEventListener('click', () => TalentTreeUI.open());
+    document.getElementById('btn-achievements')?.addEventListener('click', () => AchievementsUI.open());
+    document.getElementById('btn-relics-library')?.addEventListener('click', () => RelicsLibraryUI.open());
 
     // Affiche le tutoriel au premier lancement (jamais vu)
     const meta = SaveManager.loadMeta();
@@ -148,8 +163,30 @@ class UIManagerClass {
 
     // Nouvelle partie — écrase toujours la save de run en cours (roguelite)
     document.getElementById('btn-new-game')?.addEventListener('click', () => {
-      SaveManager.deleteRunSave();  // efface uniquement la save de run (pas la meta)
-      this.show('starter');
+      console.log('[UIManager] btn-new-game cliqué');
+      SaveManager.deleteRunSave();
+      const seed = String(Date.now());
+      const diff = SaveManager.getDifficulty() ?? 'easy';
+      this.registry.reset();
+      this.registry.set('runState', { currentMap:0, coins:5, inventory:[],
+        playerBank:[], unlockedSlots:3, seenPokemon:[], loopCount:0, seed,
+        difficulty: diff });
+      console.log('[UIManager] appel RelicUI.open()');
+      RelicUI.open((relicId) => {
+        console.log('[UIManager] RelicUI callback, relicId =', relicId);
+        if (relicId) {
+          const rs = this.registry.get('runState') ?? {};
+          this.registry.set('runState', {
+            ...rs,
+            relic:       { id: relicId },
+            anomalyTypes: relicId === 'anomalie'
+              ? RelicEngine.generateAnomalyTypes(seed)
+              : null,
+          });
+          this._applyRelicStartEffects(relicId);
+        }
+        this.show('starter');
+      });
     });
 
     // Export JSON
@@ -192,36 +229,9 @@ class UIManagerClass {
     });
 
     // Affiche les achievements débloqués dans le menu
-    this._renderMenuAchievements();
 
     // ── Sélecteur de difficulté ──────────────────────────────────────────
     this._renderDifficultySelector();
-  }
-
-  // Affiche un résumé des achievements débloqués dans le menu principal
-  _renderMenuAchievements() {
-    const container = document.getElementById('menu-achievements');
-    if (!container) return;
-    import('../data/levelSystem.js').then(({ ACHIEVEMENTS }) => {
-      const meta     = SaveManager.loadMeta();
-      const unlocked = meta.achievements ?? {};
-      const done     = Object.values(ACHIEVEMENTS)
-        .filter(a => unlocked[a.id]?.unlocked);
-      const total    = Object.values(ACHIEVEMENTS).length;
-      if (!done.length) {
-        container.innerHTML = `<span class="menu-ach-empty">Aucun succès débloqué</span>`;
-        return;
-      }
-      container.innerHTML = `
-        <div class="menu-ach-title">🏅 Succès (${done.length}/${total})</div>
-        <div class="menu-ach-list">
-          ${done.slice(0, 6).map(a =>
-            `<span class="menu-ach-badge" title="${a.desc}">${a.label}</span>`
-          ).join('')}
-          ${done.length > 6 ? `<span class="menu-ach-more">+${done.length - 6}</span>` : ''}
-        </div>
-      `;
-    }).catch(() => {});
   }
 
   _renderDifficultySelector() {
@@ -241,7 +251,7 @@ class UIManagerClass {
           </button>
         `).join('')}
         ${DIFFICULTIES.filter(d => !unlocked.includes(d)).map(d => `
-          <button class="btn-difficulty locked" disabled title="Complète ${d.unlockAt} run(s) pour débloquer">
+          <button class="btn-difficulty locked" disabled title="Succès requis : ${d.unlockAchievement}">
             🔒 ${d.label.split(' ')[1]}
           </button>
         `).join('')}
@@ -413,11 +423,8 @@ class UIManagerClass {
   // _initMenu()
   // ─────────────────────────────────────────────────────────────────────────
   _initMenu() {
-    const btn = document.getElementById('btn-new-game');
-    if (!btn) return;
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-    newBtn.addEventListener('click', () => this.show('starter'));
+    // Le listener btn-new-game est déjà posé dans _bindMenuButtons avec RelicUI
+    // Cette méthode ne doit plus le remplacer
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -457,8 +464,11 @@ class UIManagerClass {
         });
       }
     } else {
-      this.registry.reset();
-      this.registry.set('playerUnits', []);
+      // Vérifie les achievements de fin de run
+    const runStateFinal = this.registry?.get?.('runState') ?? {};
+    SaveManager.checkAchievements(runStateFinal, null);
+    this.registry.reset();
+    this.registry.set('playerUnits', []);
       // Nettoie l'inline style posé par MapUI + retire la classe active
       const mapEl = document.getElementById('screen-map');
       if (mapEl) {
