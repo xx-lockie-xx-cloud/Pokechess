@@ -367,19 +367,45 @@ function weightedPick(pool, mapIndex, rng = Math.random.bind(Math)) {
 export function generateEnemyTeam(archetype, targetBudget, maxUnits = 6, mapIndex = 0, rng = Math.random.bind(Math)) {
   const pool  = [...archetype.pool];
   const team  = [];
+  let   spent = 0;
   let   tries = 0;
 
-  while (team.length < maxUnits && tries < 60) {
-    tries++;
-    const cells = [];
-    for (let col = 0; col < 3; col++)
-      for (let row = 0; row < 2; row++)
-        if (!team.find(u => u.col === col && u.row === row))
-          cells.push({ col, row });
-    if (!cells.length) break;
+  // Cellules disponibles (mélangées)
+  const allCells = [];
+  for (let col = 0; col < 3; col++)
+    for (let row = 0; row < 2; row++)
+      allCells.push({ col, row });
+  for (let i = allCells.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [allCells[i], allCells[j]] = [allCells[j], allCells[i]];
+  }
 
-    const pick = weightedPick(pool, mapIndex, rng);
-    const cell = cells[Math.floor(rng() * cells.length)];
+  while (team.length < maxUnits && spent < targetBudget && tries < 60) {
+    tries++;
+    const remaining = targetBudget - spent;
+
+    // Filtre le pool selon le budget restant ET les taux de tirage par tier/mapIndex
+    const rates    = TIER_RATES[Math.min(mapIndex ?? 0, 8)];
+    const weighted = pool
+      .map(p => ({ p, w: rates[pokemonTier(p) - 1] ?? 0 }))
+      .filter(x => x.w > 0 && getBST(x.p) <= remaining + 50);
+
+    // Si rien d'éligible par les taux → prend le moins cher du pool abordable
+    let pick;
+    if (!weighted.length) {
+      const affordable = pool.filter(p => getBST(p) <= remaining + 50)
+        .sort((a, b) => getBST(a) - getBST(b));
+      if (!affordable.length) break; // plus rien d'abordable
+      pick = affordable[0];
+    } else {
+      const total = weighted.reduce((s, x) => s + x.w, 0);
+      let   roll  = rng() * total;
+      pick = weighted[weighted.length - 1].p;
+      for (const { p, w } of weighted) { roll -= w; if (roll <= 0) { pick = p; break; } }
+    }
+
+    const cell = allCells[team.length];
+    spent += getBST(pick);
     team.push({ ...pick, col: cell.col, row: cell.row, attributes: [] });
   }
 
@@ -556,10 +582,11 @@ export const TRAINER_ARCHETYPES_EXTRA = [
   {
     id:    'topdresseur',
     name:  'TopDresseur',
-    types: ['Normal'], // pool varié, derniers stades uniquement
+    types: ['Normal'],
     color:       0x6c5ce7,
     spriteMap:    'assets/trainers/map/topdresseur.png',
     spriteCombat: 'assets/trainers/combat/topdresseur_c.png',
+    minMap: { easy: 5, normal: 4, hard: 3, expert: 3 },
     pool: [
       { id: 3,   name: 'Florizarre',  types: ['Plante','Poison'],
         stats: { hp: 80, atk: 82, def: 83, spd: 80 },
@@ -604,6 +631,7 @@ export const TRAINER_ARCHETYPES_EXTRA = [
     color:       0x2d3436,
     spriteMap:    'assets/trainers/map/sbire_rocket.png',
     spriteCombat: 'assets/trainers/combat/sbire_rocket_c.png',
+    minMap: { easy: 2, normal: 2, hard: 1, expert: 1 },
     // Pokémons associés à la Team Rocket (Jessie, James, Giovanni)
     pool: [
       { id: 23,  name: 'Abo',         types: ['Poison'],
