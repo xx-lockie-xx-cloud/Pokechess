@@ -9,10 +9,6 @@
   <link rel="stylesheet" href="src/styles/main.css" />
 </head>
 <body>
-  <script>
-    window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.filename, e.lineno));
-    window.addEventListener('unhandledrejection', e => console.error('[UNHANDLED]', e.reason));
-  </script>
 
   <!-- ── Header UI fixe ─────────────────────────────────────────────────── -->
   <header id="game-header" class="hidden">
@@ -270,11 +266,18 @@
     </div>
   </div>
 
-  <!-- ── Point d'entrée JS ──────────────────────────────────────────────── -->
-  <script>console.log('[index.html] page chargée, lancement module...');</script>
-  <script type="module" src="src/game.js"></script>
-  <!-- DevTools mobile — retirer avant la mise en prod -->
+  <!-- DevTools mobile — chargé EN PREMIER pour capturer toutes les erreurs -->
   <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>eruda.init();</script>
+  <script>
+    eruda.init();
+    window.addEventListener('error', e =>
+      console.error('[ERROR]', e.message, e.filename + ':' + e.lineno));
+    window.addEventListener('unhandledrejection', e =>
+      console.error('[UNHANDLED]', e.reason));
+    console.log('[index.html] Eruda prêt, chargement du jeu...');
+  </script>
+
+  <!-- ── Point d'entrée JS ──────────────────────────────────────────────── -->
+  <script type="module" src="src/game.js"></script>
 </body>
 </html>
