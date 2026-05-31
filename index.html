@@ -266,10 +266,25 @@
     </div>
   </div>
 
+  <!-- DevTools mobile — chargé EN PREMIER pour capturer toutes les erreurs -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script>
+    eruda.init();
+    window.addEventListener('error', e =>
+      console.error('[ERROR]', e.message, e.filename + ':' + e.lineno));
+    window.addEventListener('unhandledrejection', e =>
+      console.error('[UNHANDLED]', e.reason));
+    console.log('[index.html] Eruda prêt, chargement du jeu...');
+  </script>
+
   <!-- ── Point d'entrée JS ──────────────────────────────────────────────── -->
   <script type="module" src="src/game.js"></script>
-  <!-- DevTools mobile — retirer avant la mise en prod -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>eruda.init();</script>
+  <!-- ── Bannière relique active ──────────────────────────────────────────── -->
+  <div id="relic-banner" class="relic-banner hidden">
+    <span id="relic-banner-icon" class="relic-banner-icon"></span>
+    <span id="relic-banner-name" class="relic-banner-name"></span>
+    <span id="relic-banner-desc" class="relic-banner-desc"></span>
+  </div>
+
 </body>
 </html>

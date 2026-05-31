@@ -31,14 +31,22 @@ export function initRun(registry, starterPokemon) {
   const uid     = `${starterPokemon.id}_starter_${Date.now()}`;
   const starter = { ...starterPokemon, uid, isInTeam: true, col: 0, row: 0 };
 
+  // Préserve les champs meta définis avant initRun (relique, difficulté, seed, anomalyTypes)
+  const prev = registry.get('runState') ?? {};
+
   registry.set('runState', {
     currentMap:    0,
     coins:         5,
     inventory:     [],
     playerBank:    [],
     unlockedSlots: 3,
-    seenPokemon:   [],      // IDs des pokémons rencontrés
-    loopCount:     0,       // nombre de fois que la ligue a été battue (mode infini)
+    seenPokemon:   [],
+    loopCount:     0,
+    // Champs préservés
+    difficulty:    prev.difficulty   ?? 'easy',
+    seed:          prev.seed         ?? String(Date.now()),
+    relic:         prev.relic        ?? null,
+    anomalyTypes:  prev.anomalyTypes ?? null,
   });
 
   registry.set('playerUnits', [starter]);

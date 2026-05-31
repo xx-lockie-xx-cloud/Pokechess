@@ -4063,3 +4063,95 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 @media (max-width: 380px) {
   .rl-grid { grid-template-columns: 1fr; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIRMATION RELIQUE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.relic-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.relic-confirm-panel {
+  background: #0a0a1a;
+  border: 2px solid #a29bfe;
+  border-radius: 16px;
+  padding: 24px 20px;
+  max-width: min(360px, 92vw);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 32px rgba(162,155,254,0.3);
+}
+.relic-confirm-icon   { font-size: 48px; }
+.relic-confirm-name   { font-size: 18px; font-weight: 900; color: #e2e8f0; }
+.relic-confirm-desc   { font-size: 12px; color: #a0aec0; line-height: 1.5; }
+.relic-confirm-sym    { font-size: 11px; color: #fc5c65; }
+.relic-confirm-question {
+  font-size: 13px; font-weight: 700; color: #ffd700;
+  margin-top: 4px;
+}
+.relic-confirm-btns   { display: flex; gap: 10px; margin-top: 4px; }
+.relic-btn-confirm, .relic-btn-cancel {
+  padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BANNIÈRE RELIQUE ACTIVE (bas de l'écran)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.relic-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0; right: 0;
+  background: linear-gradient(90deg, rgba(10,10,26,0.95), rgba(20,20,40,0.95));
+  border-top: 1px solid rgba(162,155,254,0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  z-index: 200;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s;
+}
+.relic-banner.hidden { display: none; }
+.relic-banner-icon   { font-size: 18px; flex-shrink: 0; }
+.relic-banner-name   {
+  font-size: 11px; font-weight: 800; color: #a29bfe;
+  white-space: nowrap; flex-shrink: 0;
+}
+.relic-banner-desc   {
+  font-size: 10px; color: #718096;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BANNIÈRE RELIQUE ACTIVE
+   ═══════════════════════════════════════════════════════════════════════════ */
+#relic-banner {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: #12122a;
+  border-top: 2px solid #a29bfe;
+  padding: 6px 16px;
+  z-index: 9000;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+.relic-banner-icon { font-size: 18px; flex-shrink: 0; }
+.relic-banner-name {
+  font-size: 11px; font-weight: 800;
+  color: #a29bfe; flex-shrink: 0;
+}
+.relic-banner-desc {
+  font-size: 10px; color: #718096;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

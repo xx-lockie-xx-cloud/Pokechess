@@ -181,8 +181,10 @@ export const WildUI = {
     const usedIds = new Set();
     let   tries   = 0;
 
-    // Tire 3 pokémons distincts (max 30 tentatives pour éviter boucle infinie)
-    while (offered.length < 3 && tries < 30) {
+    // Aimant : 4 pokémons au lieu de 3
+    const wildCount = getRunState(this._registry)?.relic?.id === 'aimant' ? 4 : 3;
+
+    while (offered.length < wildCount && tries < 40) {
       tries++;
       const p = weightedWildDraw(this._registry, POKEMONS);
       if (p && !usedIds.has(p.id)) {
@@ -191,12 +193,11 @@ export const WildUI = {
       }
     }
 
-    // Fallback si pas assez de pokémons tirés (ne devrait jamais arriver)
-    if (offered.length < 3) {
+    if (offered.length < wildCount) {
       const fallback = [...POKEMONS]
         .filter(p => !usedIds.has(p.id))
         .sort(() => Math.random() - 0.5);
-      while (offered.length < 3 && fallback.length) {
+      while (offered.length < wildCount && fallback.length) {
         offered.push(fallback.shift());
       }
     }

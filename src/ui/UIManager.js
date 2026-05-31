@@ -27,6 +27,7 @@ import { TalentTreeUI }      from './TalentTreeUI.js';
 import { AchievementsUI }      from './AchievementsUI.js';
 import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
+import { RELICS }            from '../data/relics.js';
 import { RelicEngine }       from '../combat/RelicEngine.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
@@ -83,6 +84,7 @@ class UIManagerClass {
     window.__ITEMS__             = ITEMS;
     window.__ITEMS__             = window.__ITEMS__ || {}; // défini depuis items.js
     window.__ACHIEVEMENTS__     = ACHIEVEMENTS;
+    window.__RELICS__           = RELICS;
     TutorialUI.init();
     TalentTreeUI.init();
     AchievementsUI.init();
@@ -269,7 +271,28 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   // show()
   // ─────────────────────────────────────────────────────────────────────────
+
+  _updateRelicBanner() {
+    const banner = document.getElementById('relic-banner');
+    if (!banner) return;
+    try {
+      const rs      = this.registry.get('runState') ?? {};
+      const relicId = rs?.relic?.id;
+      const RELICS  = window.__RELICS__;
+      const relic   = (relicId && RELICS) ? (RELICS[relicId] ?? null) : null;
+      if (relic) {
+        document.getElementById('relic-banner-icon').textContent = relic.icon ?? '';
+        document.getElementById('relic-banner-name').textContent = relic.name ?? '';
+        document.getElementById('relic-banner-desc').textContent = relic.desc ?? '';
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
+    } catch(e) { banner.style.display = 'none'; }
+  }
+
   show(screenName, data = {}) {
+    this._updateRelicBanner();
     this.currentScreen = screenName;
     this.currentData   = data;
 
@@ -535,6 +558,7 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   _updateHeader(screenName) {
     const header     = document.getElementById('game-header');
+    this._updateRelicBanner();
     const showHeader = !['menu', 'starter'].includes(screenName);
     header?.classList.toggle('hidden', !showHeader);
     // Applique le padding-top seulement aux écrans et overlays visibles
