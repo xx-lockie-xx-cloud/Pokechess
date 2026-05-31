@@ -552,10 +552,7 @@ slot.addEventListener('drop', (e) => {
     const { pokemon, source, col, row, idx } = this._selectedCard;
     if (!pokemon?.heldItem) return;
     const item      = pokemon.heldItem;
-    const isBraderie = this._registry?.get?.('runState')?.relic?.id === 'braderie';
-    const sellPrice = isBraderie
-      ? (item.price ?? 4)
-      : Math.max(0, Math.floor((item.price ?? 4) / 2));
+    const sellPrice = Math.max(0, Math.floor((item.price ?? 4) / 2));
     const ok = confirm(`Vendre ${item.emoji} ${item.name} pour ${sellPrice} 💰 ?`);
     if (!ok) return;
     addCoins(this._registry, sellPrice);
