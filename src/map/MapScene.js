@@ -3,9 +3,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { MapGenerator, NODE_TYPES } from './MapGenerator.js';
-import { getRunState }              from './runState.js';
-import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES }       from './trainers.js';
-import { getArenaForMap, ARENAS }   from './arenas.js';
+import { getRunState }              from '../data/runState.js';
+import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES } from '../data/trainers.js';
+import { getArenaForMap, ARENAS }   from '../data/arenas.js';
 
 // ── Dimensions ───────────────────────────────────────────────────────────────
 const SPRITE_SIZE = 72;   // taille d'affichage des sprites de nœuds
