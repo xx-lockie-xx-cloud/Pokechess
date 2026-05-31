@@ -9,6 +9,10 @@
   <link rel="stylesheet" href="src/styles/main.css" />
 </head>
 <body>
+  <script>
+    window.addEventListener('error', e => console.error('[GLOBAL ERROR]', e.message, e.filename, e.lineno));
+    window.addEventListener('unhandledrejection', e => console.error('[UNHANDLED]', e.reason));
+  </script>
 
   <!-- ── Header UI fixe ─────────────────────────────────────────────────── -->
   <header id="game-header" class="hidden">
@@ -267,6 +271,7 @@
   </div>
 
   <!-- ── Point d'entrée JS ──────────────────────────────────────────────── -->
+  <script>console.log('[index.html] page chargée, lancement module...');</script>
   <script type="module" src="src/game.js"></script>
   <!-- DevTools mobile — retirer avant la mise en prod -->
   <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
