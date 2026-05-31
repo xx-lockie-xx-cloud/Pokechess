@@ -101,7 +101,7 @@ export const SYNERGIES = {
 // ─────────────────────────────────────────────────────────────────────────────
 // getActiveSynergies — synergies actives depuis les unités sur le terrain
 // ─────────────────────────────────────────────────────────────────────────────
-export function getActiveSynergies(fieldUnits, modifyCountsFn = null) {
+export function getActiveSynergies(fieldUnits) {
   let typeCounts = {};
   fieldUnits.filter(Boolean).forEach(unit => {
     // Les légendaires (T5) comptent pour 2 dans les synergies
@@ -110,11 +110,6 @@ export function getActiveSynergies(fieldUnits, modifyCountsFn = null) {
       typeCounts[type] = (typeCounts[type] ?? 0) + weight;
     });
   });
-
-  // Cristal Pur : monotypes comptent double
-  if (modifyCountsFn) {
-    typeCounts = modifyCountsFn(typeCounts, fieldUnits) ?? typeCounts;
-  }
 
   const active = [];
   Object.entries(typeCounts).forEach(([type, count]) => {
@@ -159,12 +154,9 @@ export function getFullStats(unit, fieldUnits = [], meta = null) {
   const withSynergy   = { ...withItem };
   const synergyBoosted = new Set();
 
-  // Couronne : le pokémon au BST max reçoit les bonus synergies ×2
-  const synergyMultiplier = unit._doubleSynergyBonus ? 2 : 1;
   Object.entries(synBonus).forEach(([stat, mult]) => {
     if (withSynergy[stat] != null) {
-      const finalMult = synergyMultiplier === 2 ? 1 + (mult - 1) * 2 : mult;
-      withSynergy[stat] = Math.round(withSynergy[stat] * finalMult);
+      withSynergy[stat] = Math.round(withSynergy[stat] * mult);
       synergyBoosted.add(stat);
     }
   });
