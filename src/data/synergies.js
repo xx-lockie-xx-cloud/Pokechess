@@ -102,11 +102,11 @@ export const SYNERGIES = {
 // getActiveSynergies — synergies actives depuis les unités sur le terrain
 // ─────────────────────────────────────────────────────────────────────────────
 export function getActiveSynergies(fieldUnits) {
-  let typeCounts = {};
+  const typeCounts = {};
   fieldUnits.filter(Boolean).forEach(unit => {
     // Les légendaires (T5) comptent pour 2 dans les synergies
     const weight = getBSTTier(unit) >= 5 ? 2 : 1;
-    (unit.types ?? []).forEach(type => {
+    unit.types.forEach(type => {
       typeCounts[type] = (typeCounts[type] ?? 0) + weight;
     });
   });

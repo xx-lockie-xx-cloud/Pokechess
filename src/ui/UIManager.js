@@ -56,10 +56,8 @@ class UIManagerClass {
   // init()
   // ─────────────────────────────────────────────────────────────────────────
   init(registry) {
-    console.log('[UIManager] init() démarré');
     this.registry = registry;
     window.gameRegistry = registry;
-    console.log('[UIManager] registry OK');
 
     document.getElementById('btn-team')
       ?.addEventListener('click', () => this._togglePrep());
@@ -70,8 +68,7 @@ class UIManagerClass {
         if (!ok) return;
         const mapEl = document.getElementById('screen-map');
         if (mapEl) { mapEl.style.cssText = ''; mapEl.classList.remove('active'); }
-        console.log('[UIManager] show menu...');
-    this.show('menu');
+        this.show('menu');
       });
 
     setInterval(() => this._refreshHeader(), 500);
@@ -81,14 +78,13 @@ class UIManagerClass {
 
     // ── Tutoriel ────────────────────────────────────────────────────────────
     // Expose POKEMON_PASSIVES sur window pour PrepUI (pas d'import dynamique)
-    console.log('[UIManager] exposition window globals...');
     window.__POKEMON_PASSIVES__ = POKEMON_PASSIVES;
     window.__POKEMONS__          = POKEMONS;
-    window.__ITEMS__             = ITEMS; // défini depuis items.js
+    window.__ITEMS__             = ITEMS;
+    window.__ITEMS__             = window.__ITEMS__ || {}; // défini depuis items.js
     window.__ACHIEVEMENTS__     = ACHIEVEMENTS;
     TutorialUI.init();
     TalentTreeUI.init();
-    console.log('[UIManager] init UIs...');
     AchievementsUI.init();
     RelicUI.init();
     RelicsLibraryUI.init();

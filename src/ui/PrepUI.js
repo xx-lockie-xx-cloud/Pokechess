@@ -1,5 +1,28 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// PrepUI.js — Remplace PrepScene.js (Phaser)
+// Gère l'overlay HTML de gestion d'équipe.
+//
+// Fonctionnement :
+//   PrepUI.open(registry)  → ouvre l'overlay, charge l'état
+//   PrepUI.close(registry) → sauvegarde et ferme l'overlay
+//
+// Layout de l'overlay (défini dans index.html + main.css) :
+//   ┌─────────────────────────────────────┐
+//   │ Titre                          [✕] │
+//   ├──────────────┬──────────────────────┤
+//   │ Terrain 3×2  │ Banque 3×2           │
+//   │              │                      │
+//   │ Synergies    │ Toile stats (SVG)    │
+//   │ Inventaire   │                      │
+//   ├─────────────────────────────────────┤
+//   │ Barre d'action (vente/déséquipement)│
+//   ├─────────────────────────────────────┤
+//   │       [ ✅ Valider l'équipe ]       │
+//   └─────────────────────────────────────┘
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { POKEMONS, TYPE_COLORS as TC }   from '../data/pokemons.js';
-import { GRID_COLS, GRID_ROWS }          from '../data/board.js';
+import { GRID_COLS, GRID_ROWS }          from '../board.js';
 import { getBSTTier }                   from '../data/runState.js';
 import { getRunState, setRunState,
          addCoins, addToInventory,
@@ -546,7 +569,7 @@ slot.addEventListener('drop', (e) => {
     return blocks.join('');
   },
 
-  // Vend l'objet tenu par le pokémon sélectionné
+  // Vend l'objet tenu par le pokémon sélectionné (moitié du prix d'achat)
   _sellItem() {
     if (!this._selectedCard) return;
     const { pokemon, source, col, row, idx } = this._selectedCard;

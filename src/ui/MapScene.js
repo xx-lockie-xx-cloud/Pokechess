@@ -4,7 +4,7 @@
 
 import { MapGenerator, NODE_TYPES } from '../map/MapGenerator.js';
 import { getRunState }              from '../data/runState.js';
-import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES }       from '../data/trainers.js';
+import { TRAINER_ARCHETYPES }       from '../data/trainers.js';
 import { getArenaForMap, ARENAS }   from '../data/arenas.js';
 
 // ── Dimensions ───────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ export class MapScene extends Phaser.Scene {
 
   // ─────────────────────────────────────────────────────────────────────────
   preload() {
-    ALL_TRAINER_ARCHETYPES.forEach(a => {
+    TRAINER_ARCHETYPES.forEach(a => {
       const key = `trainer_map_${a.id}`;
       if (a.spriteMap && !this.textures.exists(key))
         this.load.image(key, a.spriteMap);

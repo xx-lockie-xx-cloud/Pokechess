@@ -1,6 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // game.js — Point d'entrée
-console.log('[game.js] module chargé');
 // Architecture : UIManager gère tous les écrans en HTML/CSS pur.
 // Plus de Phaser — la map est rendue en CSS/SVG par MapUI.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -12,7 +11,6 @@ window.UIManager   = UIManager;
 window.SaveManager = SaveManager;
 
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('[game.js] DOMContentLoaded');
 
   // ── Registre léger ────────────────────────────────────────────────────────
   const registry = {
@@ -52,6 +50,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.gameRegistry = registry;
 
-  console.log('[game.js] appel UIManager.init');
   UIManager.init(registry);
 });
