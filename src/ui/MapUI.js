@@ -100,10 +100,33 @@ export const MapUI = {
     // Ne pas toucher au display — UIManager gère la visibilité via la classe .active
     this._screen.style.background = '#1a1a2e';
 
+    // Encart relique active (au-dessus du titre)
+    const rs      = getRunState(this._reg) ?? {};
+    const relicId = rs?.relic?.id;
+    const RELICS  = window.__RELICS__;
+    const relic   = (relicId && RELICS) ? RELICS[relicId] : null;
+    console.log('[MapUI] relic check — relicId:', relicId, 'RELICS ok:', !!RELICS, 'relic:', !!relic);
+    if (relic) {
+      const relicBox = document.createElement('div');
+      relicBox.style.cssText = `
+        flex-shrink: 0;
+        text-align: center;
+        padding: 5px 16px 2px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #a29bfe;
+        letter-spacing: 0.03em;
+        pointer-events: none;
+        user-select: none;
+      `;
+      relicBox.textContent = `${relic.icon} ${relic.name}`;
+      this._screen.appendChild(relicBox);
+    }
+
     // Titre
     const title = document.createElement('div');
     const dest  = ARENAS[this._mapIdx];
-    title.textContent = `En Route vers ${dest?.city ?? `Route ${this._mapIdx + 1}`}`;
+    title.textContent = `En Route vers ${dest?.city ?? ('Route ' + (this._mapIdx + 1))}`;
     title.style.cssText = `
       flex-shrink: 0;
       text-align: center;
@@ -192,7 +215,7 @@ export const MapUI = {
   // ─────────────────────────────────────────────────────────────────────────
   _renderWorld() {
     // Badge relique active
-    const rsMap     = this._registry?.get?.('runState') ?? {};
+    const rsMap     = getRunState(this._reg) ?? {};
     const relicBadge = document.getElementById('map-relic-badge');
     if (relicBadge && typeof RelicUI !== 'undefined') {
       relicBadge.innerHTML = rsMap?.relic?.id

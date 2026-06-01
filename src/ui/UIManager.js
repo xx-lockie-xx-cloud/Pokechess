@@ -6,9 +6,10 @@
 
 import { getRunState, addSeenPokemon,
          saveMapProgress, getMapProgress } from '../data/runState.js';
-import { DIFFICULTIES, ACHIEVEMENTS, getUnlockedDifficultiesWithMeta,
-         getDifficulty, getUnlockedDifficulties }   from '../data/levelSystem.js';
-import { RELICS }                                   from '../data/relics.js';
+import { DIFFICULTIES, ACHIEVEMENTS, getDifficulty,
+         getUnlockedDifficultiesWithMeta,
+         getUnlockedDifficulties }             from '../data/levelSystem.js';
+import { RELICS }                             from '../data/relics.js';
 import { POKEMON_PASSIVES }                               from '../data/passiveHooks.js';
 import { POKEMONS }                                       from '../data/pokemons.js';
 import { ITEMS }                                          from '../data/items.js';
@@ -282,19 +283,27 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
 
   _updateRelicBanner() {
-    const banner = document.getElementById('relic-banner');
-    if (!banner) return;
-    const rs    = this.registry?.get?.('runState');
-    const relicId = rs?.relic?.id;
-    const relic = relicId ? (window.__RELICS__?.[relicId] ?? null) : null;
-    if (relic) {
-      document.getElementById('relic-banner-icon').textContent = relic.icon;
-      document.getElementById('relic-banner-name').textContent = relic.name;
-      document.getElementById('relic-banner-desc').textContent = relic.desc;
-      banner.classList.remove('hidden');
-    } else {
-      banner.classList.add('hidden');
-    }
+    // Affiche la relique dans le header-relic (sous le titre)
+    try {
+      const rs      = this.registry.get('runState') ?? {};
+      const relicId = rs?.relic?.id;
+      const relic   = relicId ? (window.__RELICS__?.[relicId] ?? null) : null;
+      const el      = document.getElementById('header-relic');
+      const header  = document.getElementById('game-header');
+      if (!el) return;
+      if (relic) {
+        el.textContent    = `${relic.icon} ${relic.name}`;
+        el.style.display  = 'block';
+        if (header) header.style.height = '68px';
+        document.querySelectorAll('.screen.with-header, .game-overlay.with-header')
+          .forEach(e => e.style.paddingTop = '68px');
+      } else {
+        el.style.display = 'none';
+        if (header) header.style.height = '';
+        document.querySelectorAll('.screen.with-header, .game-overlay.with-header')
+          .forEach(e => e.style.paddingTop = '');
+      }
+    } catch(e) { /* silencieux */ }
   }
 
   show(screenName, data = {}) {
@@ -610,6 +619,7 @@ class UIManagerClass {
     const el2   = document.getElementById('ui-pokeballs');
     if (el1) el1.textContent = `💰 ${state.coins     ?? 0}`;
     if (el2) el2.textContent = `🔴 ${state.pokeballs ?? 0}`;
+    this._updateRelicBanner();
   }
 }
 
