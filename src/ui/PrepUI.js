@@ -23,7 +23,7 @@
 
 import { POKEMONS, TYPE_COLORS as TC }   from '../data/pokemons.js';
 import { GRID_COLS, GRID_ROWS }          from '../board.js';
-import { getBSTTier, getRunState, setRunState,
+import { getBSTTier, getRunState, setRunState, applyAnomalyToUnits,
          addCoins, addToInventory,
          removeFromInventory, getInventory,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
@@ -1151,7 +1151,7 @@ slot.addEventListener('drop', (e) => {
     for (let c = 0; c < GRID_COLS; c++)
       for (let r = 0; r < GRID_ROWS; r++)
         if (this._field[c][r]) units.push(this._field[c][r]);
-    return units;
+    return applyAnomalyToUnits(units, this._registry);
   },
 
   _updateBankLabel() {

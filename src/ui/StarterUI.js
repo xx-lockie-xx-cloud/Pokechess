@@ -14,7 +14,7 @@ import { POKEMONS }                    from '../data/pokemons.js';
 import { getBSTTier }                  from '../data/runState.js';
 import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
-import { initRun }                     from '../data/runState.js';
+import { initRun, applyAnomalyToUnits } from '../data/runState.js';
 import { TYPE_COLORS as TC }           from '../data/pokemons.js';
 
 // IDs des starters proposés
@@ -97,7 +97,8 @@ export const StarterUI = {
     if (!container) return;
     container.innerHTML = '';
 
-    const starters = STARTER_IDS.map(id => POKEMONS.find(p => p.id === id)).filter(Boolean);
+    const rawStarters = STARTER_IDS.map(id => POKEMONS.find(p => p.id === id)).filter(Boolean);
+    const starters    = applyAnomalyToUnits(rawStarters, this._registry);
 
     starters.forEach(pokemon => {
       const card = this._createCard(pokemon);
