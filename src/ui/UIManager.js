@@ -28,6 +28,7 @@ import { AchievementsUI }      from './AchievementsUI.js';
 import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
 import { RelicEngine }       from '../combat/RelicEngine.js';
+import { RELICS }            from '../data/relics.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
