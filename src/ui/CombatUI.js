@@ -37,7 +37,12 @@ export const CombatUI = {
     this._data          = data;
     this._registry      = registry;
     this._onDone        = onDone;
-    this._enemyUnits    = data.enemyUnits ?? [];
+    // Applique anomalyTypes dès l'init pour que tous les affichages soient corrects
+    const _anom = registry.get?.('runState')?.anomalyTypes ?? null;
+    const _applyAnom = units => !_anom ? units : units.map(u =>
+      _anom[u.id] ? { ...u, types: _anom[u.id] } : u
+    );
+    this._enemyUnits    = _applyAnom(data.enemyUnits ?? []);
     this._slots         = {};
     this._hpState       = {};
     this._statusTracker = {};
@@ -45,7 +50,7 @@ export const CombatUI = {
     this._combatLog     = [];
 
     // Lit toujours depuis le registre (priorité sur data.playerUnits)
-    this._playerUnits = registry.get('playerUnits') ?? data.playerUnits ?? [];
+    this._playerUnits = _applyAnom(registry.get('playerUnits') ?? data.playerUnits ?? []);
 
     this._render();
     this._bindTeamListener();

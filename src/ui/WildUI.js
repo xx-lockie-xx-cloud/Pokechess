@@ -18,7 +18,7 @@ import { getMove }                     from '../data/moves.js';
 import {
   getRunState, addToBank, removeCoins, addCoins,
   weightedWildDraw, BANK_MAX_SIZE,
-  addSeenPokemon
+  addSeenPokemon, applyAnomalyToUnits
 } from '../data/runState.js';
 
 function hexToCSS(hex) {

@@ -11,10 +11,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { POKEMONS }                    from '../data/pokemons.js';
-import { getBSTTier }                  from '../data/runState.js';
 import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
-import { initRun, applyAnomalyToUnits } from '../data/runState.js';
+import { initRun, applyAnomalyToUnits, getBSTTier } from '../data/runState.js';
 import { TYPE_COLORS as TC }           from '../data/pokemons.js';
 
 // IDs des starters proposés
