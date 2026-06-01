@@ -2,9 +2,8 @@
 // ArenaVictoryUI.js — Remplace ArenaVictoryScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { SaveManager }    from '../SaveManager.js';
 import { getArenaForMap }           from '../data/arenas.js';
-import { getRunState, setRunState, tryUnlockSlot, addCoins } from '../data/runState.js';
+import { getRunState, setRunState, tryUnlockSlot } from '../data/runState.js';
 
 export const ArenaVictoryUI = {
   _data:     null,
@@ -155,13 +154,7 @@ export const ArenaVictoryUI = {
       }
       menuBtn.textContent = '🏠 Retour au menu principal';
       menuBtn.onclick = () => {
-        // Bourse Dorée : +2 pièces après chaque victoire
-    const rsBourse = getRunState(this._registry);
-    if (rsBourse?.relic?.id === 'bourse_doree') {
-      addCoins(this._registry, 2);
-    }
-
-    if (this._onDone) this._onDone({ goToMenu: true });
+        if (this._onDone) this._onDone({ goToMenu: true });
       };
     } else {
       btn.textContent = '➡️ Prochaine arène';
