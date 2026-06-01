@@ -120,10 +120,8 @@ img {
 
 .header-center {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
 }
 
 .header-right {
@@ -4132,19 +4130,42 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* ── Relique active dans le header ────────────────────────────────────────── */
-.header-relic {
-  font-size: 10px;
-  color: #a29bfe;
-  font-weight: 700;
-  text-align: center;
-  letter-spacing: 0.03em;
-  line-height: 1.2;
+/* ── Encyclopédie — stats ennemies sur les cartes de combat ──────────────── */
+.encyclopedie-badge {
+  position: absolute;
+  top: 2px; left: 2px; right: 2px;
+  background: rgba(10,10,26,0.85);
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  padding: 2px 3px;
+  font-size: 8px;
+  z-index: 10;
+  pointer-events: none;
+}
+.encyclopedie-badge span { color: #e2e8f0; white-space: nowrap; }
+
+/* ── Pochette Surprise — carte mystère ────────────────────────────────────── */
+.card-mystery {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  color: rgba(255,255,255,0.4);
+  height: 60px;
 }
 
-/* Header agrandi si relique présente */
-#game-header:has(#header-relic[style*="block"]) {
-  height: 68px;
+/* ── Info relique avant combat ─────────────────────────────────────────────── */
+.combat-relic-info {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a29bfe;
+  text-align: center;
+  padding: 6px 12px;
+  background: rgba(162,155,254,0.1);
+  border: 1px solid rgba(162,155,254,0.3);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  width: 100%;
 }
-#game-header:has(#header-relic[style*="block"]) ~ * .screen.with-header,
-.screen.with-header-tall { padding-top: 68px; }

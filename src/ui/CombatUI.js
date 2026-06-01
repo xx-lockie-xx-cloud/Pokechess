@@ -167,6 +167,25 @@ export const CombatUI = {
     const btnRow = document.createElement('div');
     btnRow.className = 'combat-btn-row';
 
+    // Bandeau info relique (Pacte de Sang, Bénédiction, Sablier, etc.)
+    const relicId = this._registry?.get?.('runState')?.relic?.id;
+    const RELIC_WARNINGS = {
+      'pacte_de_sang': '💀 Pacte de Sang — HP ×0.8 / ATK ×1.3 pour tous',
+      'benediction':   '🩹 Bénédiction — HP ×1.3 / ATK ×0.75 pour tous',
+      'sablier':       '⏱ Sablier — Combat limité à 25 actions par camp',
+      'de_maudit':     '🎲 Dé Maudit — 1 unité de chaque camp démarre à 50% HP',
+      'condensateur':  '🔋 Condensateur — Toutes les unités démarrent avec 50 mana',
+      'contrat_maudit':'🩸 Contrat Maudit — HP ×0.9 pour tous',
+      'revanche':      '🔁 Revanche — Ultime déclenché à la mort si mana ≥ 50',
+    };
+    const warning = relicId ? RELIC_WARNINGS[relicId] : null;
+    if (warning) {
+      const relicInfo = document.createElement('div');
+      relicInfo.className   = 'combat-relic-info';
+      relicInfo.textContent = warning;
+      btnRow.appendChild(relicInfo);
+    }
+
     const btn = document.createElement('button');
     btn.className   = 'btn-danger btn-large';
     btn.id          = 'btn-start-combat';
@@ -956,7 +975,10 @@ export const CombatUI = {
 
     if (isWin) {
       addCoins(this._registry, 3);
-      this._showRewardAnimation('+3 💰');
+      // Bourse Dorée : +2 pièces supplémentaires par victoire
+      const isBourseDoree = getRunState(this._registry)?.relic?.id === 'bourse_doree';
+      if (isBourseDoree) addCoins(this._registry, 2);
+      this._showRewardAnimation(isBourseDoree ? '+5 💰' : '+3 💰');
     }
 
     const screen = document.getElementById('overlay-combat');

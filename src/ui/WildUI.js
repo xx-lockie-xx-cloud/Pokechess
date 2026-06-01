@@ -203,7 +203,10 @@ export const WildUI = {
     }
 
     // Anomalie : randomise les types
+    const anomalyCheck = this._registry?.get?.('runState')?.anomalyTypes;
+    console.log('[WildUI] anomalyTypes:', anomalyCheck ? Object.keys(anomalyCheck).length + ' pokémons' : 'null');
     this._offered = applyAnomalyToUnits(offered, this._registry);
+    console.log('[WildUI] offered[0].types:', this._offered[0]?.types);
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -257,17 +260,22 @@ export const WildUI = {
 
     const price = CAPTURE_PRICE[tier] ?? 3;
 
+    // Pochette Surprise : masque l'identité, montre seulement les types
+    const isPochette = getRunState(this._registry)?.relic?.id === 'pochette_surprise';
+
     card.innerHTML = `
       ${buildCardFrame(tier)}
       <span class="type-corner tl" style="border-color: ${c1} transparent transparent transparent"></span>
       <span class="type-corner tr" style="border-color: transparent ${c2} transparent transparent"></span>
       <span class="type-corner bl" style="border-color: transparent transparent transparent ${c1}"></span>
       <span class="type-corner br" style="border-color: transparent transparent ${c2} transparent"></span>
-      <img src="${pokemon.spriteUrl}" alt="${pokemon.name}"
-           onerror="this.src='assets/placeholder.png'" />
-      <span class="card-name">${pokemon.name}</span>
+      ${isPochette
+        ? `<span class="card-mystery">?</span>`
+        : `<img src="${pokemon.spriteUrl}" alt="${pokemon.name}"
+               onerror="this.src='assets/placeholder.png'" />`}
+      <span class="card-name">${isPochette ? '???' : pokemon.name}</span>
       <span class="card-types">${pokemon.types.join(' / ')}</span>
-      ${(() => { const m = window.SaveManager?.loadMeta() ?? null; const l = m?.pokemonLevels?.[pokemon.id] ?? 1; return l > 1 ? getLevelBadgeHTML(l) : ''; })()}
+      ${isPochette ? '' : (() => { const m = window.SaveManager?.loadMeta() ?? null; const l = m?.pokemonLevels?.[pokemon.id] ?? 1; return l > 1 ? getLevelBadgeHTML(l) : ''; })()}
       <span class="card-price">${price} 💰</span>
     `;
 
@@ -419,11 +427,24 @@ export const WildUI = {
       return;
     }
 
-    removeCoins(this._registry, price);
+    // Doppelgänger : coûte ×2 mais donne 2 pokémons
+    const isDoppel = getRunState(this._registry)?.relic?.id === 'doppelganger';
+    const finalPrice = isDoppel ? price * 2 : price;
+    if ((state.coins ?? 0) < finalPrice) {
+      const info = document.getElementById('wild-info');
+      if (info) info.textContent = `Pas assez de pièces ! (${finalPrice} 💰 requis)`;
+      return;
+    }
+    removeCoins(this._registry, finalPrice);
     const added = addToBank(this._registry, this._selected);
     if (!added) {
-      addCoins(this._registry, price);  // rembourse si ajout échoue
+      addCoins(this._registry, finalPrice);
       return;
+    }
+    // Doppelgänger : ajoute un clone
+    if (isDoppel) {
+      const clone = { ...this._selected, uid: this._selected.id + '_clone_' + Date.now() };
+      addToBank(this._registry, clone);
     }
 
     const capturedName = this._selected.name;

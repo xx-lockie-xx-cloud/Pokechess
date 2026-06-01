@@ -144,12 +144,12 @@ export const RELICS = {
     apply: { kind: 'wild_slots', value: 4 },
   },
 
-  etoile_montante: {
-    id: 'etoile_montante', name: 'Étoile Montante', icon: '⭐',
-    desc: 'Après avoir choisi ton starter, tu reçois automatiquement un second exemplaire identique.',
+  doppelganger: {
+    id: 'doppelganger', name: 'Doppelgänger', icon: '👥',
+    desc: 'Chaque pokémon capturé ou acheté arrive en double, mais coûte le double en pièces.',
     category: 'progression',
     unlockAchievement: 'reptincel_100',
-    apply: { kind: 'double_starter' },
+    apply: { kind: 'double_capture' },
   },
 
   medaille: {
