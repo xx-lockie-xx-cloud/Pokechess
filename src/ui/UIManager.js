@@ -7,7 +7,7 @@
 import { getRunState, addSeenPokemon,
          saveMapProgress, getMapProgress } from '../data/runState.js';
 import { DIFFICULTIES, ACHIEVEMENTS, getUnlockedDifficultiesWithMeta,
-         getDifficulty, getUnlockedDifficulties }             from '../data/levelSystem.js';
+         ACHIEVEMENTS }                        from '../data/levelSystem.js';
 import { POKEMON_PASSIVES }                               from '../data/passiveHooks.js';
 import { POKEMONS }                                       from '../data/pokemons.js';
 import { ITEMS }                                          from '../data/items.js';
@@ -28,7 +28,6 @@ import { AchievementsUI }      from './AchievementsUI.js';
 import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
 import { RelicEngine }       from '../combat/RelicEngine.js';
-import { RELICS }            from '../data/relics.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
