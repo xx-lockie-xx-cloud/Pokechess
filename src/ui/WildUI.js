@@ -520,7 +520,6 @@ export const WildUI = {
     document.body.appendChild(t);
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 1800);
   },
-,
 
   _showToast(msg) {
     const t = document.createElement('div');
