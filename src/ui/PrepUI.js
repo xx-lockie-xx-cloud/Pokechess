@@ -22,7 +22,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { POKEMONS, TYPE_COLORS as TC }   from '../data/pokemons.js';
-import { GRID_COLS, GRID_ROWS }          from '../data/board.js';
+import { GRID_COLS, GRID_ROWS }          from '../board.js';
 import { getBSTTier, getRunState, setRunState,
          addCoins, addToInventory,
          removeFromInventory, getInventory,
