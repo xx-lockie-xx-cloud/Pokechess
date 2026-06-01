@@ -6,7 +6,7 @@
 
 import { getRunState, addSeenPokemon,
          saveMapProgress, getMapProgress } from '../data/runState.js';
-import { DIFFICULTIES, getUnlockedDifficultiesWithMeta,
+import { DIFFICULTIES, ACHIEVEMENTS, getUnlockedDifficultiesWithMeta,
          ACHIEVEMENTS }                        from '../data/levelSystem.js';
 import { POKEMON_PASSIVES }                               from '../data/passiveHooks.js';
 import { POKEMONS }                                       from '../data/pokemons.js';
@@ -28,7 +28,6 @@ import { AchievementsUI }      from './AchievementsUI.js';
 import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
 import { RelicEngine }       from '../combat/RelicEngine.js';
-import { RELICS }            from '../data/relics.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
@@ -163,6 +162,16 @@ class UIManagerClass {
     });
 
     // Nouvelle partie — écrase toujours la save de run en cours (roguelite)
+    // ── Bouton DEV (triple tap sur le titre PokeChess) ─────────────────────────
+    let devTaps = 0, devTimer = null;
+    document.querySelector('.menu-title, .game-title, h1')
+      ?.addEventListener('click', () => {
+        devTaps++;
+        clearTimeout(devTimer);
+        devTimer = setTimeout(() => { devTaps = 0; }, 600);
+        if (devTaps >= 3) { devTaps = 0; this._devUnlockAll(); }
+      });
+
     document.getElementById('btn-new-game')?.addEventListener('click', () => {
       console.log('[UIManager] btn-new-game cliqué');
       SaveManager.deleteRunSave();
@@ -285,7 +294,7 @@ class UIManagerClass {
     } else {
       banner.classList.add('hidden');
     }
-  }
+  },
 
   show(screenName, data = {}) {
     this._updateRelicBanner();
@@ -441,6 +450,35 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   // _initMenu()
   // ─────────────────────────────────────────────────────────────────────────
+  // ── Mode DEV : débloque tous les achievements et difficultés ────────────────
+  _devUnlockAll() {
+    const meta = SaveManager.loadMeta();
+    const now  = Date.now();
+    Object.keys(ACHIEVEMENTS).forEach(id => {
+      meta.achievements = meta.achievements ?? {};
+      if (!meta.achievements[id]) {
+        meta.achievements[id] = { unlockedAt: now };
+      }
+    });
+    SaveManager.saveMeta(meta);
+    // Toast confirmation
+    const t = document.createElement('div');
+    t.textContent = '🛠 DEV — Tous les succès débloqués !';
+    Object.assign(t.style, {
+      position:'fixed', top:'60px', left:'50%',
+      transform:'translateX(-50%)',
+      background:'#6c5ce7', color:'#fff',
+      padding:'10px 20px', borderRadius:'8px',
+      fontSize:'13px', fontWeight:'700',
+      zIndex:'99999',
+    });
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+    // Recharge le menu
+    this._renderDifficultyMenu?.();
+    this.show('menu');
+  }
+
   _applyRelicStartEffects(relicId) {
     const rs = this.registry.get('runState') ?? {};
     if (relicId === 'contrat_maudit') {
