@@ -105,10 +105,10 @@ export const RELICS = {
 
   miroir: {
     id: 'miroir', name: 'Miroir', icon: '🪞',
-    desc: 'La synergie la plus forte de chaque équipe est multipliée ×1.5.',
+    desc: 'Toutes les synergies actives sont multipliées ×1.5 pour les deux camps.',
     category: 'synergy',
     unlockAchievement: 'champion_kanto',
-    apply: { kind: 'top_synergy_boost', mult: 1.5, symmetric: true },
+    apply: { kind: 'all_synergy_boost', mult: 1.5, symmetric: true },
   },
 
   cristal_pur: {

@@ -224,9 +224,11 @@ export const PrepUI = {
     slot.setAttribute('draggable', !!unit);
 
     if (unit) {
-      // Coins de type
-      const c1 = hexToCSS(TC[unit.types[0]] ?? 0x888888);
-      const c2 = hexToCSS(TC[unit.types[1]] ?? TC[unit.types[0]] ?? 0x888888);
+      // Coins de type — avec anomalie si active
+      const _anomTypes = getRunState(this._registry)?.anomalyTypes;
+      const displayTypes = (_anomTypes?.[unit.id]) ?? unit.types;
+      const c1 = hexToCSS(TC[displayTypes[0]] ?? 0x888888);
+      const c2 = hexToCSS(TC[displayTypes[1]] ?? TC[displayTypes[0]] ?? 0x888888);
 
       // Objet équipé
       const itemHtml = unit.heldItem
@@ -245,8 +247,20 @@ export const PrepUI = {
         <span class="slot-name">${unit.name}</span>
         ${unitLevel > 1 ? getLevelBadgeHTML(unitLevel) : ''}
         ${(() => {
+          const rid = getRunState(this._registry)?.relic?.id;
+          const INFO = { 'pacte_de_sang':'💀 HP-20%', 'benediction':'🩹 HP+30%', 'contrat_maudit':'🩸 HP-10%' };
+          return rid && INFO[rid] ? `<span class="slot-relic-mod" title="${INFO[rid]}">${INFO[rid]}</span>` : '';
+        })()}
+        ${(() => {
           const passive = getPokemonPassive(unit.id, unitLevel);
           return passive ? `<span class="slot-passive-badge" title="${passive.name}: ${passive.desc}">✨</span>` : '';
+        })()}
+        ${(() => {
+          if (getRunState(this._registry)?.relic?.id !== 'couronne') return '';
+          const allUnits = this._getAllFieldUnits();
+          const bst = u => (u.stats?.hp??0)+(u.stats?.atk??0)+(u.stats?.spa??0)+(u.stats?.def??0)+(u.stats?.spd_def??0)+(u.stats?.spd??0);
+          const topId = allUnits.sort((a,b) => bst(b)-bst(a))[0]?.id;
+          return topId === unit.id ? '<span class="slot-crown" title="👑 Couronne — synergies ×2">👑</span>' : '';
         })()}
         ${itemHtml}
       `;
@@ -611,7 +625,8 @@ slot.addEventListener('drop', (e) => {
     container.innerHTML = '';
 
     const units     = this._getAllFieldUnits();
-    const synergies = getActiveSynergies(units);
+    const relicId   = getRunState(this._registry)?.relic?.id;
+    const synergies = getActiveSynergies(units, relicId);
 
     if (synergies.length === 0) {
       container.innerHTML = '<span style="font-size:11px;color:var(--text-muted)">Aucune</span>';
@@ -639,6 +654,11 @@ slot.addEventListener('drop', (e) => {
       // Détail des bonus stats
       const bonusLines = Object.entries(syn.statBonus ?? {}).map(([stat, mult]) => {
         const pct = Math.round((mult - 1) * 100);
+        if (relicId === 'miroir') {
+          const boosted = Math.round(pct * 1.5);
+          const extra   = boosted - pct;
+          return `${STAT_LABELS[stat] ?? stat} +${boosted}% (+${pct}+${extra}%) 🪞`;
+        }
         return `${STAT_LABELS[stat] ?? stat} +${pct}%`;
       }).join('<br>');
 
@@ -1100,10 +1120,13 @@ slot.addEventListener('drop', (e) => {
         const u = this._field[c][r];
         if (u?.id === baseId) {
           if (!replaced) {
-            this._field[c][r] = {
+            const anomalyTypes = getRunState(this._registry)?.anomalyTypes;
+          const evoTypes = anomalyTypes?.[evoId] ?? evoPok.types;
+          this._field[c][r] = {
               ...evoPok, col: c, row: r,
               uid: u.uid, heldItem: u.heldItem ?? null,
-              isInTeam: true, attributes: []
+              isInTeam: true, attributes: [],
+              types: evoTypes,
             };
             replaced = true;
           } else {
@@ -1151,7 +1174,17 @@ slot.addEventListener('drop', (e) => {
     for (let c = 0; c < GRID_COLS; c++)
       for (let r = 0; r < GRID_ROWS; r++)
         if (this._field[c][r]) units.push(this._field[c][r]);
-    return applyAnomalyToUnits(units, this._registry);
+    const result  = applyAnomalyToUnits(units, this._registry);
+    const relicId = getRunState(this._registry)?.relic?.id ?? null;
+    // Marque Miroir et Couronne sur les unités pour getFullStats
+    if (relicId === 'couronne' && result.length) {
+      const bst = u => (u.stats?.hp??0)+(u.stats?.atk??0)+(u.stats?.spa??0)+
+                       (u.stats?.def??0)+(u.stats?.spd_def??0)+(u.stats?.spd??0);
+      const topId = [...result].sort((a,b) => bst(b)-bst(a))[0]?.id;
+      result.forEach(u => { u._doubleSynergyBonus = u.id === topId; });
+    }
+    result.forEach(u => { u._relicId = relicId; });
+    return result;
   },
 
   _updateBankLabel() {

@@ -229,6 +229,21 @@ export const CombatUI = {
     slot.className = `combat-slot ${unit ? 'occupied' : 'empty'}`;
     if (!unit) return slot;
 
+    // Couronne : badge 👑 sur le top BST de chaque camp
+    const _relicId = this._registry?.get?.('runState')?.relic?.id;
+    if (_relicId === 'couronne') {
+      const campUnits = side === 'player' ? this._playerUnits : this._enemyUnits;
+      const bst = u => (u.stats?.hp??0)+(u.stats?.atk??0)+(u.stats?.spa??0)+
+                       (u.stats?.def??0)+(u.stats?.spd_def??0)+(u.stats?.spd??0);
+      const topId = [...campUnits].sort((a,b) => bst(b)-bst(a))[0]?.id;
+      if (unit && unit.id === topId) {
+        const crown = document.createElement('span');
+        crown.textContent = '👑';
+        crown.style.cssText = 'position:absolute;top:2px;left:2px;font-size:10px;z-index:5;pointer-events:none';
+        slot.appendChild(crown);
+      }
+    }
+
     // Encyclopédie : badge stats sur les ennemis
     if (side === 'enemy') {
       const relicId = this._registry?.get?.('runState')?.relic?.id;
@@ -543,6 +558,8 @@ export const CombatUI = {
       if (anomalyTypes) RelicEngine.applyAnomalyTypes(unit, anomalyTypes);
       // Modificateurs de stats de la relique (Pacte de Sang, Bénédiction, Contrat Maudit)
       if (relicId) RelicEngine.applyStatModifier(relicId, unit);
+      // Passe relicId à l'unité pour getFullStats (Miroir, Couronne)
+      unit._relicId = relicId;
       // Alternance de type d'attaque (bitype)
       unit._attackTypeTurn = 0;
       return unit;

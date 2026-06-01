@@ -101,13 +101,16 @@ export const SYNERGIES = {
 // ─────────────────────────────────────────────────────────────────────────────
 // getActiveSynergies — synergies actives depuis les unités sur le terrain
 // ─────────────────────────────────────────────────────────────────────────────
-export function getActiveSynergies(fieldUnits) {
+export function getActiveSynergies(fieldUnits, relicId = null) {
   const typeCounts = {};
   fieldUnits.filter(Boolean).forEach(unit => {
     // Les légendaires (T5) comptent pour 2 dans les synergies
     const weight = getBSTTier(unit) >= 5 ? 2 : 1;
-    unit.types.forEach(type => {
-      typeCounts[type] = (typeCounts[type] ?? 0) + weight;
+    // Cristal Pur : les monotypes comptent +1 de plus
+    const isMono = new Set(unit.types ?? []).size === 1;
+    const cristalBonus = (relicId === 'cristal_pur' && isMono) ? 1 : 0;
+    (unit.types ?? []).forEach(type => {
+      typeCounts[type] = (typeCounts[type] ?? 0) + weight + cristalBonus;
     });
   });
 
@@ -154,9 +157,14 @@ export function getFullStats(unit, fieldUnits = [], meta = null) {
   const withSynergy   = { ...withItem };
   const synergyBoosted = new Set();
 
+  // Miroir : ×1.5 sur tous les bonus synergies
+  // Couronne : ×2 sur les bonus synergies du top BST
+  const miroirMult   = unit._relicId === 'miroir' ? 1.5 : 1;
+  const couronneMult = unit._doubleSynergyBonus   ? 2   : 1;
   Object.entries(synBonus).forEach(([stat, mult]) => {
     if (withSynergy[stat] != null) {
-      withSynergy[stat] = Math.round(withSynergy[stat] * mult);
+      const finalMult = 1 + (mult - 1) * miroirMult * couronneMult;
+      withSynergy[stat] = Math.round(withSynergy[stat] * finalMult);
       synergyBoosted.add(stat);
     }
   });
