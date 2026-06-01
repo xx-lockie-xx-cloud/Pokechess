@@ -1388,9 +1388,9 @@ export class CombatEngine {
     if (this.relicId && RelicEngine.checkDeathUltimate(this.relicId, unit) && !unit._revengeUsed) {
       unit._revengeUsed = true;
       const enemies = unit.side === 'player' ? this.enemyUnits : this.playerUnits;
-      const allies  = unit.side === 'player' ? this.playerUnits : this.enemyUnits;
       unit.hp = 1; // temporairement vivant pour l'ultime
-      this._castUltimate(unit, enemies, allies);
+      const move = getMove(unit.id);
+      if (move) this._executeMove(unit, move);
       unit.hp = 0; // revient à 0 après
     }
 
