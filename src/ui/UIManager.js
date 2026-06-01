@@ -7,7 +7,7 @@
 import { getRunState, addSeenPokemon,
          saveMapProgress, getMapProgress } from '../data/runState.js';
 import { DIFFICULTIES, ACHIEVEMENTS, getUnlockedDifficultiesWithMeta,
-         ACHIEVEMENTS }                        from '../data/levelSystem.js';
+         getDifficulty, getUnlockedDifficulties }   from '../data/levelSystem.js';
 import { POKEMON_PASSIVES }                               from '../data/passiveHooks.js';
 import { POKEMONS }                                       from '../data/pokemons.js';
 import { ITEMS }                                          from '../data/items.js';
