@@ -93,13 +93,18 @@ export const RelicEngine = {
     const e = relic.apply;
 
     if (e.kind === 'stat_modifier' || e.kind === 'start_coins_hp_penalty') {
-      const stats = e.stats ?? {};
-      Object.entries(stats).forEach(([s, mult]) => {
-        if (s === 'hp') {
-          unit.hp     = Math.max(1, Math.round(unit.hp * mult));
-          unit.maxHp  = unit.hp;
-        } else {
+      const statMults = e.stats ?? {};
+      Object.entries(statMults).forEach(([s, mult]) => {
+        // Modifie unit.stats (lu par CombatEngine._copyUnit en priorité)
+        if (unit.stats && unit.stats[s] !== undefined) {
+          unit.stats[s] = Math.max(1, Math.round(unit.stats[s] * mult));
+        }
+        // Modifie aussi les propriétés directes (fallback)
+        if (unit[s] !== undefined) {
           unit[s] = Math.max(1, Math.round((unit[s] ?? 0) * mult));
+        }
+        if (s === 'hp' && unit.maxHp !== undefined) {
+          unit.maxHp = unit.stats?.hp ?? unit.hp;
         }
       });
     }

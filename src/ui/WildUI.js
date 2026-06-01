@@ -230,7 +230,7 @@ export const WildUI = {
     const btnCapture = document.getElementById('btn-capture');
     if (btnCapture) {
       btnCapture.disabled  = true;   // activé après sélection
-      btnCapture.textContent = '🔴 Capturer';
+      btnCapture.textContent = 'Capturer';
     }
 
     // Bouton reroll
@@ -238,7 +238,7 @@ export const WildUI = {
     if (btnReroll) {
       const coins = state.coins ?? 0;
       btnReroll.disabled = coins < 1;
-      btnReroll.textContent = `🔄 Reroll — 1 💰 (${coins} restant${coins > 1 ? 's' : ''})`;
+      btnReroll.textContent = '🔄 Reroll — 1 💰';
     }
   },
 
@@ -296,7 +296,7 @@ export const WildUI = {
     const btnCapture = document.getElementById('btn-capture');
     if (btnCapture) {
       btnCapture.disabled  = !canAfford || bankFull;
-      btnCapture.textContent = `🔴 Capturer — ${price} 💰`;
+      btnCapture.textContent = `Capturer pour ${price} 💰`;
     }
 
     // Panneau stats + capacité
@@ -449,7 +449,7 @@ export const WildUI = {
     const btnCapture = document.getElementById('btn-capture');
     if (btnCapture) {
       btnCapture.disabled    = true;
-      btnCapture.textContent = '🔴 Capturer';
+      btnCapture.textContent = 'Capturer';
     }
 
     // Si banque pleine → proceed automatiquement après 1.2s
@@ -464,8 +464,7 @@ export const WildUI = {
   _reroll() {
     const state = getRunState(this._registry);
     if ((state.coins ?? 0) < 1) {
-      const info = document.getElementById('wild-info');
-      if (info) info.textContent = 'Pas assez de 💰 !';
+      this._showToast('💸 Fonds insuffisants !');
       return;
     }
 
@@ -505,5 +504,35 @@ export const WildUI = {
       ...this._data,
       playerUnits: freshPlayerUnits,  // ← toujours à jour
     });
+  },
+  _showToast(msg, type = 'info') {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    Object.assign(t.style, {
+      position: 'fixed', top: '20px', left: '50%',
+      transform: 'translateX(-50%)',
+      background: type === 'danger' ? '#e74c3c' : '#2d3436',
+      color: '#fff', padding: '10px 20px', borderRadius: '8px',
+      fontSize: '13px', fontWeight: '700', zIndex: '99999',
+      transition: 'opacity 0.3s', opacity: '1',
+    });
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 1800);
+  },
+
+  _showToast(msg) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    Object.assign(t.style, {
+      position: 'fixed', top: '20px', left: '50%',
+      transform: 'translateX(-50%)',
+      background: '#e74c3c', color: '#fff',
+      padding: '10px 20px', borderRadius: '8px',
+      fontSize: '14px', fontWeight: '700',
+      zIndex: '99999', opacity: '1',
+      transition: 'opacity 0.3s',
+    });
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 1800);
   },
 };

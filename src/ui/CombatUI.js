@@ -205,6 +205,21 @@ export const CombatUI = {
     slot.className = `combat-slot ${unit ? 'occupied' : 'empty'}`;
     if (!unit) return slot;
 
+    // Encyclopédie : badge stats sur les ennemis
+    if (side === 'enemy') {
+      const relicId = this._registry?.get?.('runState')?.relic?.id;
+      if (relicId === 'encyclopedie') {
+        const badge = document.createElement('div');
+        badge.className = 'encyclopedie-badge';
+        const hp  = unit.stats?.hp  ?? unit.hp  ?? '?';
+        const atk = unit.stats?.atk ?? unit.atk ?? '?';
+        const spa = unit.stats?.spa ?? unit.spa ?? '?';
+        const spd = unit.stats?.spd ?? unit.spd ?? '?';
+        badge.innerHTML = `<span>❤️${hp}</span><span>⚔️${atk}</span><span>🔮${spa}</span><span>👟${spd}</span>`;
+        slot.appendChild(badge);
+      }
+    }
+
     const uid    = unit.uid ?? `${unit.id}_${unit.col}_${unit.row}`;
     const mapKey = `${side}_${uid}`;
     this._slots[mapKey] = slot;
@@ -460,7 +475,8 @@ export const CombatUI = {
 
     // ── Joueur : item stats + synergy stats ──────────────────────────────
     const rawPlayerSynergies = getActiveSynergies(
-      this._playerUnits.map(u => anomalyTypes ? { ...u, types: anomalyTypes[u.id] ?? u.types } : u)
+      this._playerUnits.map(u => anomalyTypes ? { ...u, types: anomalyTypes[u.id] ?? u.types } : u),
+      relicId
     );
     const playerSynergies = relicId
       ? RelicEngine.modifySynergies(relicId, rawPlayerSynergies, this._playerUnits)
@@ -483,9 +499,20 @@ export const CombatUI = {
         : { ...u.stats };  // stats de base pures en facile/normal
       return { ...u, attributes: u.attributes ?? [], stats: scaledStats };
     });
-    const enemySynergies = getActiveSynergies(enemyForEngine);
+    const enemySynergies = getActiveSynergies(enemyForEngine, relicId);
 
     // Injecte les niveaux dans les unités joueur (meta déjà déclaré plus haut)
+    // Couronne : trouve le top BST de chaque camp pour le marquer
+    const bst = u => (u.stats?.hp??u.hp??0)+(u.stats?.atk??u.atk??0)+
+      (u.stats?.spa??u.spa??0)+(u.stats?.def??u.def??0)+
+      (u.stats?.spd_def??u.spd_def??0)+(u.stats?.spd??u.spd??0);
+    if (relicId === 'couronne') {
+      const topP = [...this._playerUnits].sort((a,b) => bst(b)-bst(a))[0];
+      const topE = [...this._enemyUnits].sort((a,b) => bst(b)-bst(a))[0];
+      if (topP) topP._doubleSynergyBonus = true;
+      if (topE) topE._doubleSynergyBonus = true;
+    }
+
     const withLevels = units => units.map(u => {
       let unit = { ...u, _level: meta.pokemonLevels?.[u.id] ?? 1 };
       // Anomalie : réassigne les types

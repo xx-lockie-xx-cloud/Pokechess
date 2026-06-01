@@ -27,8 +27,8 @@ import { TalentTreeUI }      from './TalentTreeUI.js';
 import { AchievementsUI }      from './AchievementsUI.js';
 import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
-import { RELICS }            from '../data/relics.js';
 import { RelicEngine }       from '../combat/RelicEngine.js';
+import { RELICS }            from '../data/relics.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
@@ -272,27 +272,51 @@ class UIManagerClass {
   // show()
   // ─────────────────────────────────────────────────────────────────────────
 
+  _getOrCreateRelicBanner() {
+    let b = document.getElementById('relic-banner');
+    if (!b) {
+      b = document.createElement('div');
+      b.id = 'relic-banner';
+      b.innerHTML =
+        '<span id="relic-banner-icon"></span>' +
+        '<span id="relic-banner-name"></span>' +
+        '<span id="relic-banner-desc"></span>';
+      Object.assign(b.style, {
+        display: 'none', position: 'fixed', bottom: '0',
+        left: '0', right: '0', zIndex: '99999',
+        background: '#12122a', borderTop: '2px solid #a29bfe',
+        padding: '6px 16px', alignItems: 'center', gap: '8px',
+        fontFamily: 'inherit',
+      });
+      document.body.appendChild(b);
+    }
+    return b;
+  }
+
   _updateRelicBanner() {
-    const banner = document.getElementById('relic-banner');
-    if (!banner) return;
     try {
       const rs      = this.registry.get('runState') ?? {};
       const relicId = rs?.relic?.id;
-      const RELICS  = window.__RELICS__;
-      const relic   = (relicId && RELICS) ? (RELICS[relicId] ?? null) : null;
+      const relic   = (relicId && window.__RELICS__) ? window.__RELICS__[relicId] : null;
+      const banner  = this._getOrCreateRelicBanner();
       if (relic) {
+        Object.assign(banner.style, { display: 'flex' });
         document.getElementById('relic-banner-icon').textContent = relic.icon ?? '';
+        Object.assign(document.getElementById('relic-banner-name').style,
+          { fontSize:'12px', fontWeight:'800', color:'#a29bfe',
+            flexShrink:'0', margin:'0 6px' });
         document.getElementById('relic-banner-name').textContent = relic.name ?? '';
+        Object.assign(document.getElementById('relic-banner-desc').style,
+          { fontSize:'10px', color:'#a0aec0', overflow:'hidden',
+            textOverflow:'ellipsis', whiteSpace:'nowrap' });
         document.getElementById('relic-banner-desc').textContent = relic.desc ?? '';
-        banner.style.display = 'flex';
       } else {
-        banner.style.display = 'none';
+        this._getOrCreateRelicBanner().style.display = 'none';
       }
-    } catch(e) { banner.style.display = 'none'; }
+    } catch(e) { /* silencieux */ }
   }
 
   show(screenName, data = {}) {
-    this._updateRelicBanner();
     this.currentScreen = screenName;
     this.currentData   = data;
 
@@ -558,7 +582,6 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   _updateHeader(screenName) {
     const header     = document.getElementById('game-header');
-    this._updateRelicBanner();
     const showHeader = !['menu', 'starter'].includes(screenName);
     header?.classList.toggle('hidden', !showHeader);
     // Applique le padding-top seulement aux écrans et overlays visibles
@@ -575,6 +598,26 @@ class UIManagerClass {
     const el2   = document.getElementById('ui-pokeballs');
     if (el1) el1.textContent = `💰 ${state.coins     ?? 0}`;
     if (el2) el2.textContent = `🔴 ${state.pokeballs ?? 0}`;
+    // Relique active sous le titre
+    const relicEl = document.getElementById('header-relic');
+    const header  = document.getElementById('game-header');
+    if (relicEl) {
+      const relicId = state?.relic?.id;
+      const relic   = relicId ? window.__RELICS__?.[relicId] : null;
+      if (relic) {
+        relicEl.textContent = `${relic.icon} ${relic.name}`;
+        relicEl.style.display = 'block';
+        // Agrandit le header pour accueillir la 2e ligne
+        if (header) header.style.height = '68px';
+        document.querySelectorAll('.screen.with-header, .game-overlay.with-header')
+          .forEach(el => el.style.paddingTop = '68px');
+      } else {
+        relicEl.style.display = 'none';
+        if (header) header.style.height = '';
+        document.querySelectorAll('.screen.with-header, .game-overlay.with-header')
+          .forEach(el => el.style.paddingTop = '');
+      }
+    }
   }
 }
 

@@ -20,6 +20,7 @@
     </div>
     <div class="header-center">
       <span class="game-title-header">PokeChess</span>
+      <div id="header-relic" class="header-relic" style="display:none"></div>
     </div>
     <div class="header-right">
       <span id="ui-coins">💰 0</span>
@@ -100,9 +101,9 @@
       <p class="subtitle">Choisissez un pokémon à capturer</p>
       <div id="wild-cards" class="card-row"></div>
       <div class="wild-actions">
-        <button id="btn-reroll" class="btn-secondary">🔄 Reroll — 1 💰</button>
-        <button id="btn-capture" class="btn-primary" disabled>🔴 Capturer</button>
-        <button id="btn-wild-skip" class="btn-ghost">Passer</button>
+        <button id="btn-reroll" class="btn-success">🔄 Reroll — 1 💰</button>
+        <button id="btn-capture" class="btn-primary" disabled>Capturer</button>
+        <button id="btn-wild-skip" class="btn-danger">Passer</button>
       </div>
       <p id="wild-info" class="info-text"></p>
     </div>
@@ -266,19 +267,11 @@
     </div>
   </div>
 
-  <!-- DevTools mobile — chargé EN PREMIER pour capturer toutes les erreurs -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>
-    eruda.init();
-    window.addEventListener('error', e =>
-      console.error('[ERROR]', e.message, e.filename + ':' + e.lineno));
-    window.addEventListener('unhandledrejection', e =>
-      console.error('[UNHANDLED]', e.reason));
-    console.log('[index.html] Eruda prêt, chargement du jeu...');
-  </script>
-
   <!-- ── Point d'entrée JS ──────────────────────────────────────────────── -->
   <script type="module" src="src/game.js"></script>
+  <!-- DevTools mobile — retirer avant la mise en prod -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script>eruda.init();</script>
   <!-- ── Bannière relique active ──────────────────────────────────────────── -->
   <div id="relic-banner" class="relic-banner hidden">
     <span id="relic-banner-icon" class="relic-banner-icon"></span>

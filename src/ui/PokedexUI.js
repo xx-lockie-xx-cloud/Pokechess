@@ -9,6 +9,7 @@ import { getSeenPokemon }     from '../data/runState.js';
 import { POKEMONS }           from '../data/pokemons.js';
 import { ACHIEVEMENTS, getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
 import { POKEMON_PASSIVES, getPokemonPassive }   from '../data/passiveHooks.js';
+import { RELICS, getUnlockedRelics } from '../data/relics.js';
 import { AchievementsUI }                         from './AchievementsUI.js';
 import { TutorialUI }                             from './TutorialUI.js';
 
@@ -96,11 +97,12 @@ export const PokedexUI = {
   _render() {
     const content = document.getElementById('pokedex-content');
     if (!content) return;
-    const tabs = ['synergies', 'types', 'moves', 'achievements', 'tutorial'];
+    const tabs = ['synergies', 'types', 'moves', 'reliques', 'achievements', 'tutorial'];
     const tabLabels = {
       synergies:    '🔗 Synergies',
       types:        '⚔️ Types',
       moves:        '⚡ Capacités',
+      reliques:     '💎 Reliques',
       achievements: '🏅 Succès',
       tutorial:     '📖 Guide',
     };
@@ -151,8 +153,65 @@ export const PokedexUI = {
     if (this._tab === 'synergies')    this._renderSynergies(body);
     if (this._tab === 'types')        this._renderTypes(body);
     if (this._tab === 'moves')        this._renderMoves(body);
+    if (this._tab === 'reliques')     this._renderReliques(body);
     if (this._tab === 'achievements') { AchievementsUI.open(); this._tab = 'synergies'; this._render(); return; }
     if (this._tab === 'tutorial') { TutorialUI.open('intro'); this._tab = 'synergies'; this._render(); }
+  },
+
+  // ── Onglet Reliques ────────────────────────────────────────────────────────
+  _renderReliques(body) {
+    const meta     = window.SaveManager?.loadMeta?.() ?? {};
+    const ach      = meta.achievements ?? {};
+    const all      = Object.values(RELICS);
+    const unlocked = all.filter(r => !r.unlockAchievement || !!ach[r.unlockAchievement]);
+    const locked   = all.filter(r =>  r.unlockAchievement && !ach[r.unlockAchievement]);
+
+    const CAT = {
+      economy:'🛍 Économie', combat:'⚔️ Combat', synergy:'🔗 Synergies',
+      info:'📖 Info', progression:'⭐ Progression', challenge:'🎲 Challenge',
+    };
+    const CAT_ORDER = ['economy','combat','synergy','info','progression','challenge'];
+
+    const byCategory = {};
+    all.forEach(r => {
+      if (!byCategory[r.category]) byCategory[r.category] = [];
+      byCategory[r.category].push(r);
+    });
+
+    body.innerHTML = `
+      <div class="rl-progress">
+        <div class="rl-progress-label">${unlocked.length} / ${all.length} reliques débloquées</div>
+        <div class="rl-progress-bar">
+          <div class="rl-progress-fill" style="width:${Math.round(unlocked.length/all.length*100)}%"></div>
+        </div>
+      </div>
+      ${CAT_ORDER.filter(c => byCategory[c]?.length).map(cat => `
+        <div class="rl-category">
+          <div class="rl-cat-title">${CAT[cat] ?? cat}</div>
+          <div class="rl-grid">
+            ${byCategory[cat].map(r => {
+              const isUnlocked = !r.unlockAchievement || !!ach[r.unlockAchievement];
+              return isUnlocked ? `
+                <div class="rl-card unlocked">
+                  <div class="rl-card-icon">${r.icon}</div>
+                  <div class="rl-card-body">
+                    <div class="rl-card-name">${r.name}</div>
+                    <div class="rl-card-desc">${r.desc}</div>
+                    ${r.apply?.symmetric ? '<div class="rl-card-sym">⚖️ Symétrique</div>' : ''}
+                  </div>
+                </div>` : `
+                <div class="rl-card locked">
+                  <div class="rl-card-icon">🔒</div>
+                  <div class="rl-card-body">
+                    <div class="rl-card-name">???</div>
+                    <div class="rl-card-unlock">Succès requis</div>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+      `).join('')}
+    `;
   },
 
   // ── Onglet Synergies ──────────────────────────────────────────────────────

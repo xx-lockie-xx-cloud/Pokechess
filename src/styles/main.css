@@ -120,8 +120,10 @@ img {
 
 .header-center {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
 }
 
 .header-right {
@@ -3250,7 +3252,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; position: relative; overflow: hidden;
 }
-.tut-slot.occupied { }
 .tut-slot.empty {
   border-style: dashed; color: #718096; font-size: 18px;
 }
@@ -4131,27 +4132,19 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   BANNIÈRE RELIQUE ACTIVE
-   ═══════════════════════════════════════════════════════════════════════════ */
-#relic-banner {
-  display: none;
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  background: #12122a;
-  border-top: 2px solid #a29bfe;
-  padding: 6px 16px;
-  z-index: 9000;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
+/* ── Relique active dans le header ────────────────────────────────────────── */
+.header-relic {
+  font-size: 10px;
+  color: #a29bfe;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
 }
-.relic-banner-icon { font-size: 18px; flex-shrink: 0; }
-.relic-banner-name {
-  font-size: 11px; font-weight: 800;
-  color: #a29bfe; flex-shrink: 0;
+
+/* Header agrandi si relique présente */
+#game-header:has(#header-relic[style*="block"]) {
+  height: 68px;
 }
-.relic-banner-desc {
-  font-size: 10px; color: #718096;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+#game-header:has(#header-relic[style*="block"]) ~ * .screen.with-header,
+.screen.with-header-tall { padding-top: 68px; }

@@ -219,25 +219,26 @@ export const SaveManager = {
       if (!ach[id]) { ach[id] = { unlockedAt: Date.now() }; newly.push(id); }
     };
 
-    // Progression
-    const badges = runState?.badgesEarned ?? [];
-    if (badges.length >= 1) unlock('premier_badge');
-    if (badges.length >= 8) unlock('champion_kanto');
-
-    // Ligue par type (mapIndex >= 8 = combat de ligue, ou 8 badges gagnés)
+    // Ligue = victoire du boss sur la map 8 (dernière map)
     const isLeague = (combatResult?.mapIndex ?? -1) >= 8
-                  || badges.length >= 8;
+                  && combatResult?.nodeType === 'boss'
+                  && combatResult?.winner  === 'player';
     const runDiff  = runState?.difficulty ?? 'easy';
     const hasRelic = !!(runState?.relic?.id);
 
+    // Progression
+    const badges = runState?.badgesEarned ?? [];
+    if (badges.length >= 1) unlock('premier_badge');
+    if (isLeague)            unlock('champion_kanto');
+
     // Déblocage des difficultés
-    if (isLeague && combatResult?.winner === 'player') {
+    if (isLeague) {
       if (runDiff === 'easy')   unlock('ligue_easy');
       if (runDiff === 'normal') unlock('ligue_normal');
       if (runDiff === 'hard' && hasRelic) unlock('ligue_hard_relic');
     }
 
-    if (isLeague && combatResult?.winner === 'player' && combatResult?.playerUnits) {
+    if (isLeague && combatResult?.playerUnits) {
       const units = combatResult.playerUnits;
       const LEAGUE_TYPES = ['Feu','Eau','Plante','Électrik','Psy','Glace','Combat','Poison',
         'Sol','Vol','Insecte','Roche','Spectre','Dragon','Ténèbres','Acier','Fée','Normal'];
@@ -291,12 +292,16 @@ export const SaveManager = {
       if ((combatResult.maxPoisonStacks ?? 0) >= 5) unlock('empoisonneur');
       if (combatResult.explosionWin) unlock('sacrifice');
       if ((runState?.coins ?? 0) >= 20) unlock('riche');
-      const t5count = (combatResult.playerUnits ?? []).filter(u => u.tier >= 5).length;
+      // T5 = BST total > 550 ou tier explicite >= 5
+      const calcBST = u => (u.hp??0)+(u.atk??0)+(u.spa??0)+(u.def??0)+(u.spd_def??0)+(u.spd??0);
+      const t5count = (combatResult.playerUnits ?? []).filter(u =>
+        (u.tier >= 5) || (calcBST(u) > 550)
+      ).length;
       if (t5count >= 2) unlock('legendaire_team');
     }
 
-    // Bénit : finir une run avec une relique active
-    if (runState?.relic?.id) unlock('relique_terminee');
+    // Bénit : finir la ligue avec une relique active
+    if (isLeague && hasRelic) unlock('relique_terminee');
 
     if (newly.length > 0) {
       meta.achievements = ach;
