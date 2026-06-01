@@ -512,9 +512,11 @@ export class CombatEngine {
       const move = getMove(unit.id);
       if (move) {
         unit.mana = 0;
+        // isUltimate: true → CombatEngine utilisera attacker.types[0] comme type
+        const ultimateMove = { ...move, isUltimate: true };
         this.log.push({ type:'ultimate_start', attackerId:unit.uid,
-          attackerSide:unit.side, moveName:move.name, moveType:move.type });
-        this._executeMove(unit, move);
+          attackerSide:unit.side, moveName:move.name, moveType:unit.types[0] });
+        this._executeMove(unit, ultimateMove);
         return;
       }
     }
