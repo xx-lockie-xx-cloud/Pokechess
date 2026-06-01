@@ -5,7 +5,8 @@
 import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
-import { addCoins, getEnemyMultiplier }     from '../data/runState.js';
+import { addCoins, getEnemyMultiplier, getRunState } from '../data/runState.js';
+import { RelicEngine }                                 from '../combat/RelicEngine.js';
 import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
 import { getActiveSynergies, getFullStats } from '../data/synergies.js';
@@ -203,6 +204,21 @@ export const CombatUI = {
     const slot = document.createElement('div');
     slot.className = `combat-slot ${unit ? 'occupied' : 'empty'}`;
     if (!unit) return slot;
+
+    // Encyclopédie : badge stats sur les ennemis
+    if (side === 'enemy') {
+      const relicId = this._registry?.get?.('runState')?.relic?.id;
+      if (relicId === 'encyclopedie') {
+        const badge = document.createElement('div');
+        badge.className = 'encyclopedie-badge';
+        const hp  = unit.stats?.hp  ?? unit.hp  ?? '?';
+        const atk = unit.stats?.atk ?? unit.atk ?? '?';
+        const spa = unit.stats?.spa ?? unit.spa ?? '?';
+        const spd = unit.stats?.spd ?? unit.spd ?? '?';
+        badge.innerHTML = `<span>❤️${hp}</span><span>⚔️${atk}</span><span>🔮${spa}</span><span>👟${spd}</span>`;
+        slot.appendChild(badge);
+      }
+    }
 
     const uid    = unit.uid ?? `${unit.id}_${unit.col}_${unit.row}`;
     const mapKey = `${side}_${uid}`;
@@ -443,15 +459,28 @@ export const CombatUI = {
   // ─────────────────────────────────────────────────────────────────────────
   _startCombat() {
     const mapIndex    = this._data.mapIndex ?? 0;
-    const baseMult    = getEnemyMultiplier(mapIndex);
+    const loopCount   = getRunState ? (this._registry ? getRunState(this._registry)?.loopCount ?? 0 : 0) : 0;
+    const baseMult    = getEnemyMultiplier(mapIndex, loopCount);
     // Multiplicateur de difficulté (persistant via meta save)
     const diffId      = SaveManager.getDifficulty() ?? 'normal';
     const diffMults   = { easy: 0.8, normal: 1.0, hard: 1.3, expert: 1.7 };
     const diffMult    = diffMults[diffId] ?? 1.0;
     const mult        = baseMult * diffMult;
 
+    // ── Relique active ───────────────────────────────────────────────────
+    const rs           = this._registry ? getRunState(this._registry) : {};
+    const relic        = rs?.relic ?? null;
+    const relicId      = relic?.id ?? null;
+    const anomalyTypes = rs?.anomalyTypes ?? null;
+
     // ── Joueur : item stats + synergy stats ──────────────────────────────
-    const playerSynergies = getActiveSynergies(this._playerUnits);
+    const rawPlayerSynergies = getActiveSynergies(
+      this._playerUnits.map(u => anomalyTypes ? { ...u, types: anomalyTypes[u.id] ?? u.types } : u),
+      relicId
+    );
+    const playerSynergies = relicId
+      ? RelicEngine.modifySynergies(relicId, rawPlayerSynergies, this._playerUnits)
+      : rawPlayerSynergies;
     const meta = SaveManager.loadMeta() ?? {};
     const playerForEngine = this._playerUnits.map(u => {
       const full = getFullStats(u, this._playerUnits, meta);
@@ -470,12 +499,30 @@ export const CombatUI = {
         : { ...u.stats };  // stats de base pures en facile/normal
       return { ...u, attributes: u.attributes ?? [], stats: scaledStats };
     });
-    const enemySynergies = getActiveSynergies(enemyForEngine);
+    const enemySynergies = getActiveSynergies(enemyForEngine, relicId);
 
     // Injecte les niveaux dans les unités joueur (meta déjà déclaré plus haut)
-    const withLevels = units => units.map(u => ({
-      ...u, _level: meta.pokemonLevels?.[u.id] ?? 1,
-    }));
+    // Couronne : trouve le top BST de chaque camp pour le marquer
+    const bst = u => (u.stats?.hp??u.hp??0)+(u.stats?.atk??u.atk??0)+
+      (u.stats?.spa??u.spa??0)+(u.stats?.def??u.def??0)+
+      (u.stats?.spd_def??u.spd_def??0)+(u.stats?.spd??u.spd??0);
+    if (relicId === 'couronne') {
+      const topP = [...this._playerUnits].sort((a,b) => bst(b)-bst(a))[0];
+      const topE = [...this._enemyUnits].sort((a,b) => bst(b)-bst(a))[0];
+      if (topP) topP._doubleSynergyBonus = true;
+      if (topE) topE._doubleSynergyBonus = true;
+    }
+
+    const withLevels = units => units.map(u => {
+      let unit = { ...u, _level: meta.pokemonLevels?.[u.id] ?? 1 };
+      // Anomalie : réassigne les types
+      if (anomalyTypes) RelicEngine.applyAnomalyTypes(unit, anomalyTypes);
+      // Modificateurs de stats de la relique (Pacte de Sang, Bénédiction, Contrat Maudit)
+      if (relicId) RelicEngine.applyStatModifier(relicId, unit);
+      // Alternance de type d'attaque (bitype)
+      unit._attackTypeTurn = 0;
+      return unit;
+    });
     const activeTalentEffects = this._getActiveTalentEffects(meta, playerForEngine);
 
     const engine = new CombatEngine(
@@ -484,6 +531,7 @@ export const CombatUI = {
     );
     engine._playerTalents = activeTalentEffects;
     engine._enemyTalents  = [];
+    engine.relicId        = relicId;
     const { log, winner } = engine.resolve();
     // Stocke les unités finales du moteur pour l'overlay info
     this._livePlayerUnits = engine.playerUnits;
@@ -966,6 +1014,36 @@ export const CombatUI = {
     btn.addEventListener('click', () => {
       overlay.remove();
       if (this._onDone) {
+        // Collecte les données pour checkAchievements
+        const playerUnits    = this._livePlayerUnits ?? this._playerUnits ?? [];
+        const playerLosses   = playerUnits.filter(u => u.hp <= 0).length;
+        const ultimateUsed   = (log ?? []).some(e => e.type === 'ultimate');
+        const activeSynergies = Object.keys(this._playerFx ?? {}).length;
+        const maxPoisonStacks = Math.max(0, ...(this._liveEnemyUnits ?? [])
+          .flatMap(u => u.statusEffects ?? [])
+          .filter(s => s.type === 'poison')
+          .map(s => s.stacks ?? 1));
+        const explosionWin   = (log ?? []).some(e => e.effect === 'death_passive'
+          && (e.label ?? '').includes('Explosion'));
+
+        const combatResult = {
+          winner, playerUnits, playerLosses, ultimateUsed,
+          activeSynergies, maxPoisonStacks, explosionWin,
+          mapIndex: this._data?.mapIndex ?? 0,
+        };
+
+        // Vérifie les achievements
+        const runState = this._registry
+          ? (this._registry.get?.('runState') ?? {})
+          : {};
+        const newAch = SaveManager.checkAchievements(runState, combatResult);
+        if (newAch.length > 0) {
+          // Notifie les nouveaux achievements
+          newAch.forEach((id, i) => {
+            setTimeout(() => this._showAchievementToast(id), i * 600);
+          });
+        }
+
         this._onDone({
           winner,
           nodeType:  this._data.nodeType  ?? 'combat',
@@ -979,6 +1057,28 @@ export const CombatUI = {
     box.appendChild(btn);
     overlay.appendChild(box);
     screen.appendChild(overlay);
+  },
+
+  _showAchievementToast(id) {
+    // Import dynamique pour éviter la dépendance circulaire
+    const ACHIEVEMENTS = window.__ACHIEVEMENTS__;
+    const ach = ACHIEVEMENTS?.[id];
+    if (!ach) return;
+    const toast = document.createElement('div');
+    toast.className = 'achievement-toast';
+    toast.innerHTML = `
+      <span class="ach-toast-icon">🏅</span>
+      <div>
+        <div class="ach-toast-title">Achievement débloqué !</div>
+        <div class="ach-toast-label">${ach.label}</div>
+        <div class="ach-toast-desc">${ach.desc}</div>
+      </div>`;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('visible'));
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      setTimeout(() => toast.remove(), 400);
+    }, 3500);
   },
 
   _showLevelUps(levelUps) {

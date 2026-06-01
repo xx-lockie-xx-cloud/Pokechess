@@ -20,6 +20,7 @@
     </div>
     <div class="header-center">
       <span class="game-title-header">PokeChess</span>
+      <div id="header-relic" class="header-relic" style="display:none"></div>
     </div>
     <div class="header-right">
       <span id="ui-coins">💰 0</span>
@@ -56,7 +57,12 @@
         </div>
       </div>
 
-      <div id="menu-achievements" class="menu-achievements"></div>
+      <button id="btn-relics-library" class="btn-secondary btn-achievements-menu">
+        💎 Reliques
+      </button>
+      <button id="btn-achievements" class="btn-secondary btn-achievements-menu">
+        🏅 Succès
+      </button>
       <button id="btn-talent-tree" class="btn-secondary btn-talent-tree-menu">
         🌟 Arbres de Talents
       </button>
@@ -84,7 +90,9 @@
   </div>
 
   <!-- ── Map — HTML/CSS ────────────────────────────────────────────────── -->
-  <div id="screen-map" class="screen"></div>
+  <div id="screen-map" class="screen">
+    <div id="map-relic-badge"></div>
+  </div>
 
   <!-- ── Rencontre sauvage — overlay ──────────────────────────────────────── -->
   <div id="overlay-wild" class="game-overlay">
@@ -93,9 +101,9 @@
       <p class="subtitle">Choisissez un pokémon à capturer</p>
       <div id="wild-cards" class="card-row"></div>
       <div class="wild-actions">
-        <button id="btn-reroll" class="btn-secondary">🔄 Reroll — 1 💰</button>
-        <button id="btn-capture" class="btn-primary" disabled>🔴 Capturer</button>
-        <button id="btn-wild-skip" class="btn-ghost">Passer</button>
+        <button id="btn-reroll" class="btn-success">🔄 Reroll — 1 💰</button>
+        <button id="btn-capture" class="btn-primary" disabled>Capturer</button>
+        <button id="btn-wild-skip" class="btn-danger">Passer</button>
       </div>
       <p id="wild-info" class="info-text"></p>
     </div>
@@ -161,6 +169,39 @@
         <button id="btn-talent-tree-close" class="btn-close">✕</button>
       </div>
       <div id="talent-tree-content" class="talent-tree-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Overlay Relique ───────────────────────────────────────────────────── -->
+  <div id="overlay-relic" class="relic-overlay">
+    <div class="relic-panel">
+      <div class="relic-panel-header">
+        <div class="relic-panel-title">💎 Choisir une Relique</div>
+        <div class="relic-panel-sub">Modifie les règles de toute la run</div>
+      </div>
+      <div id="relic-content" class="relic-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Overlay Bibliothèque Reliques ──────────────────────────────────── -->
+  <div id="overlay-relics-library" class="achievements-overlay">
+    <div class="achievements-panel">
+      <div class="achievements-header">
+        <span class="achievements-title">💎 Reliques</span>
+        <button id="btn-relics-library-close" class="btn-close">✕</button>
+      </div>
+      <div id="relics-library-body" class="achievements-body"></div>
+    </div>
+  </div>
+
+  <!-- ── Overlay Achievements ──────────────────────────────────────────────── -->
+  <div id="overlay-achievements" class="achievements-overlay">
+    <div class="achievements-panel">
+      <div class="achievements-header">
+        <span class="achievements-title">🏅 Succès</span>
+        <button id="btn-achievements-close" class="btn-close">✕</button>
+      </div>
+      <div id="achievements-body" class="achievements-body"></div>
     </div>
   </div>
 
@@ -231,5 +272,12 @@
   <!-- DevTools mobile — retirer avant la mise en prod -->
   <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
   <script>eruda.init();</script>
+  <!-- ── Bannière relique active ──────────────────────────────────────────── -->
+  <div id="relic-banner" class="relic-banner hidden">
+    <span id="relic-banner-icon" class="relic-banner-icon"></span>
+    <span id="relic-banner-name" class="relic-banner-name"></span>
+    <span id="relic-banner-desc" class="relic-banner-desc"></span>
+  </div>
+
 </body>
 </html>

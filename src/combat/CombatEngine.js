@@ -6,6 +6,7 @@ import { getTypeMultiplier }           from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES, getMove } from '../data/moves.js';
 import { TALENT_TREES }                   from '../data/levelSystem.js';
 import { PassiveEngine }                 from './PassiveEngine.js';
+import { RelicEngine }                   from './RelicEngine.js';
 
 // ── Multiplicateur AoE selon le nombre de cibles ─────────────────────────────
 function aoeMult(targetCount) {
@@ -21,6 +22,7 @@ const MANA_ON_RECV   = 0;    // mana reçu = % HP perdus (calculé dynamiquement
 
 export class CombatEngine {
   constructor(playerUnits, enemyUnits, playerSynergies = [], enemySynergies = []) {
+    this.relicId     = null;  // défini depuis CombatUI avant resolve()
     this.playerUnits = playerUnits.map(u => this._copyUnit(u, 'player'));
     this.enemyUnits  = enemyUnits.map(u  => this._copyUnit(u, 'enemy'));
     this.log         = [];
@@ -166,6 +168,18 @@ export class CombatEngine {
         u.atbBar = Math.min(100 + this._getATBSpeed(u), u.atbBar + this._getATBSpeed(u) / TICK_DIV);
       });
 
+      // Sablier : vérifie la limite d'actions
+      if (this.relicId) {
+        const limitResult = RelicEngine.checkActionLimit(
+          this.relicId, actionCount, this.playerUnits, this.enemyUnits);
+        if (limitResult) {
+          winner = limitResult === 'draw' ? 'enemy' : limitResult;
+          this.log.push({ type:'pre_combat', effect:'sablier',
+            label:`⏱ Sablier — Temps écoulé ! ${limitResult === 'player' ? 'Joueur gagne' : 'Ennemi gagne'}` });
+          break;
+        }
+      }
+
       // Unités prêtes (barre ≥ 100) triées par valeur décroissante
       // (celle avec le plus grand overflow joue en premier)
       const ready = this._allAlive()
@@ -191,6 +205,7 @@ export class CombatEngine {
         }
 
         // Agit
+        this._totalActions = (this._totalActions ?? 0) + 1;
         this._takeTurn(unit);
 
         // Reset barre (conserve l'overflow au-delà de 100)
@@ -224,6 +239,11 @@ export class CombatEngine {
 
     // Charge les passifs dans chaque unité
     [...this.playerUnits, ...this.enemyUnits].forEach(u => this._loadPassives(u));
+
+    // Effets de relique pré-combat
+    if (this.relicId) {
+      RelicEngine.applyPreCombat(this.relicId, this.playerUnits, this.enemyUnits);
+    }
 
     // ON_SETUP : effets de début de combat
     this.playerUnits.forEach(u => this._runHook('ON_SETUP', u,
@@ -1074,7 +1094,12 @@ export class CombatEngine {
       ? this._getStat(target, 'def') : this._getStat(target, 'spd_def');
     const safeDef = Math.max(1, defStat);
     let damage = (((22 * atkStat * basePower / safeDef) / 50) + 2) / 3;
-    const typeMult = getTypeMultiplier(attacker.types[0], target.types);
+    // Alternance de type : bitype attaque en type1 puis type2 en alternance
+    const atkTypeIdx = attacker._attackTypeTurn ?? 0;
+    const atkType    = attacker.types[atkTypeIdx % attacker.types.length] ?? attacker.types[0];
+    attacker._attackTypeTurn = atkTypeIdx + 1;
+
+    const typeMult = getTypeMultiplier(atkType, target.types);
     const random   = (85 + Math.random() * 15) / 100;
     damage = damage * 1.1 * typeMult * random * damageMultiplier;
     return Math.max(1, Math.round(damage));
@@ -1111,7 +1136,10 @@ export class CombatEngine {
 
     let damage = (((22 * atkStat * basePower / safeDef) / 50) + 2) / 3;
 
-    const typeMult = move.ignoreType ? 1 : getTypeMultiplier(move.type ?? attacker.types[0], target.types);
+    // Ultime : utilise le type 1 du pokémon (override move.type)
+    const ultimateType = attacker.types[0];
+    const typeMult = move.ignoreType ? 1
+      : getTypeMultiplier(move.isUltimate ? ultimateType : (move.type ?? attacker.types[0]), target.types);
     const isCrit   = (move.effects ?? []).some(e => e.kind === 'guaranteed_crit');
     const random   = (85 + Math.random() * 15) / 100;
 
@@ -1355,6 +1383,16 @@ export class CombatEngine {
     const fAllies  = unit.side === 'player' ? this.playerUnits : this.enemyUnits;
     this._runHook('ON_DEATH', unit, { enemies:fEnemies, allies:fAllies });
     if (unit.hp > 0) return; // revivifié
+
+    // Revanche : déclenche l'ultime si mana ≥ seuil
+    if (this.relicId && RelicEngine.checkDeathUltimate(this.relicId, unit) && !unit._revengeUsed) {
+      unit._revengeUsed = true;
+      const enemies = unit.side === 'player' ? this.enemyUnits : this.playerUnits;
+      const allies  = unit.side === 'player' ? this.playerUnits : this.enemyUnits;
+      unit.hp = 1; // temporairement vivant pour l'ultime
+      this._castUltimate(unit, enemies, allies);
+      unit.hp = 0; // revient à 0 après
+    }
 
     // Revive via _reviveRate (posé par revive_mark dans ON_SETUP)
     if (unit._reviveRate > 0 && !unit._revived) {

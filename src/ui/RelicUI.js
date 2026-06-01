@@ -54,6 +54,39 @@ export const RelicUI = {
     this._onDone?.(null);
   },
 
+  _showConfirm(relic, onConfirm, onCancel) {
+    // Retire un ancien confirm si présent
+    document.getElementById('relic-confirm-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'relic-confirm-overlay';
+    overlay.className = 'relic-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="relic-confirm-panel">
+        <div class="relic-confirm-icon">${relic.icon}</div>
+        <div class="relic-confirm-name">${relic.name}</div>
+        <div class="relic-confirm-desc">${relic.desc}</div>
+        ${relic.apply?.symmetric
+          ? '<div class="relic-confirm-sym">⚖️ S\'applique aux deux camps</div>' : ''}
+        <div class="relic-confirm-question">Choisir cette relique ?</div>
+        <div class="relic-confirm-btns">
+          <button class="btn-primary relic-btn-confirm">✓ Confirmer</button>
+          <button class="btn-secondary relic-btn-cancel">✕ Annuler</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('.relic-btn-confirm').addEventListener('click', () => {
+      overlay.remove();
+      onConfirm();
+    });
+    overlay.querySelector('.relic-btn-cancel').addEventListener('click', () => {
+      overlay.remove();
+      onCancel();
+    });
+  },
+
   _render() {
     console.log('[RelicUI] _render() appelé');
     const container = document.getElementById('relic-content');
@@ -96,14 +129,20 @@ export const RelicUI = {
     // Listeners cartes
     container.querySelectorAll('.relic-card').forEach(card => {
       card.addEventListener('click', () => {
-        const id = card.dataset.relicId;
-        // Animation de sélection
+        const id    = card.dataset.relicId;
+        const relic = RELICS[id];
+
+        // Sélection visuelle
         container.querySelectorAll('.relic-card').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
-        setTimeout(() => {
+
+        // Overlay de confirmation
+        this._showConfirm(relic, () => {
           this.close();
           this._onDone?.(id);
-        }, 400);
+        }, () => {
+          card.classList.remove('selected');
+        });
       });
     });
 

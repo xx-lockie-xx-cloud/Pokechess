@@ -120,8 +120,10 @@ img {
 
 .header-center {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
 }
 
 .header-right {
@@ -3250,7 +3252,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; position: relative; overflow: hidden;
 }
-.tut-slot.occupied { }
 .tut-slot.empty {
   border-style: dashed; color: #718096; font-size: 18px;
 }
@@ -3864,3 +3865,286 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 @media (max-width: 480px) {
   .ach-grid { grid-template-columns: 1fr; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RELIQUE ACTIVE — badge dans MapUI
+   ═══════════════════════════════════════════════════════════════════════════ */
+.active-relic-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: color-mix(in srgb, var(--rc, #ffd700) 15%, #12122a);
+  border: 1px solid color-mix(in srgb, var(--rc, #ffd700) 50%, transparent);
+  border-radius: 8px;
+  padding: 5px 10px;
+  margin: 8px auto;
+  max-width: fit-content;
+  cursor: default;
+}
+.arb-icon { font-size: 16px; }
+.arb-name { font-size: 11px; font-weight: 700;
+  color: color-mix(in srgb, var(--rc, #ffd700) 80%, white); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RELIC SELECTION UI
+   ═══════════════════════════════════════════════════════════════════════════ */
+.relic-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.82);
+  z-index: 600;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.relic-overlay.active { display: flex; }
+
+.relic-panel {
+  background: #0a0a1a;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  width: min(560px, 96vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+}
+
+.relic-panel-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: #12122a;
+}
+.relic-panel-title {
+  font-size: 16px; font-weight: 900;
+  color: #ffd700; letter-spacing: 1px;
+}
+.relic-panel-sub {
+  font-size: 11px; color: #718096; margin-top: 2px;
+}
+
+.relic-content {
+  flex: 1; overflow-y: auto; padding: 16px;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #334466 transparent;
+}
+
+.relic-intro { font-size: 12px; color: #a0aec0; margin-bottom: 14px; }
+.relic-intro strong { color: #fc5c65; }
+
+.relic-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.relic-card {
+  background: #12122a;
+  border: 2px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.relic-card:hover {
+  border-color: var(--rc, #ffd700);
+  background: color-mix(in srgb, var(--rc, #ffd700) 8%, #12122a);
+  transform: translateY(-1px);
+}
+.relic-card.selected {
+  border-color: var(--rc, #ffd700);
+  background: color-mix(in srgb, var(--rc, #ffd700) 15%, #12122a);
+  transform: scale(1.01);
+}
+.relic-card-icon { font-size: 32px; flex-shrink: 0; }
+.relic-card-body { flex: 1; }
+.relic-card-name {
+  font-size: 14px; font-weight: 800; color: #e2e8f0; margin-bottom: 3px;
+}
+.relic-card-desc { font-size: 11px; color: #a0aec0; line-height: 1.4; }
+.relic-card-sym { font-size: 10px; color: #fc5c65; margin-top: 4px; }
+
+.relic-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  text-align: center;
+}
+.relic-skip-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  color: #718096;
+  font-size: 12px;
+  padding: 7px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.relic-skip-btn:hover { border-color: #718096; color: #e2e8f0; }
+
+.relic-empty { text-align: center; padding: 20px; color: #718096; }
+.relic-empty-hint { font-size: 11px; margin-bottom: 12px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BIBLIOTHÈQUE DES RELIQUES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.rl-progress {
+  margin-bottom: 14px;
+}
+.rl-progress-label {
+  font-size: 12px; color: #718096; margin-bottom: 4px;
+}
+.rl-progress-bar {
+  height: 6px; background: rgba(255,255,255,0.08);
+  border-radius: 3px; overflow: hidden;
+}
+.rl-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #a29bfe, #6c5ce7);
+  border-radius: 3px; transition: width 0.3s;
+}
+
+.rl-category { margin-bottom: 16px; }
+.rl-cat-title {
+  font-size: 11px; font-weight: 700; color: #718096;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-bottom: 8px; padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.rl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.rl-card {
+  background: #12122a;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  transition: border-color 0.15s;
+}
+.rl-card.unlocked {
+  border-color: rgba(162,155,254,0.3);
+  background: rgba(162,155,254,0.05);
+}
+.rl-card.locked {
+  opacity: 0.55;
+}
+.rl-card-icon { font-size: 22px; flex-shrink: 0; }
+.rl-card-body { flex: 1; min-width: 0; }
+.rl-card-name {
+  font-size: 11px; font-weight: 800; color: #e2e8f0;
+  margin-bottom: 2px;
+}
+.rl-card.locked .rl-card-name { color: #718096; }
+.rl-card-desc {
+  font-size: 9px; color: #a0aec0; line-height: 1.4;
+}
+.rl-card-sym {
+  font-size: 9px; color: #fc5c65; margin-top: 3px;
+}
+.rl-card-ach {
+  font-size: 9px; color: #ffd700; margin-top: 3px;
+}
+.rl-card-unlock {
+  font-size: 9px; color: #718096; font-style: italic; margin-top: 2px;
+}
+.rl-card-unlock em { color: #a0aec0; }
+
+@media (max-width: 380px) {
+  .rl-grid { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIRMATION RELIQUE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.relic-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.relic-confirm-panel {
+  background: #0a0a1a;
+  border: 2px solid #a29bfe;
+  border-radius: 16px;
+  padding: 24px 20px;
+  max-width: min(360px, 92vw);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 32px rgba(162,155,254,0.3);
+}
+.relic-confirm-icon   { font-size: 48px; }
+.relic-confirm-name   { font-size: 18px; font-weight: 900; color: #e2e8f0; }
+.relic-confirm-desc   { font-size: 12px; color: #a0aec0; line-height: 1.5; }
+.relic-confirm-sym    { font-size: 11px; color: #fc5c65; }
+.relic-confirm-question {
+  font-size: 13px; font-weight: 700; color: #ffd700;
+  margin-top: 4px;
+}
+.relic-confirm-btns   { display: flex; gap: 10px; margin-top: 4px; }
+.relic-btn-confirm, .relic-btn-cancel {
+  padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BANNIÈRE RELIQUE ACTIVE (bas de l'écran)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.relic-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0; right: 0;
+  background: linear-gradient(90deg, rgba(10,10,26,0.95), rgba(20,20,40,0.95));
+  border-top: 1px solid rgba(162,155,254,0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  z-index: 200;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s;
+}
+.relic-banner.hidden { display: none; }
+.relic-banner-icon   { font-size: 18px; flex-shrink: 0; }
+.relic-banner-name   {
+  font-size: 11px; font-weight: 800; color: #a29bfe;
+  white-space: nowrap; flex-shrink: 0;
+}
+.relic-banner-desc   {
+  font-size: 10px; color: #718096;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Relique active dans le header ────────────────────────────────────────── */
+.header-relic {
+  font-size: 10px;
+  color: #a29bfe;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+}
+
+/* Header agrandi si relique présente */
+#game-header:has(#header-relic[style*="block"]) {
+  height: 68px;
+}
+#game-header:has(#header-relic[style*="block"]) ~ * .screen.with-header,
+.screen.with-header-tall { padding-top: 68px; }

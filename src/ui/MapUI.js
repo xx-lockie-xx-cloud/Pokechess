@@ -2,9 +2,10 @@
 // MapUI.js — Map de progression HTML/CSS/SVG (sans Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { RelicUI } from './RelicUI.js';
 import { MapGenerator, NODE_TYPES } from '../map/MapGenerator.js';
 import { getRunState }              from '../data/runState.js';
-import { TRAINER_ARCHETYPES }       from '../data/trainers.js';
+import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES }       from '../data/trainers.js';
 import { getArenaForMap, ARENAS }   from '../data/arenas.js';
 
 // ── Constantes de base (à zoom=1) ────────────────────────────────────────────
@@ -190,6 +191,14 @@ export const MapUI = {
   // _renderWorld() — (re)construit le monde dans le viewport
   // ─────────────────────────────────────────────────────────────────────────
   _renderWorld() {
+    // Badge relique active
+    const rsMap     = this._registry?.get?.('runState') ?? {};
+    const relicBadge = document.getElementById('map-relic-badge');
+    if (relicBadge && typeof RelicUI !== 'undefined') {
+      relicBadge.innerHTML = rsMap?.relic?.id
+        ? RelicUI.buildActiveRelicBadge(rsMap.relic.id)
+        : '';
+    }
     if (!this._viewport) return;
     this._viewport.innerHTML = '';
 
@@ -474,7 +483,7 @@ export const MapUI = {
       return a?.championSprite ?? null;
     }
     if (node.type === NODE_TYPES.COMBAT && node.trainer?.archetypeId) {
-      const a = TRAINER_ARCHETYPES.find(x => x.id === node.trainer.archetypeId);
+      const a = ALL_TRAINER_ARCHETYPES.find(x => x.id === node.trainer.archetypeId);
       return a?.spriteMap ?? null;
     }
     return null;
