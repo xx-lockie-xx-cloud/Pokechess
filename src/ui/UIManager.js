@@ -293,7 +293,7 @@ class UIManagerClass {
     } else {
       banner.classList.add('hidden');
     }
-  },
+  }
 
   show(screenName, data = {}) {
     this._updateRelicBanner();
