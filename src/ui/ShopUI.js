@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { ITEMS }                          from '../data/items.js';
+import { RelicEngine }                    from '../combat/RelicEngine.js';
 import { getRunState, removeCoins,
          addToInventory }                 from '../data/runState.js';
 
@@ -27,7 +28,7 @@ export const ShopUI = {
     const optional  = Object.keys(ITEMS)
       .filter(id => !mandatory.includes(id) && ITEMS[id].type === 'equippable')
       .sort(() => Math.random() - 0.5)
-      .slice(0, this._registry?.get?.('runState')?.relic?.id === 'loupe' ? 4 : 3);
+      .slice(0, RelicEngine.shopSlots(getRunState(this._registry)?.relic?.id));
     return [...mandatory, ...optional];
   },
 

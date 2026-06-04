@@ -204,12 +204,12 @@ export const ACHIEVEMENTS = {
     desc: 'Gagner un combat grâce à une Explosion', category: 'combat',
   },
   riche: {
-    id: 'riche', label: '💰 Riche',
-    desc: 'Finir une arène avec 20 pièces ou plus', category: 'roguelite',
+    id: 'riche', label: '💰 Économe',
+    desc: 'Finir la ligue avec au moins 75 pièces', category: 'roguelite',
   },
   legendaire_team: {
     id: 'legendaire_team', label: '👑 Légendaire',
-    desc: 'Avoir 2 pokémons T5 dans son équipe', category: 'roguelite',
+    desc: 'Avoir 5 pokémons T5 dans son équipe pour vaincre la ligue', category: 'roguelite',
   },
   collectionneur: {
     id: 'collectionneur', label: '🎒 Collectionneur',
@@ -231,6 +231,87 @@ export const ACHIEVEMENTS = {
     id: 'ligue_hard_relic', label: '🔥 Maître Difficile',
     desc: 'Finir la Ligue en Difficile avec une relique active', category: 'progression',
   },
+  hard_relic_loupe: {
+    id: 'hard_relic_loupe', label: '🔍 Maître Loupe',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Loupe', category: 'relique',
+  },
+  hard_relic_bourse_doree: {
+    id: 'hard_relic_bourse_doree', label: '💰 Maître Bourse Dorée',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Bourse Dorée', category: 'relique',
+  },
+  hard_relic_braderie: {
+    id: 'hard_relic_braderie', label: '🔄 Maître Braderie',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Braderie', category: 'relique',
+  },
+  hard_relic_pochette_surprise: {
+    id: 'hard_relic_pochette_surprise', label: '🎰 Maître Pochette Surprise',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Pochette Surprise', category: 'relique',
+  },
+  hard_relic_condensateur: {
+    id: 'hard_relic_condensateur', label: '🔋 Maître Condensateur',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Condensateur', category: 'relique',
+  },
+  hard_relic_pacte_de_sang: {
+    id: 'hard_relic_pacte_de_sang', label: '💀 Maître Pacte de Sang',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Pacte de Sang', category: 'relique',
+  },
+  hard_relic_de_maudit: {
+    id: 'hard_relic_de_maudit', label: '🎲 Maître Dé Maudit',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Dé Maudit', category: 'relique',
+  },
+  hard_relic_sablier: {
+    id: 'hard_relic_sablier', label: '⏱ Maître Sablier',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Sablier', category: 'relique',
+  },
+  hard_relic_benediction: {
+    id: 'hard_relic_benediction', label: '🩹 Maître Bénédiction',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Bénédiction', category: 'relique',
+  },
+  hard_relic_revanche: {
+    id: 'hard_relic_revanche', label: '🔁 Maître Revanche',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Revanche', category: 'relique',
+  },
+  hard_relic_contrat_maudit: {
+    id: 'hard_relic_contrat_maudit', label: '🩸 Maître Contrat Maudit',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Contrat Maudit', category: 'relique',
+  },
+  hard_relic_catalyseur: {
+    id: 'hard_relic_catalyseur', label: '⚗️ Maître Catalyseur',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Catalyseur', category: 'relique',
+  },
+  hard_relic_miroir: {
+    id: 'hard_relic_miroir', label: '🪞 Maître Miroir',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Miroir', category: 'relique',
+  },
+  hard_relic_cristal_pur: {
+    id: 'hard_relic_cristal_pur', label: '🧩 Maître Cristal Pur',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Cristal Pur', category: 'relique',
+  },
+  hard_relic_couronne: {
+    id: 'hard_relic_couronne', label: '👑 Maître Couronne',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Couronne', category: 'relique',
+  },
+  hard_relic_encyclopedie: {
+    id: 'hard_relic_encyclopedie', label: '📖 Maître Encyclopédie',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Encyclopédie', category: 'relique',
+  },
+  hard_relic_aimant: {
+    id: 'hard_relic_aimant', label: '🧲 Maître Aimant',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Aimant', category: 'relique',
+  },
+  hard_relic_doppelganger: {
+    id: 'hard_relic_doppelganger', label: '👥 Maître Doppelgänger',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Doppelgänger', category: 'relique',
+  },
+  hard_relic_medaille: {
+    id: 'hard_relic_medaille', label: '🏅 Maître Médaille',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Médaille', category: 'relique',
+  },
+  hard_relic_anomalie: {
+    id: 'hard_relic_anomalie', label: '🌀 Maître Anomalie',
+    desc: 'Finir la ligue en Difficile ou + avec la relique Anomalie', category: 'relique',
+  },
+
 
   lv100_feu_1: {
     id: 'lv100_feu_1', label: '🔥 Maître Feu',

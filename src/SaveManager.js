@@ -210,9 +210,41 @@ export const SaveManager = {
   },
 
   // ── Achievements ────────────────────────────────────────────────────────────
+  // ── Tracking des runs ─────────────────────────────────────────────────────
+  getRunStats(meta) {
+    return meta?.runStats ?? {
+      leaguesBeaten: 0, leaguesByDiff: { easy:0, normal:0, hard:0, expert:0 },
+      totalWins: 0, totalLosses: 0, pokemonCaptured: 0,
+      relicsUsed: {}, badges: 0,
+    };
+  },
+
+  updateRunStats(meta, runState, combatResult, winner) {
+    const stats  = this.getRunStats(meta);
+    const isWin  = winner === 'player';
+    const diff   = runState?.difficulty ?? 'easy';
+    const mapIdx = combatResult?.mapIndex ?? -1;
+    const isBoss = combatResult?.nodeType === 'boss';
+    if (isWin)  stats.totalWins++;
+    else        stats.totalLosses++;
+    if (isWin && isBoss) stats.badges++;
+    if (mapIdx >= 8 && isBoss && isWin) {
+      stats.leaguesBeaten++;
+      stats.leaguesByDiff[diff] = (stats.leaguesByDiff[diff] ?? 0) + 1;
+    }
+    if (runState?.relic?.id) {
+      const rid = runState.relic.id;
+      stats.relicsUsed[rid] = (stats.relicsUsed[rid] ?? 0) + 1;
+    }
+    meta.runStats = stats;
+    return stats;
+  },
+
   checkAchievements(runState, combatResult = null) {
     const meta  = this.loadMeta();
     const ach   = meta.achievements ?? {};
+    // Met à jour les stats de run
+    if (combatResult?.winner) this.updateRunStats(meta, runState, combatResult, combatResult.winner);
     const newly = [];
 
     const unlock = (id) => {
@@ -233,17 +265,22 @@ export const SaveManager = {
 
     // Déblocage des difficultés
     if (isLeague) {
-      if (runDiff === 'easy')   unlock('ligue_easy');
+        if (runDiff === 'easy')   unlock('ligue_easy');
       if (runDiff === 'normal') unlock('ligue_normal');
       if (runDiff === 'hard' && hasRelic) unlock('ligue_hard_relic');
     }
 
     if (isLeague && combatResult?.playerUnits) {
-      const units = combatResult.playerUnits;
+      const units       = combatResult.playerUnits;
+      const anomalyTypes = runState?.anomalyTypes ?? null;
       const LEAGUE_TYPES = ['Feu','Eau','Plante','Électrik','Psy','Glace','Combat','Poison',
         'Sol','Vol','Insecte','Roche','Spectre','Dragon','Ténèbres','Acier','Fée','Normal'];
       LEAGUE_TYPES.forEach(type => {
-        const count = units.filter(u => u.types?.includes(type)).length;
+        const count = units.filter(u => {
+          // Avec Anomalie : utilise les types effectifs de la run
+          const effectiveTypes = anomalyTypes?.[u.id] ?? u.types ?? [];
+          return effectiveTypes.includes(type);
+        }).length;
         if (count >= 6) unlock('league_' + type.toLowerCase());
       });
     }
@@ -291,17 +328,45 @@ export const SaveManager = {
       if ((combatResult.activeSynergies ?? 0) >= 3) unlock('synergiste');
       if ((combatResult.maxPoisonStacks ?? 0) >= 5) unlock('empoisonneur');
       if (combatResult.explosionWin) unlock('sacrifice');
-      if ((runState?.coins ?? 0) >= 20) unlock('riche');
-      // T5 = BST total > 550 ou tier explicite >= 5
-      const calcBST = u => (u.hp??0)+(u.atk??0)+(u.spa??0)+(u.def??0)+(u.spd_def??0)+(u.spd??0);
-      const t5count = (combatResult.playerUnits ?? []).filter(u =>
-        (u.tier >= 5) || (calcBST(u) > 550)
-      ).length;
-      if (t5count >= 2) unlock('legendaire_team');
+      if (isLeague && (runState?.coins ?? 0) >= 75) unlock('riche');
+      // Légendaire : 5 pokémons T5 dans l'équipe (basé sur les stats de base via getBSTTier)
+      const bstTier = u => {
+        const s = u.stats ?? {};
+        const bst = (s.hp??0)+(s.atk??0)+(s.spa??0)+(s.def??0)+(s.spd_def??0)+(s.spd??0);
+        if (bst <= 308) return 1;
+        if (bst <= 390) return 2;
+        if (bst <= 470) return 3;
+        if (bst <= 550) return 4;
+        return 5;
+      };
+      const t5count = (combatResult.playerUnits ?? []).filter(u => bstTier(u) >= 5).length;
+      if (t5count >= 5) unlock('legendaire_team');
     }
 
     // Bénit : finir la ligue avec une relique active
     if (isLeague && hasRelic) unlock('relique_terminee');
+
+    // Maître Relique : finir la ligue en Difficile ou + avec chaque relique
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'loupe') unlock('hard_relic_loupe');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'bourse_doree') unlock('hard_relic_bourse_doree');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'braderie') unlock('hard_relic_braderie');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'pochette_surprise') unlock('hard_relic_pochette_surprise');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'condensateur') unlock('hard_relic_condensateur');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'pacte_de_sang') unlock('hard_relic_pacte_de_sang');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'de_maudit') unlock('hard_relic_de_maudit');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'sablier') unlock('hard_relic_sablier');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'benediction') unlock('hard_relic_benediction');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'revanche') unlock('hard_relic_revanche');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'contrat_maudit') unlock('hard_relic_contrat_maudit');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'catalyseur') unlock('hard_relic_catalyseur');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'miroir') unlock('hard_relic_miroir');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'cristal_pur') unlock('hard_relic_cristal_pur');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'couronne') unlock('hard_relic_couronne');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'encyclopedie') unlock('hard_relic_encyclopedie');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'aimant') unlock('hard_relic_aimant');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'doppelganger') unlock('hard_relic_doppelganger');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'medaille') unlock('hard_relic_medaille');
+    if (isLeague && hasRelic && runDiff !== 'easy' && runDiff !== 'normal' && runState?.relic?.id === 'anomalie') unlock('hard_relic_anomalie');
 
     if (newly.length > 0) {
       meta.achievements = ach;

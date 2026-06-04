@@ -31,6 +31,14 @@ const NODE_META = {
 export const MapUI = {
   // État
   _nodes:    [],
+  // Hash simple pour convertir un seed string en nombre déterministe
+  _hashString(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h);
+  },
   _start:    null,
   _mapIdx:   0,
   _seed:     null,
@@ -55,42 +63,42 @@ export const MapUI = {
     this._mapIdx = data?.mapIndex ?? state.currentMap ?? 0;
     const gen    = new MapGenerator();
 
-    if (data?.seed != null) {
-      // ── Restauration depuis seed ───────────────────────────────────────────
-      // Même seed → même PRNG → même layout garanti
-      this._nodes = gen.generate(this._mapIdx, data?.prevArena ?? null, data.seed);
-      this._start = gen._startNode;
-      this._seed  = data.seed;
-      gen.restoreState(
-        this._nodes, this._start,
-        data.visitedNodes   ?? [],
-        data.availableNodes ?? []
-      );
-    } else {
-      // ── Nouvelle map (ou retour depuis combat avec mapNodes) ───────────────
-      // On génère toujours depuis un nouveau seed (le seed sera sauvé après)
-      const prevArena = data?.prevArena ?? null;
-      this._nodes = gen.generate(this._mapIdx, prevArena);
-      this._start = gen._startNode;
-      this._seed  = gen._seed;
-      // Si mapNodes passé (retour combat), restaure l'état visited/available
-      // depuis le registre (sauvé dans runState)
-      if (data?.mapNodes) {
-        // Recopie visited/available depuis les mapNodes fournis
-        const visitedSet   = new Set();
-        const availableSet = new Set();
-        data.mapNodes.forEach(col => col.forEach(n => {
-          if (n.visited)   visitedSet.add(n.id);
-          if (n.available) availableSet.add(n.id);
-        }));
-        if (data.startNode?.visited) visitedSet.add('start');
-        gen.restoreState(
-          this._nodes, this._start,
-          [...visitedSet], [...availableSet]
-        );
-        // Conserve le seed existant si disponible dans les data
-        if (data.existingSeed != null) this._seed = data.existingSeed;
-      }
+    // ── SEED MAÎTRE de l'épopée ────────────────────────────────────────────────
+    // Toujours le même pour toute la run → réutilisé pour chaque map.
+    // Priorité : data.seed (restauration) > state.seed (run en cours) > nouveau
+    let masterSeed = data?.seed ?? state.seed ?? null;
+    if (masterSeed == null) {
+      masterSeed = MapGenerator.generateSeed();
+    }
+    // Normalise en nombre (le seed peut être stocké en string)
+    masterSeed = (typeof masterSeed === 'string')
+      ? (parseInt(masterSeed, 10) || this._hashString(masterSeed))
+      : masterSeed;
+    this._seed = masterSeed;
+
+    // Génère le layout de CETTE map depuis le seed maître + mapIndex (déterministe)
+    this._nodes = gen.generate(this._mapIdx, data?.prevArena ?? null, masterSeed);
+    this._start = gen._startNode;
+
+    // Restaure la progression (nœuds visités/disponibles) si on revient sur cette map
+    let visited   = data?.visitedNodes   ?? null;
+    let available = data?.availableNodes ?? null;
+
+    // Retour depuis un combat : reconstruit visited/available depuis mapNodes
+    if (data?.mapNodes && !visited) {
+      const visitedSet   = new Set();
+      const availableSet = new Set();
+      data.mapNodes.forEach(col => col.forEach(n => {
+        if (n.visited)   visitedSet.add(n.id);
+        if (n.available) availableSet.add(n.id);
+      }));
+      if (data.startNode?.visited) visitedSet.add('start');
+      visited   = [...visitedSet];
+      available = [...availableSet];
+    }
+
+    if (visited && visited.length) {
+      gen.restoreState(this._nodes, this._start, visited, available ?? []);
     }
 
     // Construit la structure de base (titre + viewport)

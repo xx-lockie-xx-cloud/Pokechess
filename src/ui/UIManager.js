@@ -64,6 +64,9 @@ class UIManagerClass {
     document.getElementById('btn-team')
       ?.addEventListener('click', () => this._togglePrep());
 
+    document.getElementById('btn-epopee')
+      ?.addEventListener('click', () => this._showEpopeeDetails());
+
     document.getElementById('btn-menu-home')
       ?.addEventListener('click', () => {
         const ok = confirm('Retourner au menu principal ? Ta progression est sauvegardée.');
@@ -92,6 +95,7 @@ class UIManagerClass {
     RelicsLibraryUI.init();
     document.getElementById('btn-talent-tree')?.addEventListener('click', () => TalentTreeUI.open());
     document.getElementById('btn-achievements')?.addEventListener('click', () => AchievementsUI.open());
+    document.getElementById('btn-stats')?.addEventListener('click', () => this._showStats());
     document.getElementById('btn-relics-library')?.addEventListener('click', () => RelicsLibraryUI.open());
 
     // Affiche le tutoriel au premier lancement (jamais vu)
@@ -146,20 +150,14 @@ class UIManagerClass {
       const state = this.registry.get('runState');
       if (!state) return;
 
-      // Le seed et la progression sont dans runState (auto-sauvegardés)
+      // Le seed MAÎTRE vient de state.seed ; la progression de mapVisited/mapAvailable
       const progress = getMapProgress(this.registry);
-
-      if (progress.seed != null) {
-        this._startMapScene({
-          mapIndex:       state.currentMap ?? 0,
-          seed:           progress.seed,
-          visitedNodes:   progress.visited,
-          availableNodes: progress.available,
-        });
-      } else {
-        // Pas de seed → nouvelle map
-        this._startMapScene({ mapIndex: state.currentMap ?? 0 });
-      }
+      this._startMapScene({
+        mapIndex:       state.currentMap ?? 0,
+        seed:           state.seed ?? progress.seed ?? null,
+        visitedNodes:   progress.visited,
+        availableNodes: progress.available,
+      });
       this.show('map');
     });
 
@@ -177,7 +175,7 @@ class UIManagerClass {
     document.getElementById('btn-new-game')?.addEventListener('click', () => {
       console.log('[UIManager] btn-new-game cliqué');
       SaveManager.deleteRunSave();
-      const seed = String(Date.now());
+      const seed = MapGenerator.generateSeed();  // seed maître numérique de l'épopée
       const diff = SaveManager.getDifficulty() ?? 'easy';
       this.registry.reset();
       this.registry.set('runState', { currentMap:0, coins:5, inventory:[],
@@ -253,7 +251,13 @@ class UIManagerClass {
     const unlocked   = getUnlockedDifficultiesWithMeta(meta);
     const current    = SaveManager.getDifficulty();
 
+    // Badge DEV si mode dev actif
+    const devBadge = meta.devMode
+      ? `<div class="menu-dev-badge" onclick="UIManager._devUnlockAll()">🛠 MODE DEV — Triple-tap pour désactiver</div>`
+      : '';
+
     container.innerHTML = `
+      ${devBadge}
       <div class="difficulty-label">Difficulté</div>
       <div class="difficulty-btns">
         ${unlocked.map(d => `
@@ -283,27 +287,8 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
 
   _updateRelicBanner() {
-    // Affiche la relique dans le header-relic (sous le titre)
-    try {
-      const rs      = this.registry.get('runState') ?? {};
-      const relicId = rs?.relic?.id;
-      const relic   = relicId ? (window.__RELICS__?.[relicId] ?? null) : null;
-      const el      = document.getElementById('header-relic');
-      const header  = document.getElementById('game-header');
-      if (!el) return;
-      if (relic) {
-        el.textContent    = `${relic.icon} ${relic.name}`;
-        el.style.display  = 'block';
-        if (header) header.style.height = '68px';
-        document.querySelectorAll('.screen.with-header, .game-overlay.with-header')
-          .forEach(e => e.style.paddingTop = '68px');
-      } else {
-        el.style.display = 'none';
-        if (header) header.style.height = '';
-        document.querySelectorAll('.screen.with-header, .game-overlay.with-header')
-          .forEach(e => e.style.paddingTop = '');
-      }
-    } catch(e) { /* silencieux */ }
+    // La relique est désormais affichée dans le bouton "Détails de l'épopée" (📜)
+    // Cette méthode est conservée comme no-op pour compatibilité.
   }
 
   show(screenName, data = {}) {
@@ -409,7 +394,14 @@ class UIManagerClass {
             return;
           }
           this._closeOverlay('arenaVictory');
-          this.show('map', nextData);
+          // Passage à la map SUIVANTE : le seed MAÎTRE reste inchangé.
+          // On réinitialise seulement la progression (nœuds visités/disponibles).
+          const rs = this.registry.get('runState') ?? {};
+          this.registry.set('runState', {
+            ...rs,
+            mapVisited: [], mapAvailable: [], lastNodeCol: 0,
+          });
+          this.show('map', { ...nextData, seed: rs.seed ?? null });
         });
         break;
     }
@@ -460,33 +452,114 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   // _initMenu()
   // ─────────────────────────────────────────────────────────────────────────
-  // ── Mode DEV : débloque tous les achievements et difficultés ────────────────
+  // ── Détails de l'épopée (seed, difficulté, relique) ────────────────────────
+  _showEpopeeDetails() {
+    const state   = getRunState(this.registry);
+    const seed    = state.seed ?? '—';
+    const diff    = state.difficulty ?? 'easy';
+    const DIFF_LABELS = { easy:'📍 Facile', normal:'⚔️ Normal', hard:'🔥 Difficile', expert:'💀 Expert' };
+    const relicId = state.relic?.id;
+    const relic   = relicId ? window.__RELICS__?.[relicId] : null;
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:#1a1a2e;border-radius:16px;padding:24px;min-width:260px;max-width:340px;width:90%">
+        <h2 style="text-align:center;margin:0 0 16px;color:#e2e8f0">📜 Détails de l'épopée</h2>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:10px 12px;font-size:13px;">
+          <span style="color:#a0aec0">Difficulté</span>
+          <span style="color:#e2e8f0;font-weight:700">${DIFF_LABELS[diff] ?? diff}</span>
+          <span style="color:#a0aec0">Relique</span>
+          <span style="color:#a29bfe;font-weight:700">${relic ? relic.icon + ' ' + relic.name : '— Aucune'}</span>
+          <span style="color:#a0aec0">Seed</span>
+          <span style="color:#e2e8f0;font-weight:700;font-family:monospace;word-break:break-all">${seed}</span>
+        </div>
+        <button id="btn-epopee-close" style="margin-top:20px;width:100%;padding:10px;background:#6c5ce7;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Fermer</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#btn-epopee-close').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  // ── Statistiques ─────────────────────────────────────────────────────────────
+  _showStats() {
+    const meta  = SaveManager.loadMeta();
+    const stats = SaveManager.getRunStats(meta);
+    const lines = [
+      ['🏆 Ligues vaincues',    stats.leaguesBeaten ?? 0],
+      ['📍 Facile',            stats.leaguesByDiff?.easy    ?? 0],
+      ['⚔️ Normal',             stats.leaguesByDiff?.normal  ?? 0],
+      ['🔥 Difficile',          stats.leaguesByDiff?.hard    ?? 0],
+      ['💀 Expert',             stats.leaguesByDiff?.expert  ?? 0],
+      ['✅ Combats gagnés',     stats.totalWins   ?? 0],
+      ['❌ Combats perdus',     stats.totalLosses ?? 0],
+      ['🏅 Badges totaux',      stats.badges      ?? 0],
+      ['📖 Pokémon vus',        (meta.seenPokemon ?? []).length],
+      ['🎒 Pokémon capturés',   (meta.caughtPokemon ?? []).length],
+      ['🏅 Succès débloqués',   Object.keys(meta.achievements ?? {}).length],
+    ];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:#1a1a2e;border-radius:16px;padding:24px;min-width:260px;max-width:340px;width:90%">
+        <h2 style="text-align:center;margin:0 0 16px;color:#e2e8f0">📊 Statistiques</h2>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:13px;">
+          ${lines.map(([label, val]) =>
+            `<span style="color:#a0aec0">${label}</span><span style="color:#e2e8f0;font-weight:700;text-align:right">${val}</span>`
+          ).join('')}
+        </div>
+        <button id="btn-stats-close" style="margin-top:20px;width:100%;padding:10px;background:#6c5ce7;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Fermer</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#btn-stats-close').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  // ── Mode DEV : toggle unlock/reset tous les achievements ───────────────────
   _devUnlockAll() {
-    const meta = SaveManager.loadMeta();
-    const now  = Date.now();
-    Object.keys(ACHIEVEMENTS).forEach(id => {
+    const meta   = SaveManager.loadMeta();
+    const isActive = !!meta.devMode;
+
+    if (isActive) {
+      // Désactive le mode dev → retire les achievements débloqués par dev
+      if (!confirm('Quitter le mode dev ? Les succès débloqués automatiquement seront retirés.')) return;
+      meta.devMode = false;
+      // Retire uniquement les achievements marqués _byDev
+      Object.keys(meta.achievements ?? {}).forEach(id => {
+        if (meta.achievements[id]?._byDev) delete meta.achievements[id];
+      });
+      SaveManager.saveMeta(meta);
+      this._showToast('🔓 Mode dev désactivé — succès réinitialisés', '#e17055');
+    } else {
+      // Active le mode dev → débloque tout et marque _byDev
+      const now = Date.now();
       meta.achievements = meta.achievements ?? {};
-      if (!meta.achievements[id]) {
-        meta.achievements[id] = { unlockedAt: now };
-      }
-    });
-    SaveManager.saveMeta(meta);
-    // Toast confirmation
+      meta.devMode = true;
+      Object.keys(ACHIEVEMENTS).forEach(id => {
+        if (!meta.achievements[id]) {
+          meta.achievements[id] = { unlockedAt: now, _byDev: true };
+        }
+      });
+      SaveManager.saveMeta(meta);
+      this._showToast('🛠 Mode dev activé — triple-tap pour désactiver', '#6c5ce7');
+    }
+    this._renderDifficultyMenu?.();
+    this.show('menu');
+  }
+
+  _showToast(msg, color = '#2d3436') {
     const t = document.createElement('div');
-    t.textContent = '🛠 DEV — Tous les succès débloqués !';
+    t.textContent = msg;
     Object.assign(t.style, {
       position:'fixed', top:'60px', left:'50%',
       transform:'translateX(-50%)',
-      background:'#6c5ce7', color:'#fff',
+      background: color, color:'#fff',
       padding:'10px 20px', borderRadius:'8px',
       fontSize:'13px', fontWeight:'700',
-      zIndex:'99999',
+      zIndex:'99999', whiteSpace:'nowrap',
     });
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2500);
-    // Recharge le menu
-    this._renderDifficultyMenu?.();
-    this.show('menu');
   }
 
   _applyRelicStartEffects(relicId) {

@@ -33,6 +33,7 @@ import { getLevelBadgeHTML, getLevelBonus }  from '../data/levelSystem.js';
 import { getPokemonPassive }                 from '../data/passiveHooks.js';
 import { getMove }                           from '../data/moves.js';
 import { canEvolve, getEvolutionId }     from '../data/evolutionData.js';
+import { RelicEngine }                   from '../combat/RelicEngine.js';
 
 function hexToCSS(hex) {
   const r = (hex >> 16) & 0xff;
@@ -588,10 +589,8 @@ slot.addEventListener('drop', (e) => {
     const { pokemon, source, col, row, idx } = this._selectedCard;
     if (!pokemon?.heldItem) return;
     const item      = pokemon.heldItem;
-    const isBraderie = getRunState(this._registry)?.relic?.id === 'braderie';
-    const sellPrice  = isBraderie
-      ? (item.price ?? 4)
-      : Math.max(0, Math.floor((item.price ?? 4) / 2));
+    const sellMult  = RelicEngine.sellMult(getRunState(this._registry)?.relic?.id);
+    const sellPrice = Math.max(0, Math.floor((item.price ?? 4) * sellMult));
     const ok = confirm(`Vendre ${item.emoji} ${item.name} pour ${sellPrice} 💰 ?`);
     if (!ok) return;
     addCoins(this._registry, sellPrice);

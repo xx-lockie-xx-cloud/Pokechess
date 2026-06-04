@@ -150,6 +150,7 @@ export class CombatEngine {
 
     let actionCount   = 0;    // nombre total d'actions (pour les effets périodiques)
     let globalActions = 0;    // sécurité anti-boucle infinie
+    let winner        = null; // gagnant (peut être fixé par le Sablier)
     const MAX_ACTIONS = 500;
 
     // Taille du tick : chaque tick avance les barres de (speed/10) points
@@ -222,7 +223,8 @@ export class CombatEngine {
 
     }
 
-    const winner = this._winner();
+    // Si le Sablier n'a pas déjà tranché, on calcule le gagnant normalement
+    if (winner == null) winner = this._winner();
     this.log.push({ type: 'combat_end', winner, turn: actionCount });
     return { log: this.log, winner };
   }
@@ -1417,6 +1419,7 @@ export class CombatEngine {
     }
 
     unit._faintLogged = true;
+    unit._dead = true;  // bloque les soins passifs (ex: Enracinement)
     unit.hp = 0;
     this.log.push({ type:'unit_fainted', unitId:unit.uid, unitName:unit.name, unitSide:unit.side });
     if (unit.types.includes('Dragon'))

@@ -2967,7 +2967,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   /* Dorée pour se distinguer de la mana violette */
   background: linear-gradient(90deg, #f39c12, #ffd700);
   border-radius: 2px;
-  transition: width 0.15s linear;
+  transition: width 1.5s linear;
 }
 
 /* ── Barre mana (ultime) ────────────────────────────────────────────────── */
@@ -3015,7 +3015,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   height: 100%;
   background: linear-gradient(90deg, #6c5ce7, #a29bfe);  /* mauve par défaut */
   border-radius: 2px;
-  transition: width 0.15s linear, background 0.2s ease;
+  transition: width 1.5s linear, background 0.2s ease;
 }
 
 .arena-unlock-msg {
@@ -4190,3 +4190,98 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   pointer-events: none;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
 }
+
+/* ── Nouveau menu — grille 2 colonnes ─────────────────────────────────────── */
+.menu-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+  margin: 12px auto 8px;
+}
+.menu-grid-btn {
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 10px;
+  text-align: center;
+  width: 100%;
+}
+
+/* ── Ligne sauvegarde ─────────────────────────────────────────────────────── */
+.menu-save-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  width: 100%;
+}
+.btn-save-small {
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  flex: 1;
+  min-width: 80px;
+  max-width: 120px;
+}
+
+/* ── Badge mode dev ───────────────────────────────────────────────────────── */
+.menu-dev-badge {
+  background: #6c5ce7;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 5px 12px;
+  border-radius: 20px;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 8px;
+  letter-spacing: 0.03em;
+  animation: dev-pulse 2s infinite;
+}
+@keyframes dev-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
+}
+
+/* ── Bouton détails épopée ────────────────────────────────────────────────── */
+.btn-epopee {
+  background: rgba(162,155,254,0.15);
+  border: 1px solid rgba(162,155,254,0.4);
+  color: #a29bfe;
+  font-size: 14px;
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  margin-right: 6px;
+  transition: background 0.15s;
+}
+.btn-epopee:hover { background: rgba(162,155,254,0.3); }
+
+/* ── Logo dans le header (remplace le titre texte) ────────────────────────── */
+.header-logo {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+@media (max-width: 600px) {
+  .header-logo { height: 28px; }
+}
+
+/* ── Bouton réinitialisation globale ──────────────────────────────────────── */
+.btn-reset-all {
+  font-size: 11px;
+  color: #e74c3c;
+  background: transparent;
+  border: 1px solid rgba(231,76,60,0.3);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-top: 12px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.btn-reset-all:hover { opacity: 1; background: rgba(231,76,60,0.1); }

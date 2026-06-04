@@ -397,7 +397,8 @@ export const PassiveEngine = {
 
       case 'drain_receive': {
         // Enracinement : soigne en recevant des dégâts
-        if (damage <= 0) break;
+        // Ne soigne PAS si l'unité est déjà morte (évite les boucles infinies)
+        if (damage <= 0 || unit.hp <= 0 || unit._dead) break;
         const heal = Math.max(1, Math.ceil(damage * action.rate));
         unit.hp    = Math.min(unit.maxHp, unit.hp + heal);
         this.log.push({ type:'effect_heal', effect:'drain_receive', label:`🌿 ${passive.name}`,

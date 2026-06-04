@@ -20,6 +20,7 @@ import {
   weightedWildDraw, BANK_MAX_SIZE,
   addSeenPokemon, applyAnomalyToUnits
 } from '../data/runState.js';
+import { RelicEngine } from '../combat/RelicEngine.js';
 
 function hexToCSS(hex) {
   const r = (hex >> 16) & 0xff;
@@ -182,7 +183,7 @@ export const WildUI = {
     let   tries   = 0;
 
     // Aimant : 4 pokémons au lieu de 3
-    const wildCount = getRunState(this._registry)?.relic?.id === 'aimant' ? 4 : 3;
+    const wildCount = RelicEngine.wildSlots(getRunState(this._registry)?.relic?.id);
 
     while (offered.length < wildCount && tries < 40) {
       tries++;
@@ -261,7 +262,7 @@ export const WildUI = {
     const price = CAPTURE_PRICE[tier] ?? 3;
 
     // Pochette Surprise : masque l'identité, montre seulement les types
-    const isPochette = getRunState(this._registry)?.relic?.id === 'pochette_surprise';
+    const isPochette = RelicEngine.masksWild(getRunState(this._registry)?.relic?.id);
 
     card.innerHTML = `
       ${buildCardFrame(tier)}
@@ -428,8 +429,9 @@ export const WildUI = {
     }
 
     // Doppelgänger : coûte ×2 mais donne 2 pokémons
-    const isDoppel = getRunState(this._registry)?.relic?.id === 'doppelganger';
-    const finalPrice = isDoppel ? price * 2 : price;
+    const capMult    = RelicEngine.captureMult(getRunState(this._registry)?.relic?.id);
+    const isDoppel   = capMult > 1;
+    const finalPrice = price * capMult;
     if ((state.coins ?? 0) < finalPrice) {
       const info = document.getElementById('wild-info');
       if (info) info.textContent = `Pas assez de pièces ! (${finalPrice} 💰 requis)`;

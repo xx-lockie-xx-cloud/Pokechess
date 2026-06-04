@@ -4,6 +4,7 @@
 
 import { getArenaForMap }           from '../data/arenas.js';
 import { getRunState, setRunState, tryUnlockSlot } from '../data/runState.js';
+import { RelicEngine } from '../combat/RelicEngine.js';
 
 export const ArenaVictoryUI = {
   _data:     null,
@@ -23,12 +24,12 @@ export const ArenaVictoryUI = {
 
   _render(arena, mapIndex) {
     // Médaille : +1 niveau à tous les pokémons après chaque arène
-    const rsCheck = getRunState(this._registry);
-    if (rsCheck?.relic?.id === 'medaille' && mapIndex < 8) {
-      const meta = SaveManager.loadMeta();
+    const rsCheck   = getRunState(this._registry);
+    const lvlGain   = RelicEngine.arenaLevels(rsCheck?.relic?.id);
+    if (lvlGain > 0 && mapIndex < 8) {
       const playerUnits = this._registry?.get?.('playerUnits') ?? [];
       playerUnits.forEach(u => {
-        if (u?.id) SaveManager.gainPokemonLevel(u.id);
+        if (u?.id) for (let i = 0; i < lvlGain; i++) window.SaveManager?.gainPokemonLevel(u.id);
       });
     }
 

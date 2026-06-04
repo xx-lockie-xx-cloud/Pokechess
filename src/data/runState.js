@@ -239,7 +239,10 @@ export function getMapLayout(registry) {
 
 // ── Sauvegarde de la progression sur la map ────────────────────────────────
 export function saveMapProgress(registry, seed, visitedNodes, availableNodes, col = 0) {
+  const cur = getRunState(registry);
   setRunState(registry, {
+    // Seed maître de l'épopée : défini une seule fois, jamais écrasé ensuite
+    seed:         cur.seed ?? seed,
     mapSeed:      seed,
     mapVisited:   visitedNodes,
     mapAvailable: availableNodes,

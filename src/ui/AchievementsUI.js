@@ -12,7 +12,12 @@ const CATEGORY_LABELS = {
   level:       '⬆ Niveaux',
   combat:      '⚔️ Combat',
   roguelite:   '🎲 Roguelite',
+  relique:     '💎 Reliques',
 };
+
+const CATEGORY_ORDER = [
+  'league','progression','collection','level','combat','roguelite','relique'
+];
 
 export const AchievementsUI = {
   _overlay: null,
@@ -60,7 +65,7 @@ export const AchievementsUI = {
     });
 
     // Catégories dans un ordre précis
-    const ORDER = ['league','progression','collection','level','combat','roguelite'];
+    const ORDER = ['league','progression','collection','level','combat','roguelite','relique'];
 
     body.innerHTML = `
       <div class="ach-global-progress">

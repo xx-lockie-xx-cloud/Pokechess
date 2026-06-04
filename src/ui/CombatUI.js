@@ -992,10 +992,10 @@ export const CombatUI = {
 
     if (isWin) {
       addCoins(this._registry, 3);
-      // Bourse Dorée : +2 pièces supplémentaires par victoire
-      const isBourseDoree = getRunState(this._registry)?.relic?.id === 'bourse_doree';
-      if (isBourseDoree) addCoins(this._registry, 2);
-      this._showRewardAnimation(isBourseDoree ? '+5 💰' : '+3 💰');
+      // Bourse Dorée (et toute relique avec ECON_WIN_COINS) : pièces bonus
+      const bonusCoins = RelicEngine.winCoins(getRunState(this._registry)?.relic?.id);
+      if (bonusCoins > 0) addCoins(this._registry, bonusCoins);
+      this._showRewardAnimation(`+${3 + bonusCoins} 💰`);
     }
 
     const screen = document.getElementById('overlay-combat');

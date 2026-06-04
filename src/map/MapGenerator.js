@@ -96,9 +96,12 @@ export class MapGenerator {
 
   // ── Génère la map depuis un seed ──────────────────────────────────────────
   generate(mapIndex = 0, prevArena = null, seed = null) {
-    // Seed : fourni (restauration) ou généré (nouvelle map)
+    // Seed maître de l'épopée : fourni (restauration/run en cours) ou généré (nouvelle run)
     this._seed    = seed ?? MapGenerator.generateSeed();
-    const rng     = createRNG(this._seed);
+    // Combine le seed maître avec mapIndex → layout déterministe et unique par map
+    // Deux joueurs avec le même seed obtiennent EXACTEMENT les mêmes maps
+    const mapRngSeed = (this._seed >>> 0) ^ ((mapIndex + 1) * 0x9E3779B1);
+    const rng     = createRNG(mapRngSeed >>> 0);
 
     this.mapIndex = mapIndex;
     this.cols     = 3 + Math.floor(mapIndex / 2);
