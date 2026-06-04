@@ -2609,7 +2609,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     display: none;
   }
 
-  #btn-menu-home {
+  #btn-menu-home,
+  #btn-team,
+  #btn-pokedex,
+  #btn-epopee {
     font-size: 16px !important;
     padding: 0 !important;
     width: 36px;
@@ -2620,18 +2623,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-
-  #btn-team {
-    font-size: 16px;
-    padding: 5px 8px;
-    min-width: 36px;
-  }
-
-  #btn-pokedex {
-    font-size: 16px;
-    padding: 5px 8px;
-    min-width: 36px;
   }
 
   /* ── 2. Combat : noms masqués, sprites centrés et plus petits ────────────
