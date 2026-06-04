@@ -522,16 +522,21 @@ class UIManagerClass {
 
     if (isActive) {
       // Désactive le mode dev → retire les achievements débloqués par dev
-      if (!confirm('Quitter le mode dev ? Les succès débloqués automatiquement seront retirés.')) return;
+      if (!confirm('Quitter le mode dev ? Les succès débloqués automatiquement seront retirés et les niveaux des Pokémon restaurés.')) return;
       meta.devMode = false;
       // Retire uniquement les achievements marqués _byDev
       Object.keys(meta.achievements ?? {}).forEach(id => {
         if (meta.achievements[id]?._byDev) delete meta.achievements[id];
       });
+      // Restaure les niveaux des Pokémon d'avant le mode dev
+      if (meta._levelsBackup) {
+        meta.pokemonLevels = meta._levelsBackup;
+        delete meta._levelsBackup;
+      }
       SaveManager.saveMeta(meta);
-      this._showToast('🔓 Mode dev désactivé — succès réinitialisés', '#e17055');
+      this._showToast('🔓 Mode dev désactivé — niveaux restaurés', '#e17055');
     } else {
-      // Active le mode dev → débloque tout et marque _byDev
+      // Active le mode dev → débloque tout, marque _byDev, et passe tout niveau 100
       const now = Date.now();
       meta.achievements = meta.achievements ?? {};
       meta.devMode = true;
@@ -540,8 +545,17 @@ class UIManagerClass {
           meta.achievements[id] = { unlockedAt: now, _byDev: true };
         }
       });
+      // Sauvegarde les niveaux actuels puis passe tous les Pokémon niveau 100
+      meta._levelsBackup = { ...(meta.pokemonLevels ?? {}) };
+      const allLevels = {};
+      (window.__POKEMONS__ ?? []).forEach(p => { allLevels[p.id] = 100; });
+      // Fallback : si la liste n'est pas exposée, on garde les ids 1-151
+      if (Object.keys(allLevels).length === 0) {
+        for (let id = 1; id <= 151; id++) allLevels[id] = 100;
+      }
+      meta.pokemonLevels = allLevels;
       SaveManager.saveMeta(meta);
-      this._showToast('🛠 Mode dev activé — triple-tap pour désactiver', '#6c5ce7');
+      this._showToast('🛠 Mode dev — tous Pokémon niveau 100', '#6c5ce7');
     }
     this._renderDifficultyMenu?.();
     this.show('menu');
