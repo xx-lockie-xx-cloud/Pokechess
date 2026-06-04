@@ -2611,8 +2611,15 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
   #btn-menu-home {
     font-size: 16px !important;
-    padding: 5px 8px !important;
+    padding: 0 !important;
+    width: 36px;
+    height: 36px;
     min-width: 36px;
+    max-width: 36px;
+    flex: 0 0 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   #btn-team {
