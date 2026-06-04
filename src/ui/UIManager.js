@@ -643,6 +643,11 @@ class UIManagerClass {
         if (n.visited)   visitedSet.add(n.id);
         if (n.available) availableSet.add(n.id);
       }));
+      // Re-sauvegarde explicite de la progression mise à jour (nœuds atteints)
+      saveMapProgress(
+        this.registry, progress.seed,
+        [...visitedSet], [...availableSet], progress.col ?? 0
+      );
       this._startMapScene({
         mapIndex:       data.mapIndex,
         seed:           progress.seed,
