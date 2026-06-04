@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
+import { TYPE_COLORS } from '../data/pokemons.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
 import { addCoins, getEnemyMultiplier, getRunState } from '../data/runState.js';
@@ -1196,15 +1197,26 @@ export const CombatUI = {
   },
 
   // ── Journal de combat ────────────────────────────────────────────────────
+  // Couleur CSS d'un type (depuis TYPE_COLORS qui sont des nombres hex)
+  _typeColor(type) {
+    const hex = TYPE_COLORS[type];
+    if (hex == null) return '#e2e8f0';
+    const n = (typeof hex === 'number') ? hex : parseInt(String(hex).replace('#',''), 16);
+    return `#${(n & 0xFFFFFF).toString(16).padStart(6, '0')}`;
+  },
+
   _logEvent(event) {
     const t = event.type;
     if (t === 'attack') {
-      const mover = event.isMove ? `<span class="log-move">⚡${event.moveName}</span> ` : '';
+      const tc = this._typeColor(event.attackType);
+      const moveLabel = event.isMove
+        ? `<span class="log-move" style="color:${tc};font-weight:700">⚡${event.moveName}</span> `
+        : `<span style="color:${tc};font-weight:600">[${event.attackType}]</span> `;
       const eff   = event.typeMult >= 2 ? ' <span class="log-super">super efficace!</span>'
                   : event.typeMult <= 0.5 ? ' <span class="log-weak">peu efficace</span>' : '';
       const crit  = event.isCrit ? ' <span class="log-crit">critique!</span>' : '';
       this._appendLog(
-        `${event.attackerName} → ${event.targetName}: ${mover}<b>-${event.damage} PV</b>${eff}${crit}`
+        `${event.attackerName} → ${event.targetName}: ${moveLabel}<b>-${event.damage} PV</b>${eff}${crit}`
       );
     } else if (t === 'status_applied') {
       const stacks = event.stacks > 1 ? ` ×${event.stacks}` : '';
@@ -1220,8 +1232,9 @@ export const CombatUI = {
     } else if (t === 'unit_fainted') {
       this._appendLog(`<span class="log-faint">💀 ${event.unitName} est K.O. !</span>`);
     } else if (t === 'ultimate_start') {
+      const tc = this._typeColor(event.moveType);
       this._appendLog(
-        `<span class="log-move">⚡ ${event.attackerSide === 'player' ? '🔵' : '🔴'} ${event.moveName} !</span>`
+        `<span class="log-move" style="color:${tc};font-weight:800">⚡ ${event.attackerSide === 'player' ? '🔵' : '🔴'} ${event.moveName} !</span>`
       );
     } else if (t === 'attack_skipped') {
       this._appendLog(`${event.attackerSide === 'player' ? '🔵' : '🔴'} <i>${event.label}</i>`);

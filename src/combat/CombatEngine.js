@@ -1075,6 +1075,8 @@ export class CombatEngine {
       targetId:     target.uid,   targetName:   target.name,   targetSide:   target.side,
       damage, multiplier: mult, typeMult, isSwarm,
       isMove:       !!move, moveName: move?.name ?? null,
+      // Type de l'attaque : type du move, sinon dernier type utilisé par l'attaquant
+      attackType:   move?.type ?? attacker._lastAttackType ?? attacker.types?.[0] ?? 'Normal',
       targetHpLeft: target.hp, targetMaxHp: target.maxHp,
       attackerMana: attacker.mana, targetMana: target.mana,
       attackerAtb:  Math.max(0, Math.min(100, attacker.atbBar ?? 0)),
@@ -1102,6 +1104,7 @@ export class CombatEngine {
     const atkTypeIdx = attacker._attackTypeTurn ?? 0;
     const atkType    = attacker.types[atkTypeIdx % attacker.types.length] ?? attacker.types[0];
     attacker._attackTypeTurn = atkTypeIdx + 1;
+    attacker._lastAttackType = atkType;  // mémorise pour le log
 
     const typeMult = getTypeMultiplier(atkType, target.types);
     const random   = (85 + Math.random() * 15) / 100;
