@@ -713,8 +713,14 @@ class UIManagerClass {
     if (isWin) {
       if (result.nodeType === 'boss') {
         // currentMap a déjà été avancé à l'affichage des résultats (_onCombatEnd).
-        // On affiche simplement l'écran de victoire (arène vaincue = result.mapIndex).
-        this.show('arenaVictory', { mapIndex: result.mapIndex });
+        // On affiche l'écran de victoire (arène vaincue = result.mapIndex).
+        this.show('arenaVictory', {
+          mapIndex:     result.mapIndex,
+          trainerName:  result.trainerName,
+          leagueSprite: result.leagueSprite,
+          isLeague:     result.isLeague,
+          fieldTeam:    result.fieldTeam ?? [],
+        });
       } else {
         // Overlay combat fermé → map déjà visible, on rafraîchit juste les nœuds
         this._refreshMapScene({
