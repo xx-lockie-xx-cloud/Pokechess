@@ -243,7 +243,7 @@ export const ArenaVictoryUI = {
     }
   },
 
-
+  _bindButton(arena, mapIndex) {
     const btn = document.getElementById('btn-next-map');
     if (!btn) return;
 
