@@ -1638,7 +1638,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   padding-bottom: 3px;
 }
 
-.log-turn   { color: #4a5568; font-style: italic; font-size: 9px; }
+.log-turn   { color: #e2e8f0; font-style: italic; font-size: 9px; }
+.log-attack-line { color: #cbd5e1; padding-left: 6px; }
 .log-move   { color: #ffd700; font-weight: 700; }
 .log-super  { color: #ff6b6b; font-weight: 700; }
 .log-weak   { color: #718096; }
@@ -4289,3 +4290,25 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   transition: opacity 0.15s;
 }
 .btn-reset-all:hover { opacity: 1; background: rgba(231,76,60,0.1); }
+
+/* ── Menu principal densifié sur mobile ───────────────────────────────────── */
+@media (max-width: 600px) {
+  .game-subtitle { display: none; }       /* masque "Un autochess inspiré de Pokémon" */
+  .game-logo     { margin-bottom: 10px; } /* écart réduit sous le titre */
+  .menu-buttons  { margin-top: 4px; gap: 8px; }
+  .menu-grid-2col { margin: 8px auto 6px; }
+}
+
+/* ── Slot "pris" pour déplacement (tap-to-move) ───────────────────────────── */
+.slot.picked {
+  outline: 3px solid #ffd700;
+  outline-offset: -1px;
+  box-shadow: 0 0 16px rgba(255, 215, 0, 0.7);
+  transform: scale(1.06);
+  z-index: 5;
+  animation: picked-pulse 1.2s ease-in-out infinite;
+}
+@keyframes picked-pulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(255, 215, 0, 0.7); }
+  50%       { box-shadow: 0 0 24px rgba(255, 215, 0, 1); }
+}
