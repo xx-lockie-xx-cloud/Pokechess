@@ -4304,15 +4304,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 /* ── Popover partagé (stats détaillées, synergies) — viewport-safe ────────── */
 .shared-popover {
-  background: var(--bg-elevated, #1a1a2e);
-  border: 1px solid var(--border-default, #2d3748);
+  background: #2a3a5c;            /* solide, plus clair que le fond PrepUI (#16213e) */
+  border: 1px solid #4a5a7c;
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 11px;
   line-height: 1.55;
-  color: var(--text-primary, #e2e8f0);
-  box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+  color: #e2e8f0;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.7);
   pointer-events: auto;
+  backdrop-filter: none;
 }
 .shared-popover .pop-title {
   font-weight: 700;
@@ -4335,10 +4336,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   font-weight: 700;
 }
 
-/* ── Case verrouillée recevant un repositionnement terrain→terrain ────────── */
-.slot-locked.drag-over {
+
+/* ── Drag Pointer Events (PrepUI) ─────────────────────────────────────────── */
+.slot.dragging-source {
+  opacity: 0.35;
+  outline: 2px dashed rgba(255,255,255,0.4);
+}
+.slot.drag-over, .slot-locked.drag-over {
   border-color: #ffd700 !important;
-  background: rgba(255, 215, 0, 0.15) !important;
-  opacity: 1 !important;
+  background: rgba(255, 215, 0, 0.18) !important;
+  outline: 2px solid #ffd700;
+  outline-offset: -2px;
 }
 .slot-locked.drag-over .slot-lock-icon { opacity: 0.3; }
