@@ -550,7 +550,7 @@ export const CombatUI = {
     }
 
     const playerForEngine = this._playerUnits.map(u => {
-      const full = getFullStats(u, this._playerUnits, meta);
+      const full = getFullStats(u, this._playerUnits, meta, relicId);
       return { ...u, attributes: u.attributes ?? [], stats: full.withSynergy };
     });
 

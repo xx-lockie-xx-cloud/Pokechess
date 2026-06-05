@@ -890,7 +890,8 @@ slot.addEventListener('drop', (e) => {
 
     // Trois niveaux de stats
     const metaLvl = window.SaveManager?.loadMeta() ?? null;
-    const full    = getFullStats(pokemon, fieldUnits, metaLvl);
+    const relicId = getRunState(this._registry)?.relic?.id ?? null;
+    const full    = getFullStats(pokemon, fieldUnits, metaLvl, relicId);
     const { base, withItem, withSynergy, itemBoosted, synergyBoosted, synColor } = full;
 
     const hasSynColor    = !!synColor;
@@ -918,7 +919,7 @@ slot.addEventListener('drop', (e) => {
     const levelMult = pLevelSvg > 1 ? 1 + (pLevelSvg - 1) * 0.005 : 1;
     const heldItemName = pokemon.heldItem?.name ?? null;
     // Synergies actives qui boostent chaque stat
-    const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean));
+    const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean), relicId);
     const synOriginFor = (statKey) => {
       const origins = [];
       activeSyns.forEach(syn => {
