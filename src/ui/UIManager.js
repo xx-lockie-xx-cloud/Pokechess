@@ -454,6 +454,64 @@ class UIManagerClass {
   // _initMenu()
   // ─────────────────────────────────────────────────────────────────────────
   // ── Détails de l'épopée (seed, difficulté, relique) ────────────────────────
+  // ── Popover partagé, confiné au viewport (mobile-safe) ─────────────────────
+  // Affiche `html` près de l'élément `anchorEl`, en restant dans l'écran visible.
+  // Se ferme au clic ailleurs, au scroll, ou à l'appel de hidePopover().
+  showPopover(anchorEl, html, opts = {}) {
+    this.hidePopover();
+    const pop = document.createElement('div');
+    pop.className = 'shared-popover';
+    pop.innerHTML = html;
+    Object.assign(pop.style, {
+      position: 'fixed', zIndex: '99999', visibility: 'hidden',
+      maxWidth: 'min(280px, 90vw)',
+    });
+    document.body.appendChild(pop);
+    this._activePopover = pop;
+
+    // Mesure puis positionne en restant dans le viewport
+    const rect = anchorEl.getBoundingClientRect();
+    const pw   = pop.offsetWidth;
+    const ph   = pop.offsetHeight;
+    const vw   = window.innerWidth;
+    const vh   = window.innerHeight;
+    const M    = 8;  // marge minimale aux bords
+
+    // Position horizontale : centrée sur l'ancre, clampée
+    let left = rect.left + rect.width / 2 - pw / 2;
+    left = Math.max(M, Math.min(left, vw - pw - M));
+
+    // Position verticale : au-dessus si possible, sinon en dessous
+    let top = rect.top - ph - 8;
+    if (top < M) top = rect.bottom + 8;          // bascule sous l'ancre
+    top = Math.max(M, Math.min(top, vh - ph - M)); // clamp final
+
+    Object.assign(pop.style, {
+      left: `${left}px`, top: `${top}px`, visibility: 'visible',
+    });
+
+    // Fermeture au clic ailleurs / scroll
+    this._popoverCleanup = (e) => {
+      if (pop.contains(e?.target)) return;
+      this.hidePopover();
+    };
+    // setTimeout pour ne pas capter le clic d'ouverture courant
+    setTimeout(() => {
+      document.addEventListener('click', this._popoverCleanup, true);
+      window.addEventListener('scroll', this._popoverCleanup, true);
+    }, 0);
+    return pop;
+  }
+
+  hidePopover() {
+    if (this._activePopover) { this._activePopover.remove(); this._activePopover = null; }
+    if (this._popoverCleanup) {
+      document.removeEventListener('click', this._popoverCleanup, true);
+      window.removeEventListener('scroll', this._popoverCleanup, true);
+      this._popoverCleanup = null;
+    }
+  }
+
   _showEpopeeDetails() {
     const state   = getRunState(this.registry);
     const seed    = state.seed ?? '—';

@@ -61,6 +61,7 @@ export const PrepUI = {
   _selectedCard: null, // { pokemon, source, col?, row?, idx? }
   _selectedItem: null, // objet inventaire sélectionné
   _dragSource:  null,
+  _moveSource:  null,  // tap-to-move : unité "prise" en attente de placement
 
   // ─────────────────────────────────────────────────────────────────────────
   // open() — charge l'état et construit l'interface
@@ -70,6 +71,7 @@ export const PrepUI = {
     this._selectedCard = null;
     this._selectedItem = null;
     this._dragSource   = null;
+    this._moveSource   = null;
     this._draggedItem  = null;
     this._dragJustEnded = false;
 
@@ -179,6 +181,9 @@ export const PrepUI = {
           selected: this._selectedCard?.source === 'field' &&
                     this._selectedCard?.col === c &&
                     this._selectedCard?.row === r,
+          picked:   this._moveSource?.source === 'field' &&
+                    this._moveSource?.col === c &&
+                    this._moveSource?.row === r,
           onClick: () => this._onFieldClick(c, r),
           onDragStart: unit ? () => this._startDrag('field', c, r) : null,
           onDragOver:  () => this._onDragOver('field', c, r),
@@ -205,6 +210,8 @@ export const PrepUI = {
       const slot = this._createSlot(unit, {
         selected: this._selectedCard?.source === 'bank' &&
                   this._selectedCard?.idx === i,
+        picked:   this._moveSource?.source === 'bank' &&
+                  this._moveSource?.idx === i,
         onClick:     () => this._onBankClick(i),
         onDragStart: unit ? () => this._startDrag('bank', i) : null,
         onDragOver:  () => this._onDragOver('bank', i),
@@ -219,9 +226,9 @@ export const PrepUI = {
   // ─────────────────────────────────────────────────────────────────────────
   // _createSlot() — crée un élément HTML de slot
   // ─────────────────────────────────────────────────────────────────────────
-  _createSlot(unit, { selected, onClick, onDragStart, onDragOver, onDrop }) {
+  _createSlot(unit, { selected, picked, onClick, onDragStart, onDragOver, onDrop }) {
     const slot = document.createElement('div');
-    slot.className = `slot${unit ? ' occupied' : ''}${selected ? ' selected' : ''}`;
+    slot.className = `slot${unit ? ' occupied' : ''}${selected ? ' selected' : ''}${picked ? ' picked' : ''}`;
     slot.setAttribute('draggable', !!unit);
 
     if (unit) {
@@ -341,13 +348,31 @@ slot.addEventListener('drop', (e) => {
       return;
     }
 
-    // Clic sur un pokémon → affiche ses stats, pas de déplacement
+    // ── Tap-to-move : une unité est déjà "prise" → on place / échange ──────────
+    if (this._moveSource) {
+      const src = this._moveSource;
+      // Re-tap sur la même case → on repose l'unité (désélection)
+      if (src.source === 'field' && src.col === col && src.row === row) {
+        this._moveSource = null;
+        this._renderAll();
+        return;
+      }
+      // Déplacement / échange via la logique de drop existante
+      this._dragSource = src;
+      this._onDrop('field', col, row);
+      this._moveSource = null;
+      return;
+    }
+
+    // ── Sinon : on "prend" l'unité (déplacement) + affiche ses stats ──────────
     if (unit) {
+      this._moveSource   = { source: 'field', col, row };
       this._selectedCard = { pokemon: unit, source: 'field', col, row };
       this._renderAll();
       this._drawSpider(unit);
     } else {
-      // Clic sur slot vide → désélectionne
+      // Clic sur slot vide sans rien de pris → désélectionne
+      this._moveSource   = null;
       this._selectedCard = null;
       this._clearSpider();
       this._renderAll();
@@ -367,12 +392,28 @@ slot.addEventListener('drop', (e) => {
       return;
     }
 
-    // Clic → affiche stats uniquement
+    // ── Tap-to-move : une unité est prise → la déposer/échanger en banque ──────
+    if (this._moveSource) {
+      const src = this._moveSource;
+      if (src.source === 'bank' && src.idx === idx) {
+        this._moveSource = null;
+        this._renderAll();
+        return;
+      }
+      this._dragSource = src;
+      this._onDrop('bank', idx);
+      this._moveSource = null;
+      return;
+    }
+
+    // ── Sinon : on prend l'unité + affiche ses stats ──────────────────────────
     if (unit) {
+      this._moveSource   = { source: 'bank', idx };
       this._selectedCard = { pokemon: unit, source: 'bank', idx };
       this._renderAll();
       this._drawSpider(unit);
     } else {
+      this._moveSource   = null;
       this._selectedCard = null;
       this._clearSpider();
       this._renderAll();
@@ -665,16 +706,18 @@ slot.addEventListener('drop', (e) => {
         ? `<span style="color:#ffd700">${EFFECT_LABELS[syn.effect] ?? syn.effect}</span>`
         : '';
 
-      badge.innerHTML = `
-        ${syn.icon} ${syn.type} ${'★'.repeat(syn.tier)}
-        <span class="synergy-tooltip">
-          <strong>${syn.icon} ${syn.type} — ${syn.tier === 3 ? '3★' : '2★'}</strong>
-          <span style="color:var(--text-muted);font-size:9px">${syn.count} pokémons</span>
-          <hr style="border-color:var(--border-default);margin:3px 0">
-          ${bonusLines}
-          ${effectLine ? `<br>${effectLine}` : ''}
-        </span>
+      const tooltipHtml = `
+        <div class="pop-title">${syn.icon} ${syn.type} — ${syn.tier === 3 ? '3★' : '2★'}</div>
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px">${syn.count} pokémons</div>
+        ${bonusLines}
+        ${effectLine ? `<br>${effectLine}` : ''}
       `;
+      badge.innerHTML = `${syn.icon} ${syn.type} ${'★'.repeat(syn.tier)}`;
+      badge.style.cursor = 'pointer';
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.UIManager?.showPopover) window.UIManager.showPopover(badge, tooltipHtml);
+      });
       container.appendChild(badge);
     });
   },
@@ -882,6 +925,46 @@ slot.addEventListener('drop', (e) => {
     // Rétrocompatibilité : ax.value = stat finale, ax.base = stat de base
     axes.forEach(ax => { ax.value = ax.synV; ax.base = ax.baseV; });
 
+    // ── Décomposition détaillée par stat (pour le popover au clic) ────────────
+    // base → +niveau → +objet → +synergies
+    const levelMult = pLevelSvg > 1 ? 1 + (pLevelSvg - 1) * 0.005 : 1;
+    const heldItemName = pokemon.heldItem?.name ?? null;
+    // Synergies actives qui boostent chaque stat
+    const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean));
+    const synOriginFor = (statKey) => {
+      const origins = [];
+      activeSyns.forEach(syn => {
+        if (syn.statBonus && syn.statBonus[statKey] && syn.statBonus[statKey] !== 1) {
+          origins.push(`${syn.type} ×${syn.count}`);
+        }
+      });
+      return origins;
+    };
+    this._statBreakdowns = {};
+    const STAT_NAMES = { hp:'❤️ PV', atk:'⚔️ Attaque', spa:'🔮 Atq. Spé.',
+      def:'🛡️ Défense', spd_def:'💎 Déf. Spé.', spd:'👟 Vitesse' };
+    axes.forEach(ax => {
+      const afterLevel = Math.round(ax.baseV * levelMult);
+      const levelDelta = afterLevel - ax.baseV;
+      const itemDelta  = ax.itemV - afterLevel;
+      const synDelta   = ax.synV - ax.itemV;
+      const rows = [`<div class="pop-row"><span>Base</span><span>${ax.baseV}</span></div>`];
+      if (levelDelta !== 0)
+        rows.push(`<div class="pop-row"><span>+${levelDelta} <span class="pop-origin">(Niv. ${pLevelSvg})</span></span></div>`);
+      if (itemDelta !== 0 && heldItemName)
+        rows.push(`<div class="pop-row"><span>+${itemDelta} <span class="pop-origin">(${heldItemName})</span></span></div>`);
+      else if (itemDelta !== 0)
+        rows.push(`<div class="pop-row"><span>+${itemDelta} <span class="pop-origin">(objet)</span></span></div>`);
+      if (synDelta !== 0) {
+        const origins = synOriginFor(ax.key);
+        const label   = origins.length ? origins.join(', ') : 'synergie';
+        rows.push(`<div class="pop-row"><span>+${synDelta} <span class="pop-origin">(${label})</span></span></div>`);
+      }
+      rows.push(`<div class="pop-row pop-total"><span>Total</span><span>${ax.synV}</span></div>`);
+      this._statBreakdowns[ax.key] =
+        `<div class="pop-title">${STAT_NAMES[ax.key] ?? ax.key}</div>${rows.join('')}`;
+    });
+
     const toRad = d => d * Math.PI / 180;
 
     const ptsBase = axes.map(ax => ({
@@ -956,15 +1039,8 @@ slot.addEventListener('drop', (e) => {
 
       const valColor = isMain ? '#ffd700' : isSynBoost ? finalColor : isItmBoost ? '#55efc4' : '#a0aec0';
 
-      // Construction de la valeur avec annotations
-      let valueStr = `${ax.synV}`;
-      if (isSynBoost && ax.synV > ax.itemV) {
-        const synDelta = ax.synV - ax.itemV;
-        valueStr += ` <tspan fill="${finalColor}" font-size="7">+${synDelta}</tspan>`;
-      } else if (isItmBoost && ax.itemV > ax.baseV) {
-        const itmDelta = ax.itemV - ax.baseV;
-        valueStr += ` <tspan fill="#55efc4" font-size="7">+${itmDelta}</tspan>`;
-      }
+      // Affiche UNIQUEMENT le total final (le détail est dans le popover au clic)
+      const valueStr = `${ax.synV}`;
 
       const bgColor  = isMain ? '#ffd700' : isSynBoost ? finalColor : '#55efc4';
       const bgOpFill = isMain ? '0.12' : isSynBoost ? '0.12' : '0.08';
@@ -976,14 +1052,21 @@ slot.addEventListener('drop', (e) => {
                 stroke="${bgColor}" stroke-width="0.8" stroke-opacity="${bgOpStr}"/>`
         : '';
 
+      // Zone cliquable transparente (pour ouvrir le popover de détail)
+      const hitRect = `<rect x="${(lx - 12).toFixed(1)}" y="${(ly - 16).toFixed(1)}"
+              width="24" height="26" rx="4" fill="transparent"
+              style="cursor:pointer" data-stat-popover="${ax.key}"/>`;
+
       return `
         ${bgRect}
         <text x="${lx.toFixed(1)}" y="${(ly - 6).toFixed(1)}"
-              text-anchor="middle" font-size="${emojiSize}" dominant-baseline="middle">${ax.emoji}</text>
+              text-anchor="middle" font-size="${emojiSize}" dominant-baseline="middle"
+              style="pointer-events:none">${ax.emoji}</text>
         <text x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}"
               text-anchor="middle" font-size="${valSize}" fill="${valColor}"
               font-weight="${isMain || isBoostedAny ? 'bold' : 'normal'}"
-              dominant-baseline="middle">${valueStr}</text>
+              dominant-baseline="middle" style="pointer-events:none">${valueStr}</text>
+        ${hitRect}
       `;
     }).join('');
 
@@ -1044,6 +1127,18 @@ slot.addEventListener('drop', (e) => {
       ${labels}
 
     `;
+
+    // Attache les handlers de clic sur les zones de stats → popover de détail
+    svg.querySelectorAll('[data-stat-popover]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const key = el.getAttribute('data-stat-popover');
+        const html = this._statBreakdowns?.[key];
+        if (html && window.UIManager?.showPopover) {
+          window.UIManager.showPopover(el, html);
+        }
+      });
+    });
   },
 
   _clearSpider() {
