@@ -1234,10 +1234,16 @@ export const CombatUI = {
 
         this._onDone({
           winner,
-          nodeType:  this._data.nodeType  ?? 'combat',
-          mapIndex:  this._data.mapIndex  ?? 0,
-          mapNodes:  this._data.mapNodes  ?? null,
-          startNode: this._data.startNode ?? null,
+          nodeType:     this._data.nodeType  ?? 'combat',
+          mapIndex:     this._data.mapIndex  ?? 0,
+          mapNodes:     this._data.mapNodes  ?? null,
+          startNode:    this._data.startNode ?? null,
+          trainerName:  this._data.trainerName  ?? null,
+          leagueSprite: this._data.leagueSprite ?? null,
+          isLeague:     this._data.isLeague     ?? false,
+          // Équipe sur le terrain au moment de la victoire (pour la photo de classe)
+          fieldTeam:    (this._registry?.get?.('playerUnits') ?? this._playerUnits ?? [])
+                          .filter(Boolean).map(u => ({ id: u.id, name: u.name, spriteUrl: u.spriteUrl })),
         });
       }
     });
@@ -1464,6 +1470,8 @@ export const CombatUI = {
 
   _getTrainerSpritePath() {
     if (this._data.nodeType === 'boss') {
+      // Ligue : sprite du Maître (archétype) ; sinon sprite du champion d'arène
+      if (this._data.leagueSprite) return this._data.leagueSprite;
       const arena = getArenaForMap(this._data.mapIndex ?? 0);
       return arena?.championSpriteCombat ?? null;
     }

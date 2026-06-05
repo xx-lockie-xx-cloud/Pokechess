@@ -523,6 +523,8 @@ export const MapUI = {
         enemyUnits:         node.trainer?.units       ?? [],
         trainerName:        node.trainer?.name        ?? 'Dresseur',
         trainerArchetypeId: node.trainer?.archetypeId ?? null,
+        leagueSprite:       node.trainer?.leagueSprite ?? null,
+        isLeague:           node.trainer?.isLeague    ?? false,
         mapNodes:           this._nodes,
         startNode:          this._start,
         mapIndex:           this._mapIdx,
