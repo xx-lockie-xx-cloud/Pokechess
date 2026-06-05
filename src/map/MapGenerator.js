@@ -4,7 +4,7 @@
 
 import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES, generateEnemyTeam } from '../data/trainers.js';
 import { getArenaForMap, generateArenaTeam,
-         generateLeagueTeam }              from '../data/arenas.js';
+         generateLeagueTeam, generateLeagueMaster } from '../data/arenas.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRNG déterministe — Mulberry32 (rapide, bonne distribution)
@@ -158,12 +158,14 @@ export class MapGenerator {
           const bossMaxUnits = maxUnitsForStep(mapIndex, col, this.cols);
           const bossBudget   = budgetForStep(mapIndex, col, this.cols, difficulty);
 
-          let bossTeam, bossName;
+          let bossTeam, bossName, bossSprite = null, bossColor = 0xffd700;
           if (mapIndex >= 8) {
-            // Map 8 = Ligue Pokémon (9e map) → équipe aléatoire type commun, synergie 3★ garantie
-            const leagueResult = generateLeagueTeam(mapIndex, 1.0, rng);
-            bossTeam = leagueResult.team;
-            bossName = `Ligue Pokémon — type ${leagueResult.type}`;
+            // Map 8+ = Ligue Pokémon → MAÎTRE : archétype aléatoire en version Maître
+            const master = generateLeagueMaster(mapIndex, difficulty, rng);
+            bossTeam   = master.team;
+            bossName   = master.name;
+            bossSprite = master.spriteCombat;
+            bossColor  = master.color;
           } else {
             bossTeam = arenaData
               ? generateArenaTeam(arenaData, mapIndex, bossBudget, bossMaxUnits, rng)
@@ -173,8 +175,10 @@ export class MapGenerator {
 
           trainerData = {
             name:    bossName,
-            color:   0xffd700,
+            color:   bossColor,
             isArena: true,
+            isLeague: mapIndex >= 8,
+            leagueSprite: bossSprite,
             arena:   arenaData,
             units:   bossTeam,
           };
