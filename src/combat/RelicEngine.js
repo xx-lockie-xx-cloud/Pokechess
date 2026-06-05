@@ -173,20 +173,11 @@ export const RelicEngine = {
   // SYNERGIES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Modifie la liste de synergies (catalyseur: seuil, miroir: boost)
+  // Modifie la liste de synergies (miroir: boost)
+  // Note : le catalyseur (SYN_THRESHOLD) est géré directement dans
+  // getActiveSynergies (abaissement des seuils), pas ici.
   modifySynergies(relicId, synergies, fieldUnits) {
     if (!relicId || !synergies?.length) return synergies;
-
-    // SYN_THRESHOLD : seuils réduits (catalyseur)
-    const delta = getHook(relicId, 'SYN_THRESHOLD');
-    if (delta != null) {
-      const d = Math.abs(delta);
-      synergies = synergies.map(s => {
-        const newCount = s.count + d;
-        const newTier  = newCount >= 3 ? 3 : newCount >= 2 ? 2 : s.tier;
-        return newTier > s.tier ? { ...s, tier: newTier } : s;
-      });
-    }
 
     // SYN_ALL_BOOST : marque toutes les synergies pour le boost (miroir)
     const boost = getHook(relicId, 'SYN_ALL_BOOST');
