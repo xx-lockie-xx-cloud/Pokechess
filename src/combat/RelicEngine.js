@@ -144,14 +144,9 @@ export const RelicEngine = {
       if (eu) eu.hp = Math.max(1, Math.ceil(eu.maxHp * halfHp));
     }
 
-    // PRE_MARK_TOP_BST : marque le top BST de chaque camp (couronne)
-    if (getHook(relicId, 'PRE_MARK_TOP_BST')) {
-      const bst = (u) => (u.atk??0)+(u.spa??0)+(u.def??0)+(u.spd_def??0)+(u.spd??0)+(u.hp??0);
-      const topP = [...playerUnits].sort((a,b) => bst(b)-bst(a))[0];
-      const topE = [...enemyUnits].sort((a,b) => bst(b)-bst(a))[0];
-      if (topP) topP._doubleSynergyBonus = true;
-      if (topE) topE._doubleSynergyBonus = true;
-    }
+    // PRE_MARK_TOP_BST : le marquage de la Couronne est géré par CombatUI
+    // AVANT getFullStats (avec bonus de niveau), pour que le ×2 synergie s'applique.
+    // Ici on ne refait rien pour éviter un double marquage incohérent.
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
