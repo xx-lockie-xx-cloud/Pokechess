@@ -55,6 +55,7 @@ export const CombatUI = {
     this._atbDisplay    = {};
     this._atbSpeed      = {};
     this._mapAdvanced   = false;
+    this._statsRecorded = false;
     if (this._atbRaf) { cancelAnimationFrame(this._atbRaf); this._atbRaf = null; }
 
     // Lit toujours depuis le registre (priorité sur data.playerUnits)
@@ -1085,6 +1086,17 @@ export const CombatUI = {
 
     const phase = document.getElementById('combat-phase-text');
     if (phase) phase.textContent = isWin ? '🏆 Victoire !' : '💀 Défaite...';
+
+    // ── Statistiques : enregistre l'issue du combat UNE seule fois ────────────
+    if (!this._statsRecorded) {
+      this._statsRecorded = true;
+      const rsStats = this._registry?.get?.('runState') ?? {};
+      SaveManager.recordCombatResult?.(rsStats, {
+        winner,
+        nodeType: this._data?.nodeType ?? 'combat',
+        mapIndex: this._data?.mapIndex ?? 0,
+      });
+    }
 
     // ── Boss vaincu : on avance la map DÈS l'affichage des résultats ──────────
     // (avant même le clic sur "Badge obtenu"), pour que quitter ici reprenne

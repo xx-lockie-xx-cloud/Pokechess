@@ -195,6 +195,8 @@ class UIManagerClass {
               : null,
           });
           this._applyRelicStartEffects(relicId);
+          // Statistiques : enregistre la relique choisie (une fois par épopée)
+          SaveManager.recordRelicUsed?.(relicId);
         }
         this.show('starter');
       });
@@ -544,29 +546,54 @@ class UIManagerClass {
   _showStats() {
     const meta  = SaveManager.loadMeta();
     const stats = SaveManager.getRunStats(meta);
-    const lines = [
-      ['🏆 Ligues vaincues',    stats.leaguesBeaten ?? 0],
-      ['📍 Facile',            stats.leaguesByDiff?.easy    ?? 0],
-      ['⚔️ Normal',             stats.leaguesByDiff?.normal  ?? 0],
-      ['🔥 Difficile',          stats.leaguesByDiff?.hard    ?? 0],
-      ['💀 Expert',             stats.leaguesByDiff?.expert  ?? 0],
-      ['✅ Combats gagnés',     stats.totalWins   ?? 0],
-      ['❌ Combats perdus',     stats.totalLosses ?? 0],
-      ['🏅 Badges totaux',      stats.badges      ?? 0],
-      ['📖 Pokémon vus',        (meta.seenPokemon ?? []).length],
-      ['🎒 Pokémon capturés',   (meta.caughtPokemon ?? []).length],
-      ['🏅 Succès débloqués',   Object.keys(meta.achievements ?? {}).length],
+    const totalCombats = (stats.totalWins ?? 0) + (stats.totalLosses ?? 0);
+    const winRate = totalCombats > 0
+      ? Math.round((stats.totalWins ?? 0) / totalCombats * 100) : 0;
+    const maxLevelCount = SaveManager.countMaxLevelPokemon(meta);
+    const relicsUsedCount = Object.values(stats.relicsUsed ?? {}).reduce((a, b) => a + b, 0);
+    const totalAch = (() => { try { return Object.keys(ACHIEVEMENTS).length; } catch { return 0; } })();
+
+    const sections = [
+      ['Ligue', [
+        ['🏆 Ligues vaincues',    stats.leaguesBeaten ?? 0],
+        ['📍 en Facile',          stats.leaguesByDiff?.easy    ?? 0],
+        ['⚔️ en Normal',          stats.leaguesByDiff?.normal  ?? 0],
+        ['🔥 en Difficile',       stats.leaguesByDiff?.hard    ?? 0],
+        ['💀 en Expert',          stats.leaguesByDiff?.expert  ?? 0],
+      ]],
+      ['Combats', [
+        ['🏅 Badges obtenus',     stats.badges      ?? 0],
+        ['✅ Combats gagnés',     stats.totalWins   ?? 0],
+        ['❌ Combats perdus',     stats.totalLosses ?? 0],
+        ['📈 Taux de victoire',   `${winRate}%`],
+      ]],
+      ['Collection', [
+        ['📖 Pokémon vus',        (meta.seenPokemon ?? []).length + ' / 151'],
+        ['🎒 Pokémon capturés',   stats.pokemonCaptured ?? 0],
+        ['⭐ Pokémon niveau 100', maxLevelCount],
+      ]],
+      ['Progression', [
+        ['💎 Reliques utilisées', relicsUsedCount],
+        ['🏆 Succès débloqués',   `${Object.keys(meta.achievements ?? {}).length}${totalAch ? ' / ' + totalAch : ''}`],
+      ]],
     ];
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    overlay.innerHTML = `
-      <div style="background:#1a1a2e;border-radius:16px;padding:24px;min-width:260px;max-width:340px;width:90%">
-        <h2 style="text-align:center;margin:0 0 16px;color:#e2e8f0">📊 Statistiques</h2>
-        <div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:13px;">
-          ${lines.map(([label, val]) =>
+
+    const sectionHtml = sections.map(([title, rows]) => `
+      <div style="margin-top:14px;">
+        <div style="color:#a29bfe;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">${title}</div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:5px 12px;font-size:13px;">
+          ${rows.map(([label, val]) =>
             `<span style="color:#a0aec0">${label}</span><span style="color:#e2e8f0;font-weight:700;text-align:right">${val}</span>`
           ).join('')}
         </div>
+      </div>`).join('');
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    overlay.innerHTML = `
+      <div style="background:#1a1a2e;border-radius:16px;padding:24px;min-width:260px;max-width:360px;width:100%;max-height:85vh;overflow-y:auto;">
+        <h2 style="text-align:center;margin:0 0 4px;color:#e2e8f0">📊 Statistiques</h2>
+        ${sectionHtml}
         <button id="btn-stats-close" style="margin-top:20px;width:100%;padding:10px;background:#6c5ce7;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Fermer</button>
       </div>`;
     document.body.appendChild(overlay);

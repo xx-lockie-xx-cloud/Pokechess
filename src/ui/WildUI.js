@@ -449,6 +449,9 @@ export const WildUI = {
       addToBank(this._registry, clone);
     }
 
+    // Statistiques : enregistre la (les) capture(s)
+    window.SaveManager?.recordCapture?.(isDoppel ? 2 : 1);
+
     const capturedName = this._selected.name;
     const info         = document.getElementById('wild-info');
 
