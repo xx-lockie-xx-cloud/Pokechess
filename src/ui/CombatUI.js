@@ -54,6 +54,7 @@ export const CombatUI = {
     this._combatLog     = [];
     this._atbDisplay    = {};
     this._atbSpeed      = {};
+    this._mapAdvanced   = false;
     if (this._atbRaf) { cancelAnimationFrame(this._atbRaf); this._atbRaf = null; }
 
     // Lit toujours depuis le registre (priorité sur data.playerUnits)
@@ -528,6 +529,26 @@ export const CombatUI = {
       ? RelicEngine.modifySynergies(relicId, rawPlayerSynergies, this._playerUnits)
       : rawPlayerSynergies;
     const meta = SaveManager.loadMeta() ?? {};
+
+    // ── Couronne : marque le top BST AVANT getFullStats (sinon le ×2 ne s'applique pas)
+    // "Le plus fort" = plus haut BST avec le bonus de NIVEAU appliqué
+    // (stats de base × bonus niveau, hors synergies pour éviter la circularité).
+    if (relicId === 'couronne') {
+      const lvlBst = (u) => {
+        const lvl = meta?.pokemonLevels?.[u.id] ?? 1;
+        const m   = lvl > 1 ? 1 + (lvl - 1) * 0.005 : 1;
+        const s   = u.stats ?? u;
+        return ((s.hp??0)+(s.atk??0)+(s.spa??0)+(s.def??0)+(s.spd_def??0)+(s.spd??0)) * m;
+      };
+      // Nettoie d'anciens marquages puis remarque le top de chaque camp
+      this._playerUnits.forEach(u => { if (u) delete u._doubleSynergyBonus; });
+      this._enemyUnits.forEach(u  => { if (u) delete u._doubleSynergyBonus; });
+      const topP = [...this._playerUnits].filter(Boolean).sort((a,b) => lvlBst(b)-lvlBst(a))[0];
+      const topE = [...this._enemyUnits].filter(Boolean).sort((a,b) => lvlBst(b)-lvlBst(a))[0];
+      if (topP) topP._doubleSynergyBonus = true;
+      if (topE) topE._doubleSynergyBonus = true;
+    }
+
     const playerForEngine = this._playerUnits.map(u => {
       const full = getFullStats(u, this._playerUnits, meta);
       return { ...u, attributes: u.attributes ?? [], stats: full.withSynergy };
@@ -546,18 +567,6 @@ export const CombatUI = {
       return { ...u, attributes: u.attributes ?? [], stats: scaledStats };
     });
     const enemySynergies = getActiveSynergies(enemyForEngine, relicId);
-
-    // Injecte les niveaux dans les unités joueur (meta déjà déclaré plus haut)
-    // Couronne : trouve le top BST de chaque camp pour le marquer
-    const bst = u => (u.stats?.hp??u.hp??0)+(u.stats?.atk??u.atk??0)+
-      (u.stats?.spa??u.spa??0)+(u.stats?.def??u.def??0)+
-      (u.stats?.spd_def??u.spd_def??0)+(u.stats?.spd??u.spd??0);
-    if (relicId === 'couronne') {
-      const topP = [...this._playerUnits].sort((a,b) => bst(b)-bst(a))[0];
-      const topE = [...this._enemyUnits].sort((a,b) => bst(b)-bst(a))[0];
-      if (topP) topP._doubleSynergyBonus = true;
-      if (topE) topE._doubleSynergyBonus = true;
-    }
 
     const withLevels = units => units.map(u => {
       let unit = { ...u, _level: meta.pokemonLevels?.[u.id] ?? 1 };
@@ -695,7 +704,7 @@ export const CombatUI = {
       case 'turn_start': {
         // La barre de l'acteur est déjà à 100% (gérée par _fillATBUntil / RAF).
         // On ne touche plus la barre ici : elle sera reset après l'action.
-        this._appendLog(`<span class="log-turn">⚡ ${event.unitName ?? 'Pokémon'} agit</span>`);
+        this._appendLog(`<span class="log-turn">⚡ ${event.unitName ?? 'Pokémon'} attaque :</span>`);
         return DELAY_TURN_START;
       }
 
@@ -1068,6 +1077,26 @@ export const CombatUI = {
     const phase = document.getElementById('combat-phase-text');
     if (phase) phase.textContent = isWin ? '🏆 Victoire !' : '💀 Défaite...';
 
+    // ── Boss vaincu : on avance la map DÈS l'affichage des résultats ──────────
+    // (avant même le clic sur "Badge obtenu"), pour que quitter ici reprenne
+    // bien sur la map suivante.
+    if (isWin && this._data?.nodeType === 'boss' && this._registry) {
+      const rs        = this._registry.get('runState') ?? {};
+      // Garde-fou : n'avance qu'une seule fois (si pas déjà avancé pour ce combat)
+      if (!this._mapAdvanced) {
+        this._mapAdvanced = true;
+        const beatenIdx = this._data.mapIndex ?? rs.currentMap ?? 0;
+        const nextIdx   = beatenIdx + 1;
+        const isLeague  = beatenIdx >= 8;
+        this._registry.set('runState', {
+          ...rs,
+          currentMap:   nextIdx,
+          mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
+          infiniteMode: isLeague ? true : rs.infiniteMode,
+        });
+      }
+    }
+
     // Gain de niveau pour les pokémons survivants après une victoire
     if (isWin && SaveManager) {
       const playerUnits = this._registry.get('playerUnits') ?? [];
@@ -1302,15 +1331,22 @@ export const CombatUI = {
     const t = event.type;
     if (t === 'attack') {
       const tc = this._typeColor(event.attackType);
-      const moveLabel = event.isMove
-        ? `<span class="log-move" style="color:${tc};font-weight:700">⚡${event.moveName}</span> `
-        : `<span style="color:${tc};font-weight:600">[${event.attackType}]</span> `;
       const eff   = event.typeMult >= 2 ? ' <span class="log-super">super efficace!</span>'
                   : event.typeMult <= 0.5 ? ' <span class="log-weak">peu efficace</span>' : '';
       const crit  = event.isCrit ? ' <span class="log-crit">critique!</span>' : '';
-      this._appendLog(
-        `${event.attackerName} → ${event.targetName}: ${moveLabel}<b>-${event.damage} PV</b>${eff}${crit}`
-      );
+      if (event.isMove) {
+        // Capacité : on garde le nom du move coloré (l'ultime a sa propre ligne)
+        const moveLabel = `<span class="log-move" style="color:${tc};font-weight:700">⚡${event.moveName}</span>`;
+        this._appendLog(
+          `${moveLabel} → <b style="color:${tc}">${event.targetName}</b> <b>-${event.damage} PV</b>${eff}${crit}`
+        );
+      } else {
+        // Attaque normale : pas de nom d'attaquant (déjà annoncé par "agit"),
+        // juste [type coloré] [cible] - [dégâts] PV
+        this._appendLog(
+          `<span class="log-attack-line">↳ <span style="color:${tc};font-weight:700">[${event.attackType}]</span> ${event.targetName} <b>-${event.damage} PV</b>${eff}${crit}</span>`
+        );
+      }
     } else if (t === 'status_applied') {
       const stacks = event.stacks > 1 ? ` ×${event.stacks}` : '';
       this._appendLog(`<span class="log-status">${event.label}${stacks}</span> sur ${event.targetName}`);

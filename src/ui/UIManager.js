@@ -618,21 +618,9 @@ class UIManagerClass {
 
     if (isWin) {
       if (result.nodeType === 'boss') {
-        // Avance IMMÉDIATEMENT vers la map suivante et réinitialise la progression.
-        // Ainsi, si le joueur quitte sur l'écran de victoire, "Continuer" reprend
-        // bien sur la map suivante (et non sur la map résolue).
-        const rs       = this.registry.get('runState') ?? {};
-        const beatenIdx = result.mapIndex ?? rs.currentMap ?? 0;
-        const nextIdx   = beatenIdx + 1;
-        const isLeague  = beatenIdx >= 8;
-        this.registry.set('runState', {
-          ...rs,
-          currentMap:   nextIdx,
-          mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
-          infiniteMode: isLeague ? true : rs.infiniteMode,
-        });
-        // L'écran de victoire affiche l'arène VAINCUE (beatenIdx)
-        this.show('arenaVictory', { mapIndex: beatenIdx });
+        // currentMap a déjà été avancé à l'affichage des résultats (_onCombatEnd).
+        // On affiche simplement l'écran de victoire (arène vaincue = result.mapIndex).
+        this.show('arenaVictory', { mapIndex: result.mapIndex });
       } else {
         // Overlay combat fermé → map déjà visible, on rafraîchit juste les nœuds
         this._refreshMapScene({
