@@ -467,6 +467,15 @@ class UIManagerClass {
     Object.assign(pop.style, {
       position: 'fixed', zIndex: '99999', visibility: 'hidden',
       maxWidth: 'min(280px, 90vw)',
+      // Fond + bord en inline pour garantir l'affichage (priorité sur le CSS)
+      background: '#2a3a5c',
+      border: '2px solid #6c7a9c',
+      borderRadius: '10px',
+      padding: '10px 12px',
+      color: '#e2e8f0',
+      boxShadow: '0 6px 24px rgba(0,0,0,0.75)',
+      fontSize: '11px',
+      lineHeight: '1.55',
     });
     document.body.appendChild(pop);
     this._activePopover = pop;
