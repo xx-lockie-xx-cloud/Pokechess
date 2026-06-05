@@ -115,11 +115,16 @@ export function getActiveSynergies(fieldUnits, relicId = null) {
   });
 
   const active = [];
+  // Catalyseur : abaisse les seuils de 1
+  //   2★ se déclenche à 1 pokémon (au lieu de 2)
+  //   3★ se déclenche à 3 pokémons (au lieu de 4)
+  const thresholdT2 = relicId === 'catalyseur' ? 1 : 2;
+  const thresholdT3 = relicId === 'catalyseur' ? 3 : 4;
   Object.entries(typeCounts).forEach(([type, count]) => {
-    if (count < 2) return;  // seuil 1 : 2 pokémons
+    if (count < thresholdT2) return;       // seuil 2★
     const synergy = SYNERGIES[type];
     if (!synergy) return;
-    const tier = count >= 4 ? 3 : 2;  // seuil 2 : 4 pokémons
+    const tier = count >= thresholdT3 ? 3 : 2;  // seuil 3★
     const data  = tier === 3 ? synergy.seuil3 : synergy.seuil2;
     active.push({
       type, icon: synergy.icon, color: synergy.color,
@@ -137,12 +142,14 @@ export function getActiveSynergies(fieldUnits, relicId = null) {
 // getFullStats — empile base → objet → synergies
 // Retourne les trois niveaux + métadonnées pour la toile SVG
 // ─────────────────────────────────────────────────────────────────────────────
-export function getFullStats(unit, fieldUnits = [], meta = null) {
+export function getFullStats(unit, fieldUnits = [], meta = null, relicId = null) {
   const base     = { ...(unit.stats ?? {}) };
   const withItem = getEffectiveStats(unit, meta);   // base + niveau + objet
 
   // Bonus de synergies applicables à cette unité
-  const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean));
+  // (relicId pour que catalyseur/cristal_pur affectent les seuils)
+  const rid        = relicId ?? unit._relicId ?? null;
+  const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean), rid);
   const synBonus   = {};
 
   // Bonus de synergies appliqués à TOUTE la composition
