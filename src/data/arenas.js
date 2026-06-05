@@ -271,7 +271,8 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal', rng = 
   };
 }
 
-
+// ── Helpers ───────────────────────────────────────────────────────────────────
+export function getArenaForMap(mapIndex) {
   return ARENAS[Math.min(mapIndex, ARENAS.length - 1)] ?? null;
 }
 
