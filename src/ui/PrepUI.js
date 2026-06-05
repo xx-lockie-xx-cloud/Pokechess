@@ -61,7 +61,6 @@ export const PrepUI = {
   _selectedCard: null, // { pokemon, source, col?, row?, idx? }
   _selectedItem: null, // objet inventaire sélectionné
   _dragSource:  null,
-  _moveSource:  null,  // tap-to-move : unité "prise" en attente de placement
 
   // ─────────────────────────────────────────────────────────────────────────
   // open() — charge l'état et construit l'interface
@@ -71,7 +70,6 @@ export const PrepUI = {
     this._selectedCard = null;
     this._selectedItem = null;
     this._dragSource   = null;
-    this._moveSource   = null;
     this._draggedItem  = null;
     this._dragJustEnded = false;
 
@@ -173,6 +171,22 @@ export const PrepUI = {
           locked.dataset.source = 'field';
           locked.dataset.col    = c;
           locked.dataset.row    = r;
+          // Une case verrouillée accepte quand même un pokémon DÉJÀ sur le terrain
+          // (repositionnement : le nombre total d'unités ne change pas).
+          locked.addEventListener('dragover', (e) => {
+            if (this._dragSource?.source === 'field') {
+              e.preventDefault();
+              locked.classList.add('drag-over');
+            }
+          });
+          locked.addEventListener('dragleave', () => locked.classList.remove('drag-over'));
+          locked.addEventListener('drop', (e) => {
+            locked.classList.remove('drag-over');
+            if (this._dragSource?.source === 'field') {
+              e.preventDefault();
+              this._onDrop('field', c, r);
+            }
+          });
           grid.appendChild(locked);
           continue;
         }
@@ -181,9 +195,6 @@ export const PrepUI = {
           selected: this._selectedCard?.source === 'field' &&
                     this._selectedCard?.col === c &&
                     this._selectedCard?.row === r,
-          picked:   this._moveSource?.source === 'field' &&
-                    this._moveSource?.col === c &&
-                    this._moveSource?.row === r,
           onClick: () => this._onFieldClick(c, r),
           onDragStart: unit ? () => this._startDrag('field', c, r) : null,
           onDragOver:  () => this._onDragOver('field', c, r),
@@ -210,8 +221,6 @@ export const PrepUI = {
       const slot = this._createSlot(unit, {
         selected: this._selectedCard?.source === 'bank' &&
                   this._selectedCard?.idx === i,
-        picked:   this._moveSource?.source === 'bank' &&
-                  this._moveSource?.idx === i,
         onClick:     () => this._onBankClick(i),
         onDragStart: unit ? () => this._startDrag('bank', i) : null,
         onDragOver:  () => this._onDragOver('bank', i),
@@ -226,9 +235,9 @@ export const PrepUI = {
   // ─────────────────────────────────────────────────────────────────────────
   // _createSlot() — crée un élément HTML de slot
   // ─────────────────────────────────────────────────────────────────────────
-  _createSlot(unit, { selected, picked, onClick, onDragStart, onDragOver, onDrop }) {
+  _createSlot(unit, { selected, onClick, onDragStart, onDragOver, onDrop }) {
     const slot = document.createElement('div');
-    slot.className = `slot${unit ? ' occupied' : ''}${selected ? ' selected' : ''}${picked ? ' picked' : ''}`;
+    slot.className = `slot${unit ? ' occupied' : ''}${selected ? ' selected' : ''}`;
     slot.setAttribute('draggable', !!unit);
 
     if (unit) {
@@ -348,31 +357,12 @@ slot.addEventListener('drop', (e) => {
       return;
     }
 
-    // ── Tap-to-move : une unité est déjà "prise" → on place / échange ──────────
-    if (this._moveSource) {
-      const src = this._moveSource;
-      // Re-tap sur la même case → on repose l'unité (désélection)
-      if (src.source === 'field' && src.col === col && src.row === row) {
-        this._moveSource = null;
-        this._renderAll();
-        return;
-      }
-      // Déplacement / échange via la logique de drop existante
-      this._dragSource = src;
-      this._onDrop('field', col, row);
-      this._moveSource = null;
-      return;
-    }
-
-    // ── Sinon : on "prend" l'unité (déplacement) + affiche ses stats ──────────
+    // Clic = affichage des stats uniquement (le déplacement se fait au drag & drop)
     if (unit) {
-      this._moveSource   = { source: 'field', col, row };
       this._selectedCard = { pokemon: unit, source: 'field', col, row };
       this._renderAll();
       this._drawSpider(unit);
     } else {
-      // Clic sur slot vide sans rien de pris → désélectionne
-      this._moveSource   = null;
       this._selectedCard = null;
       this._clearSpider();
       this._renderAll();
@@ -392,28 +382,12 @@ slot.addEventListener('drop', (e) => {
       return;
     }
 
-    // ── Tap-to-move : une unité est prise → la déposer/échanger en banque ──────
-    if (this._moveSource) {
-      const src = this._moveSource;
-      if (src.source === 'bank' && src.idx === idx) {
-        this._moveSource = null;
-        this._renderAll();
-        return;
-      }
-      this._dragSource = src;
-      this._onDrop('bank', idx);
-      this._moveSource = null;
-      return;
-    }
-
-    // ── Sinon : on prend l'unité + affiche ses stats ──────────────────────────
+    // Clic = affichage des stats uniquement (déplacement au drag & drop)
     if (unit) {
-      this._moveSource   = { source: 'bank', idx };
       this._selectedCard = { pokemon: unit, source: 'bank', idx };
       this._renderAll();
       this._drawSpider(unit);
     } else {
-      this._moveSource   = null;
       this._selectedCard = null;
       this._clearSpider();
       this._renderAll();
@@ -463,8 +437,22 @@ slot.addEventListener('drop', (e) => {
         return;
       }
 
-      // Récupère l'occupant actuel de la cible
+      // Contrainte d'équipe : un dépôt depuis la BANQUE augmente le nombre
+      // d'unités sur le terrain → autorisé seulement si on reste sous la limite.
+      // Un déplacement terrain→terrain ne change pas le total → toujours autorisé
+      // (y compris sur une case verrouillée).
       const existing = this._field[colOrIdx][row] ?? null;
+      if (src.source === 'bank' && !existing) {
+        const maxUnits = getUnlockedSlots(this._registry);
+        const totalOnField = Object.values(this._field)
+          .flatMap(col => Object.values(col)).filter(Boolean).length;
+        if (totalOnField >= maxUnits) {
+          // Terrain plein : on refuse le dépôt depuis la banque
+          this._dragSource = null;
+          this._renderAll();
+          return;
+        }
+      }
 
       // Vide la source
       if (src.source === 'field') {
