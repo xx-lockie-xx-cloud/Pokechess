@@ -1218,6 +1218,7 @@ export const CombatUI = {
           winner, playerUnits, playerLosses, ultimateUsed,
           activeSynergies, maxPoisonStacks, explosionWin,
           mapIndex: this._data?.mapIndex ?? 0,
+          nodeType: this._data?.nodeType ?? 'combat',
         };
 
         // Vérifie les achievements
