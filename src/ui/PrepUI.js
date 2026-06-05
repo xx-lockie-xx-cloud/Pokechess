@@ -171,22 +171,8 @@ export const PrepUI = {
           locked.dataset.source = 'field';
           locked.dataset.col    = c;
           locked.dataset.row    = r;
-          // Une case verrouillée accepte quand même un pokémon DÉJÀ sur le terrain
-          // (repositionnement : le nombre total d'unités ne change pas).
-          locked.addEventListener('dragover', (e) => {
-            if (this._dragSource?.source === 'field') {
-              e.preventDefault();
-              locked.classList.add('drag-over');
-            }
-          });
-          locked.addEventListener('dragleave', () => locked.classList.remove('drag-over'));
-          locked.addEventListener('drop', (e) => {
-            locked.classList.remove('drag-over');
-            if (this._dragSource?.source === 'field') {
-              e.preventDefault();
-              this._onDrop('field', c, r);
-            }
-          });
+          // Le drop est détecté par _dropTargetAt (Pointer Events) via data-source.
+          // _onDrop autorise terrain→terrain (repositionnement) même sur case verrouillée.
           grid.appendChild(locked);
           continue;
         }
@@ -238,7 +224,7 @@ export const PrepUI = {
   _createSlot(unit, { selected, onClick, onDragStart, onDragOver, onDrop }) {
     const slot = document.createElement('div');
     slot.className = `slot${unit ? ' occupied' : ''}${selected ? ' selected' : ''}`;
-    slot.setAttribute('draggable', !!unit);
+    slot.setAttribute('draggable', 'false');  // drag géré par Pointer Events
 
     if (unit) {
       // Coins de type — avec anomalie si active
@@ -288,60 +274,117 @@ export const PrepUI = {
     // Événements
     slot.addEventListener('click', onClick);
 
-    if (onDragStart) {
-      slot.addEventListener('dragstart', (e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        onDragStart();
+    // ── Drag des pokémons via Pointer Events (souris + tactile fiable) ─────────
+    // Le HTML5 DnD natif ne fonctionne pas sur mobile ; on utilise pointerdown.
+    if (onDragStart && unit) {
+      slot.style.touchAction = 'none';   // évite le scroll pendant le drag
+      slot.addEventListener('pointerdown', (e) => {
+        // Ignore le clic droit / boutons secondaires
+        if (e.button && e.button !== 0) return;
+        this._startPointerDrag(e, slot, onDragStart);
       });
     }
-    if (onDragOver) {
-      slot.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        slot.classList.add('drag-over');
-        onDragOver();
-      });
-      slot.addEventListener('dragleave', () => {
-        slot.classList.remove('drag-over');
-      });
-    }
-    // Réception du drop d'objet inventaire
-slot.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  // Accepte aussi bien le drop pokémon que le drop objet
-  e.dataTransfer.dropEffect = 'move';
-  if (unit) slot.classList.add('drag-over');
-});
 
-slot.addEventListener('drop', (e) => {
-  e.preventDefault();
-  slot.classList.remove('drag-over');
-
-  // Drop d'un objet inventaire sur un pokémon
-  if (this._draggedItem && unit) {
-    this._equipItem(this._draggedItem, 
-      // Détecte si c'est un slot terrain ou banque depuis l'id du slot
-      slot.dataset.source === 'field' ? 'field' : 'bank',
-      parseInt(slot.dataset.col ?? 0),
-      parseInt(slot.dataset.row ?? 0),
-      parseInt(slot.dataset.idx ?? 0)
-    );
-    this._draggedItem = null;
-    return;
-  }
-  // Drop pokémon → comportement existant
-  if (onDrop) onDrop();
-  });
-
-  if (onDrop) {
-    slot.addEventListener('drop', (e) => {
-      e.preventDefault();
-      slot.classList.remove('drag-over');
-      onDrop();
+    // ── Réception d'un objet inventaire déposé (DnD natif, depuis l'inventaire) ─
+    slot.addEventListener('dragover', (e) => {
+      if (this._draggedItem && unit) { e.preventDefault(); slot.classList.add('drag-over'); }
     });
-  }
+    slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+    slot.addEventListener('drop', (e) => {
+      slot.classList.remove('drag-over');
+      if (this._draggedItem && unit) {
+        e.preventDefault();
+        this._equipItem(this._draggedItem,
+          slot.dataset.source === 'field' ? 'field' : 'bank',
+          parseInt(slot.dataset.col ?? 0),
+          parseInt(slot.dataset.row ?? 0),
+          parseInt(slot.dataset.idx ?? 0)
+        );
+        this._draggedItem = null;
+      }
+    });
 
     return slot;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Drag par Pointer Events — fiable sur mobile (tactile) et desktop (souris)
+  // ─────────────────────────────────────────────────────────────────────────
+  _startPointerDrag(e, slot, onDragStart) {
+    const startX = e.clientX, startY = e.clientY;
+    let dragging = false;
+    let ghost    = null;
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      // Seuil : on ne démarre le drag qu'après un vrai mouvement (sinon = tap)
+      if (!dragging && Math.hypot(dx, dy) < 8) return;
+      if (!dragging) {
+        dragging = true;
+        onDragStart();                       // pose this._dragSource
+        slot.classList.add('dragging-source');
+        // Fantôme suivant le doigt / curseur
+        ghost = slot.cloneNode(true);
+        Object.assign(ghost.style, {
+          position: 'fixed', pointerEvents: 'none', opacity: '0.85',
+          zIndex: '99998', width: `${slot.offsetWidth}px`, height: `${slot.offsetHeight}px`,
+          transform: 'translate(-50%, -50%)', margin: '0',
+        });
+        document.body.appendChild(ghost);
+        // Re-render pour débloquer les cases verrouillées (drag terrain→terrain)
+        this._renderAll();
+      }
+      ghost.style.left = `${ev.clientX}px`;
+      ghost.style.top  = `${ev.clientY}px`;
+      this._highlightDropTargetAt(ev.clientX, ev.clientY);
+    };
+
+    const onUp = (ev) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      if (ghost) ghost.remove();
+      slot.classList.remove('dragging-source');
+      this._clearDropHighlight();
+      if (!dragging) { this._dragSource = null; return; }  // simple tap → le click gère
+
+      // Empêche le click fantôme post-drag
+      this._dragJustEnded = true;
+      setTimeout(() => { this._dragJustEnded = false; }, 80);
+
+      const target = this._dropTargetAt(ev.clientX, ev.clientY);
+      if (target?.type === 'field')      this._onDrop('field', target.col, target.row);
+      else if (target?.type === 'bank')  this._onDrop('bank', target.idx);
+      else { this._dragSource = null; this._renderAll(); }  // hors zone → annule
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  },
+
+  // Retourne la cible de drop sous le point (x, y), ou null
+  _dropTargetAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const slotEl = el.closest('[data-source]');
+    if (!slotEl) return null;
+    if (slotEl.dataset.source === 'field')
+      return { type: 'field', col: parseInt(slotEl.dataset.col), row: parseInt(slotEl.dataset.row) };
+    if (slotEl.dataset.source === 'bank')
+      return { type: 'bank', idx: parseInt(slotEl.dataset.idx) };
+    return null;
+  },
+
+  _highlightDropTargetAt(x, y) {
+    this._clearDropHighlight();
+    const el = document.elementFromPoint(x, y);
+    const slotEl = el?.closest('[data-source]');
+    if (slotEl) slotEl.classList.add('drag-over');
+  },
+
+  _clearDropHighlight() {
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1012,7 +1055,7 @@ slot.addEventListener('drop', (e) => {
     // La toile reste 120px, seuls les textes sortent légèrement
     const isMobile  = window.innerWidth <= 768;
     const emojiSize = isMobile ? 38 : 13;
-    const valSize   = isMobile ? 56 : 8;
+    const valSize   = isMobile ? 66 : 11;
     const labelDist = isMobile ? 12 : 18;  // très proche de la toile sur mobile
 
     // Icônes + valeurs
