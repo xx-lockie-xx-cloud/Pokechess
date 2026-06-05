@@ -13,6 +13,7 @@ const SECTIONS = [
   { id:"combat",    icon:"💥",  label:"Combat" },
   { id:"synergies", icon:"🔗",  label:"Synergies" },
   { id:"items",     icon:"🎒",  label:"Objets" },
+  { id:"relics",    icon:"💎",  label:"Reliques" },
   { id:"roguelite", icon:"🎲",  label:"Roguelite" },
 ];
 
@@ -139,6 +140,7 @@ export const TutorialUI = {
       case 'combat':    return this._sectionCombat();
       case 'synergies': return this._sectionSynergies();
       case 'items':     return this._sectionItems();
+      case 'relics':    return this._sectionRelics();
       case 'roguelite': return this._sectionRoguelite();
       default:          return this._sectionIntro();
     }
@@ -210,7 +212,7 @@ export const TutorialUI = {
       { type:'shop',   x:155, y:120, label:'Boutique',available:true },
       { type:'item',   x:155, y:165, label:'Objet',   available:true },
       { type:'combat', x:255, y:90,  label:'Combat' },
-      { type:'wild',   x:255, y:155, label:'Sauvage' },
+      { type:'random', x:255, y:155, label:'Mystère' },
       { type:'combat', x:355, y:120, label:'Combat' },
       { type:'boss',   x:430, y:120, label:'Arène' },
     ];
@@ -220,9 +222,9 @@ export const TutorialUI = {
       [255,90,355,120],[255,155,355,120],
       [355,120,430,120],
     ];
-    const NODE_ICONS = { start:'🏠',combat:'⚔️',shop:'🛍',item:'🎁',wild:'🌿',boss:'👑' };
+    const NODE_ICONS = { start:'🏠',combat:'⚔️',shop:'🛍',item:'🎁',random:'❓',boss:'👑' };
     const NODE_COLORS = { start:'#718096',combat:'#fc5c65',shop:'#ffd700',
-      item:'#55efc4',wild:'#4fc3f7',boss:'#a29bfe' };
+      item:'#55efc4',random:'#4fc3f7',boss:'#a29bfe' };
 
     const nodeHtml = nodes.map(n => {
       const c = NODE_COLORS[n.type] ?? '#444';
@@ -244,8 +246,8 @@ export const TutorialUI = {
       ${this._card(`
         ${this._title('🗺 Layout d\'une Map')}
         <p style="color:#718096;font-size:11px;margin:0 0 10px">
-          Générée par une seed déterministe. Choisis ton chemin de gauche à droite.
-          Les noeuds colorés sont disponibles, les gris sont verrouillés.
+          Chaque épopée génère sa propre carte. Choisis ton chemin de gauche à droite :
+          les noeuds colorés sont disponibles, les gris sont verrouillés.
         </p>
         <div class="tut-map-container">
           ${edgesSvg}
@@ -256,12 +258,29 @@ export const TutorialUI = {
             <div class="tut-legend-item">
               <span class="tut-legend-icon" style="border-color:${NODE_COLORS[type]};background:${NODE_COLORS[type]}22">${icon}</span>
               <span style="font-size:10px;color:#718096">${
-                {combat:'Combat',shop:'Boutique',item:'Objet',wild:'Sauvage',boss:'Arène'}[type]
+                {combat:'Combat',shop:'Boutique',item:'Objet',random:'Mystère',boss:'Arène'}[type]
               }</span>
             </div>
           `).join('')}
         </div>
-        ${this._tip('La seed est sauvegardée — en quittant et revenant, tu retrouves le même layout.')}
+        ${this._tip('Le nœud Mystère (❓) cache un combat, une boutique ou un objet au hasard.')}
+        ${this._tip('Le layout est mémorisé — en quittant et revenant, tu retrouves la même carte.')}
+      `)}
+
+      ${this._card(`
+        ${this._title('🌿 Rencontres sauvages')}
+        <p style="color:#718096;font-size:11px;margin:0 0 6px">
+          Il n'y a pas de nœud « sauvage » dédié. Sur le chemin vers
+          <strong style="color:#e2e8f0">chaque nœud</strong>, un Pokémon sauvage apparaît :
+          tu peux tenter de le <strong style="color:#4fc3f7">capturer</strong> (coût en pièces)
+          pour l'ajouter à ta réserve, ou l'ignorer et continuer.
+        </p>
+        <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin:8px 0">
+          <span class="tut-node-icon" style="background:#71809622;border:2px solid #718096">🏠</span>
+          <span style="color:#4fc3f7;font-size:18px">🌿→</span>
+          <span class="tut-node-icon" style="background:#fc5c6522;border:2px solid #fc5c65">⚔️</span>
+        </div>
+        ${this._tip('Capturer renforce ta réserve, mais chaque capture coûte des pièces — choisis bien.')}
       `)}
 
       ${this._card(`
@@ -359,9 +378,10 @@ export const TutorialUI = {
       `)}
 
       ${this._card(`
-        ${this._title('⚡ Système ATB')}
+        ${this._title('⚡ Ordre d\'action (vitesse)')}
         <p style="color:#718096;font-size:11px;margin:0 0 8px">
-          Vitesse effective = <b style="color:#ffd700">100 + SPD</b>. La barre dorée = prochain à jouer.
+          Chaque unité remplit une jauge d'action selon sa <b style="color:#ffd700">vitesse</b>.
+          Plus elle est rapide, plus elle agit souvent. La barre dorée = prochain à jouer.
         </p>
         <div class="tut-grid-2">
           ${[['Ectoplasma','SPD 110','vitesse 210','#6c3483'],
@@ -569,6 +589,66 @@ export const TutorialUI = {
     `;
   },
 
+  // ── Section Reliques ──────────────────────────────────────────────────────
+  _sectionRelics() {
+    // Une seule relique dévoilée en exemple ; les autres restent à découvrir
+    const teaser = { icon:'💰', name:'Bourse Dorée', desc:'+2 pièces après chaque victoire.' };
+
+    return `
+      ${this._card(`
+        ${this._title('💎 Qu\'est-ce qu\'une relique ?')}
+        <p style="color:#718096;font-size:11px;margin:0 0 8px">
+          Au début de chaque épopée, tu choisis <strong style="color:#e2e8f0">une relique</strong>
+          parmi plusieurs proposées. C'est un <strong style="color:#a29bfe">modificateur permanent</strong>
+          qui transforme les règles de toute la run : économie, combat, synergies…
+        </p>
+        <p style="color:#718096;font-size:11px;margin:0">
+          Chaque relique oriente une stratégie différente. Certaines sont à
+          <strong style="color:#e2e8f0">double tranchant</strong> : un gros bonus contre un malus.
+        </p>
+      `)}
+
+      ${this._card(`
+        ${this._title('✨ Exemple', '#55efc4')}
+        <div style="display:flex;align-items:center;gap:12px;padding:6px 4px">
+          <span style="font-size:40px">${teaser.icon}</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#ffd700">${teaser.name}</div>
+            <div style="font-size:11px;color:#a0aec0">${teaser.desc}</div>
+          </div>
+        </div>
+      `)}
+
+      ${this._card(`
+        ${this._title('🗝 Familles de reliques', '#a29bfe')}
+        ${[['💰','Économie','Plus de pièces, de meilleures boutiques'],
+           ['⚔️','Combat','Modifient PV, ATK, mana, vitesse des ultimes'],
+           ['🔗','Synergies','Activent ou amplifient les synergies'],
+           ['🎲','À double tranchant','Gros bonus… contre un malus']].map(
+          ([icon, name, desc]) => `
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:7px">
+            <span style="font-size:22px;min-width:28px;text-align:center">${icon}</span>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#e2e8f0">${name}</div>
+              <div style="font-size:10px;color:#718096">${desc}</div>
+            </div>
+          </div>
+        `).join('')}
+      `)}
+
+      ${this._card(`
+        <div style="text-align:center;padding:8px 4px">
+          <div style="font-size:34px;margin-bottom:4px">❓ ❓ ❓</div>
+          <div style="font-size:12px;color:#e2e8f0;font-weight:700">Le reste est à découvrir…</div>
+          <div style="font-size:10px;color:#718096;margin-top:3px">
+            De nombreuses reliques se débloquent au fil de tes exploits.
+          </div>
+        </div>
+      `)}
+      ${this._tip('Les reliques se débloquent via les succès — explore différentes stratégies !')}
+    `;
+  },
+
   // ── Section Roguelite ─────────────────────────────────────────────────────
   _sectionRoguelite() {
     return `
@@ -593,10 +673,10 @@ export const TutorialUI = {
 
       ${this._card(`
         ${this._title('🎲 Difficultés')}
-        ${[['🌿 Facile','×0.8','Ennemis affaiblis','#55efc4'],
-          ['⚔️ Normal','×1.0','Expérience de base','#4fc3f7'],
-          ['🔥 Difficile','×1.3','Après 1 run complète','#e17055'],
-          ['💀 Expert','×1.7','Requiert 3 succès Ligue','#fc5c65']].map(
+        ${[['🌿 Facile','×0.8','Toujours disponible','#55efc4'],
+          ['⚔️ Normal','×1.0','Finir la Ligue en Facile','#4fc3f7'],
+          ['🔥 Difficile','×1.3','Finir la Ligue en Normal','#e17055'],
+          ['💀 Expert','×1.7','Finir en Difficile avec relique','#fc5c65']].map(
           ([d, m, desc, c]) => `
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
             ${this._badge(c, m)}
