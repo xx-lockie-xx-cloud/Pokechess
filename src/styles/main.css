@@ -4299,17 +4299,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .menu-grid-2col { margin: 8px auto 6px; }
 }
 
-/* ── Slot "pris" pour déplacement (tap-to-move) ───────────────────────────── */
-.slot.picked {
-  outline: 3px solid #ffd700;
-  outline-offset: -1px;
-  box-shadow: 0 0 16px rgba(255, 215, 0, 0.7);
-  transform: scale(1.06);
-  z-index: 5;
-  animation: picked-pulse 1.2s ease-in-out infinite;
-}
-@keyframes picked-pulse {
-  0%, 100% { box-shadow: 0 0 16px rgba(255, 215, 0, 0.7); }
   50%       { box-shadow: 0 0 24px rgba(255, 215, 0, 1); }
 }
 
@@ -4345,3 +4334,11 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   padding-top: 5px;
   font-weight: 700;
 }
+
+/* ── Case verrouillée recevant un repositionnement terrain→terrain ────────── */
+.slot-locked.drag-over {
+  border-color: #ffd700 !important;
+  background: rgba(255, 215, 0, 0.15) !important;
+  opacity: 1 !important;
+}
+.slot-locked.drag-over .slot-lock-icon { opacity: 0.3; }
