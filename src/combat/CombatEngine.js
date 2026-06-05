@@ -193,7 +193,7 @@ export class CombatEngine {
 
         // Log de l'action
         actionCount++;
-        this.log.push({ type: 'turn_start', turn: actionCount, unitId: unit.uid, unitName: unit.name });
+        this.log.push({ type: 'turn_start', turn: actionCount, unitId: unit.uid, unitName: unit.name, unitSide: unit.side });
 
         // Bâillement → sommeil (décrémenté à chaque action de l'unité)
         const delay = unit.statusEffects.find(s => s.type === 'delayed_sleep');

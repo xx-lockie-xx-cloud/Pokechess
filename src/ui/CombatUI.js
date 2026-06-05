@@ -29,6 +29,9 @@ export const CombatUI = {
   _speed:       1,
   _combatLog:   [],
   _unsubscribe: null,   // pour nettoyer le listener registre
+  _atbDisplay:  {},     // valeur affichée (0-100) de chaque barre ATB par clé
+  _atbSpeed:    {},     // vitesse ATB (100 + spd) de chaque unité par clé
+  _atbRaf:      null,   // handle requestAnimationFrame de l'animation en cours
 
   // ─────────────────────────────────────────────────────────────────────────
   init(data, registry, onDone) {
@@ -49,6 +52,9 @@ export const CombatUI = {
     this._statusTracker = {};
     this._speed         = 1;
     this._combatLog     = [];
+    this._atbDisplay    = {};
+    this._atbSpeed      = {};
+    if (this._atbRaf) { cancelAnimationFrame(this._atbRaf); this._atbRaf = null; }
 
     // Lit toujours depuis le registre (priorité sur data.playerUnits)
     this._playerUnits = _applyAnom(registry.get('playerUnits') ?? data.playerUnits ?? []);
@@ -583,10 +589,101 @@ export const CombatUI = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // ATB — Option C : remplissage temps réel piloté par l'ordre du log
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Initialise les vitesses ATB (100 + spd) et remet les barres à 0
+  _initATBState() {
+    this._atbDisplay = {};
+    this._atbSpeed   = {};
+    const register = (units, side) => {
+      units.filter(Boolean).forEach(u => {
+        const uid = u.uid ?? `${u.id}_${u.col}_${u.row}`;
+        const key = `${side}_${uid}`;
+        const spd = u.stats?.spd ?? u.spd ?? 1;
+        this._atbSpeed[key]   = 100 + spd;
+        this._atbDisplay[key] = 0;
+        this._updateATBBar(key, 0);
+      });
+    };
+    register(this._playerUnits, 'player');
+    register(this._enemyUnits,  'enemy');
+  },
+
+  // Anime toutes les barres jusqu'à ce que l'acteur atteigne 100%.
+  // Les autres montent proportionnellement à leur vitesse (math ATB fidèle).
+  // Appelle `done` une fois l'acteur à 100%.
+  _fillATBUntil(actorKey, done) {
+    const startActor = this._atbDisplay[actorKey] ?? 0;
+    const spdActor   = this._atbSpeed[actorKey]   ?? 100;
+
+    // Temps ATB nécessaire pour que l'acteur atteigne 100%
+    const atbTime = Math.max(0, (100 - startActor) / spdActor);
+
+    // Cibles : chaque unité monte de vitesse × atbTime (cappé à 100)
+    const targets = {};
+    Object.keys(this._atbDisplay).forEach(key => {
+      const start = this._atbDisplay[key] ?? 0;
+      const gain  = (this._atbSpeed[key] ?? 100) * atbTime;
+      targets[key] = (key === actorKey) ? 100 : Math.min(100, start + gain);
+    });
+
+    // Durée visuelle (modulée par la vitesse de lecture)
+    const VISUAL_MS = 480 / (this._speed || 1);
+    const starts    = { ...this._atbDisplay };
+    const t0        = performance.now();
+
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / VISUAL_MS);
+      Object.keys(targets).forEach(key => {
+        const v = starts[key] + (targets[key] - starts[key]) * p;
+        this._atbDisplay[key] = v;
+        this._updateATBBar(key, v, key === actorKey && p >= 0.999);
+      });
+      if (p < 1) {
+        this._atbRaf = requestAnimationFrame(step);
+      } else {
+        this._atbRaf = null;
+        done();
+      }
+    };
+    this._atbRaf = requestAnimationFrame(step);
+  },
+
+  // Réinitialise la barre d'une unité après qu'elle a agi
+  _resetATB(key) {
+    this._atbDisplay[key] = 0;
+    this._updateATBBar(key, 0);
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
   _animateLog(log, index, onComplete) {
+    // À la première frame, initialise les vitesses ATB
+    if (index === 0) this._initATBState();
+
     if (index >= log.length) { onComplete(); return; }
-    const delay = Math.round(this._handleEvent(log[index]) / this._speed);
-    setTimeout(() => this._animateLog(log, index + 1, onComplete), delay);
+
+    const event = log[index];
+    const next  = () => this._animateLog(log, index + 1, onComplete);
+
+    // Un 'turn_start' signale qu'une unité va agir → on remplit sa barre à 100%
+    // AVANT de jouer l'action (les barres montent progressivement, pause ensuite).
+    if (event.type === 'turn_start' && event.unitId) {
+      const actorKey = this._buildKey(event.unitSide ?? 'player', event.unitId);
+      this._setNextActor(event.unitId, event.unitSide ?? 'player');
+      this._fillATBUntil(actorKey, () => {
+        // L'acteur est à 100% : on joue le turn_start puis on enchaîne.
+        // Les barres restent gelées pendant les animations d'attaque qui suivent.
+        const delay = Math.round(this._handleEvent(event) / this._speed);
+        this._resetATB(actorKey);
+        setTimeout(next, delay);
+      });
+      return;
+    }
+
+    // Tous les autres événements : comportement normal (barres gelées)
+    const delay = Math.round(this._handleEvent(event) / this._speed);
+    setTimeout(next, delay);
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -596,14 +693,8 @@ export const CombatUI = {
 
     switch (event.type) {
       case 'turn_start': {
-        // L'unité qui agit est "next" → barre dorée, reset après action
-        if (event.unitId) {
-          const actKey = this._buildKey(event.unitSide ?? 'player', event.unitId);
-          // Reset sa barre à 0 (elle vient d'agir)
-          this._updateATBBar(actKey, 0, true);
-          // Repasse toutes les autres barres en mauve
-          this._setNextActor(event.unitId, event.unitSide ?? 'player');
-        }
+        // La barre de l'acteur est déjà à 100% (gérée par _fillATBUntil / RAF).
+        // On ne touche plus la barre ici : elle sera reset après l'action.
         this._appendLog(`<span class="log-turn">⚡ ${event.unitName ?? 'Pokémon'} agit</span>`);
         return DELAY_TURN_START;
       }
@@ -613,8 +704,8 @@ export const CombatUI = {
         const targetKey   = this._buildKey(event.targetSide,   event.targetId);
         if (event.attackerMana !== undefined) this._updateManaBar(attackerKey, event.attackerMana);
         if (event.targetMana   !== undefined) this._updateManaBar(targetKey,   event.targetMana);
-        if (event.attackerAtb  !== undefined) this._updateATBBar(attackerKey, event.attackerAtb);
-        if (event.targetAtb    !== undefined) this._updateATBBar(targetKey,   event.targetAtb);
+        // Note : les barres ATB ne sont plus modifiées ici, elles sont pilotées
+        // par _fillATBUntil (option C) et gelées pendant l'animation d'attaque.
         this._flashSlot(attackerKey, 'flash-yellow');
         if (event.isMove) this._showMoveAnimation(attackerKey, event.moveName ?? '');
         setTimeout(() => {
@@ -970,6 +1061,8 @@ export const CombatUI = {
 
   // ─────────────────────────────────────────────────────────────────────────
   _onCombatEnd(winner, log = []) {
+    // Stoppe l'animation ATB en cours
+    if (this._atbRaf) { cancelAnimationFrame(this._atbRaf); this._atbRaf = null; }
     const isWin = winner === 'player';
 
     const phase = document.getElementById('combat-phase-text');

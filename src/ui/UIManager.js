@@ -152,13 +152,14 @@ class UIManagerClass {
 
       // Le seed MAÎTRE vient de state.seed ; la progression de mapVisited/mapAvailable
       const progress = getMapProgress(this.registry);
-      this._startMapScene({
+      // Un seul appel : show('map', data) → _startMapScene(data) avec la progression.
+      // (Évite un double appel qui régénérait une map vierge.)
+      this.show('map', {
         mapIndex:       state.currentMap ?? 0,
         seed:           state.seed ?? progress.seed ?? null,
         visitedNodes:   progress.visited,
         availableNodes: progress.available,
       });
-      this.show('map');
     });
 
     // Nouvelle partie — écrase toujours la save de run en cours (roguelite)

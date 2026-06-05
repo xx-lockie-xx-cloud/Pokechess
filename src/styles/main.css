@@ -153,7 +153,8 @@ img {
   border-radius: var(--radius-sm);
   white-space: nowrap;
   line-height: 1;
-  flex-shrink: 0;  /* ne s'étire jamais */
+  flex: 0 0 auto;   /* ne s'étire ni ne rétrécit */
+  max-width: 110px; /* borne la largeur sur desktop */
 }
 
 #ui-coins, #ui-pokeballs {
@@ -2970,7 +2971,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   /* Dorée pour se distinguer de la mana violette */
   background: linear-gradient(90deg, #f39c12, #ffd700);
   border-radius: 2px;
-  transition: width 1.5s linear;
+  transition: width 0.08s linear;
 }
 
 /* ── Barre mana (ultime) ────────────────────────────────────────────────── */
@@ -3018,7 +3019,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   height: 100%;
   background: linear-gradient(90deg, #6c5ce7, #a29bfe);  /* mauve par défaut */
   border-radius: 2px;
-  transition: width 1.5s linear, background 0.2s ease;
+  transition: width 0.08s linear, background 0.2s ease;
 }
 
 .arena-unlock-msg {
