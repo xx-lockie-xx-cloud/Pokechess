@@ -4312,3 +4312,36 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   0%, 100% { box-shadow: 0 0 16px rgba(255, 215, 0, 0.7); }
   50%       { box-shadow: 0 0 24px rgba(255, 215, 0, 1); }
 }
+
+/* ── Popover partagé (stats détaillées, synergies) — viewport-safe ────────── */
+.shared-popover {
+  background: var(--bg-elevated, #1a1a2e);
+  border: 1px solid var(--border-default, #2d3748);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-primary, #e2e8f0);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+  pointer-events: auto;
+}
+.shared-popover .pop-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.shared-popover .pop-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.shared-popover .pop-row .pop-origin {
+  color: var(--text-muted, #a0aec0);
+  font-size: 10px;
+}
+.shared-popover .pop-total {
+  border-top: 1px solid var(--border-default, #2d3748);
+  margin-top: 5px;
+  padding-top: 5px;
+  font-weight: 700;
+}
