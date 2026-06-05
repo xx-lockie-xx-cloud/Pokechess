@@ -4350,3 +4350,156 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   outline-offset: -2px;
 }
 .slot-locked.drag-over .slot-lock-icon { opacity: 0.3; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Écran de victoire de LIGUE (épique map 9 + intermédiaire endless)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Confettis festifs */
+.lv-confetti {
+  position: fixed;
+  z-index: 100000;
+  pointer-events: none;
+  animation-name: lv-confetti-fall;
+  animation-timing-function: cubic-bezier(0.4, 0.1, 0.7, 1);
+  animation-fill-mode: forwards;
+}
+@keyframes lv-confetti-fall {
+  0%   { transform: translateY(0) rotate(0deg);   opacity: 1; }
+  100% { transform: translateY(105vh) rotate(540deg); opacity: 0.9; }
+}
+
+/* Rayons lumineux derrière la photo (épique) */
+.lv-rays {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 42%,
+    rgba(255, 215, 0, 0.22) 0%,
+    rgba(255, 215, 0, 0.08) 30%,
+    transparent 62%);
+  pointer-events: none;
+  z-index: 0;
+  animation: lv-rays-pulse 3s ease-in-out infinite;
+}
+@keyframes lv-rays-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.06); }
+}
+
+.league-victory {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 4px;
+  width: 100%;
+}
+
+/* Bannière dorée lumineuse */
+.lv-banner {
+  font-size: clamp(18px, 5vw, 26px);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-align: center;
+  background: linear-gradient(90deg, #b8860b, #ffd700, #fff4b0, #ffd700, #b8860b);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 6px rgba(255, 215, 0, 0.5));
+  animation: lv-banner-shine 3s linear infinite, lv-pop-in 0.5s ease both;
+}
+@keyframes lv-banner-shine {
+  to { background-position: 200% center; }
+}
+
+/* Maître vaincu */
+.lv-master {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  animation: lv-pop-in 0.5s ease 0.2s both;
+}
+.lv-master-sprite {
+  width: clamp(80px, 22vw, 120px);
+  height: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
+  animation: lv-pop-in 0.5s ease 0.25s both;
+}
+.lv-master-text, .lv-endless-text {
+  font-size: 14px;
+  color: #e2e8f0;
+  text-align: center;
+  line-height: 1.4;
+}
+.lv-master-text strong, .lv-endless-text strong {
+  font-size: 18px;
+  color: #ffd700;
+}
+
+/* Rangée des 8 badges (apparition échelonnée) */
+.lv-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 320px;
+}
+.lv-badge, .lv-badge-fallback {
+  width: 34px;
+  height: 34px;
+  image-rendering: pixelated;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  animation: lv-badge-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.lv-badge-fallback { font-size: 26px; display: inline-flex; align-items: center; justify-content: center; }
+@keyframes lv-badge-pop {
+  0%   { transform: scale(0) rotate(-30deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg);   opacity: 1; }
+}
+
+/* Photo de classe */
+.lv-photo-label {
+  font-size: 12px;
+  color: #a0aec0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+.lv-photo {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 8px 12px;
+  min-height: 90px;
+}
+.lv-photo-mon {
+  width: clamp(56px, 16vw, 78px);
+  height: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.55));
+  animation: lv-photo-rise 0.5s ease both;
+}
+@keyframes lv-photo-rise {
+  0%   { transform: translateY(30px); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+
+/* Écran endless (sobre) */
+.league-victory.endless {
+  gap: 18px;
+  padding: 20px 4px;
+}
+.league-victory.endless .lv-master-sprite {
+  animation: lv-pop-in 0.5s ease both;
+}
+
+@keyframes lv-pop-in {
+  0%   { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1);   opacity: 1; }
+}
