@@ -212,39 +212,72 @@ export const SaveManager = {
   // ── Achievements ────────────────────────────────────────────────────────────
   // ── Tracking des runs ─────────────────────────────────────────────────────
   getRunStats(meta) {
-    return meta?.runStats ?? {
+    const m = meta ?? this.loadMeta();
+    return m?.runStats ?? {
       leaguesBeaten: 0, leaguesByDiff: { easy:0, normal:0, hard:0, expert:0 },
       totalWins: 0, totalLosses: 0, pokemonCaptured: 0,
       relicsUsed: {}, badges: 0,
     };
   },
 
-  updateRunStats(meta, runState, combatResult, winner) {
-    const stats  = this.getRunStats(meta);
-    const isWin  = winner === 'player';
-    const diff   = runState?.difficulty ?? 'easy';
-    const mapIdx = combatResult?.mapIndex ?? -1;
-    const isBoss = combatResult?.nodeType === 'boss';
-    if (isWin)  stats.totalWins++;
-    else        stats.totalLosses++;
-    if (isWin && isBoss) stats.badges++;
-    if (mapIdx >= 8 && isBoss && isWin) {
-      stats.leaguesBeaten++;
-      stats.leaguesByDiff[diff] = (stats.leaguesByDiff[diff] ?? 0) + 1;
-    }
-    if (runState?.relic?.id) {
-      const rid = runState.relic.id;
-      stats.relicsUsed[rid] = (stats.relicsUsed[rid] ?? 0) + 1;
-    }
+  // Incrément atomique d'une stat simple (charge la meta, incrémente, sauvegarde)
+  bumpStat(key, amount = 1) {
+    const meta  = this.loadMeta();
+    const stats = this.getRunStats(meta);
+    stats[key]  = (stats[key] ?? 0) + amount;
     meta.runStats = stats;
-    return stats;
+    this.saveMeta(meta);
+    return stats[key];
+  },
+
+  // Incrément atomique d'une stat imbriquée (ex: leaguesByDiff.hard)
+  bumpStatNested(parent, key, amount = 1) {
+    const meta  = this.loadMeta();
+    const stats = this.getRunStats(meta);
+    stats[parent] = stats[parent] ?? {};
+    stats[parent][key] = (stats[parent][key] ?? 0) + amount;
+    meta.runStats = stats;
+    this.saveMeta(meta);
+    return stats[parent][key];
+  },
+
+  // Enregistre la fin d'un combat (appelé une fois, au moment des résultats)
+  recordCombatResult(runState, { winner, nodeType, mapIndex } = {}) {
+    const isWin  = winner === 'player';
+    const isBoss = nodeType === 'boss';
+    const diff   = runState?.difficulty ?? 'easy';
+    if (isWin) {
+      this.bumpStat('totalWins');
+      if (isBoss) {
+        this.bumpStat('badges');
+        if ((mapIndex ?? -1) >= 8) {
+          this.bumpStat('leaguesBeaten');
+          this.bumpStatNested('leaguesByDiff', diff);
+        }
+      }
+    } else {
+      this.bumpStat('totalLosses');
+    }
+  },
+
+  // Enregistre la relique choisie au DÉBUT d'une épopée (une seule fois)
+  recordRelicUsed(relicId) {
+    if (!relicId) return;
+    this.bumpStatNested('relicsUsed', relicId);
+  },
+
+  // Enregistre une capture
+  recordCapture(n = 1) { this.bumpStat('pokemonCaptured', n); },
+
+  // Compte les Pokémon niveau 100 (à la demande, depuis les niveaux persistants)
+  countMaxLevelPokemon(meta) {
+    const levels = (meta ?? this.loadMeta())?.pokemonLevels ?? {};
+    return Object.values(levels).filter(l => l >= 100).length;
   },
 
   checkAchievements(runState, combatResult = null) {
     const meta  = this.loadMeta();
     const ach   = meta.achievements ?? {};
-    // Met à jour les stats de run
-    if (combatResult?.winner) this.updateRunStats(meta, runState, combatResult, combatResult.winner);
     const newly = [];
 
     const unlock = (id) => {
