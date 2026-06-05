@@ -594,6 +594,15 @@ export const CombatUI = {
     this._livePlayerUnits = engine.playerUnits;
     this._liveEnemyUnits  = engine.enemyUnits;
 
+    // ── Anti-exploit : la défaite est SCELLÉE dès le calcul du combat ──────────
+    // Le combat est pré-simulé, donc l'issue est connue avant la lecture.
+    // Si le joueur perd, on supprime la save ET on scelle la run :
+    // quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
+    if (winner !== 'player') {
+      this._registry?.sealRun?.();   // bloque tout autosave ultérieur
+      SaveManager.deleteSave?.();    // efface la sauvegarde de run existante
+    }
+
     this._animateLog(log, 0, () => this._onCombatEnd(winner, log));
   },
 
