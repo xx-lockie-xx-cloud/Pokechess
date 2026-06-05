@@ -165,14 +165,11 @@ export const ArenaVictoryUI = {
     btn.parentNode.replaceChild(newBtn, btn);
 
     newBtn.addEventListener('click', () => {
-      const state   = getRunState(this._registry);
-      const nextIdx = (state.currentMap ?? 0) + 1;
-      setRunState(this._registry, {
-        currentMap:   nextIdx,
-        infiniteMode: isLeagueVictory,
-      });
+      const state = getRunState(this._registry);
+      // currentMap a DÉJÀ été avancé à la victoire du boss → on le lit tel quel.
+      const nextIdx = state.currentMap ?? (mapIndex + 1);
       if (this._onDone) {
-        // Mode infini : incrémente loopCount
+        // Mode infini : incrémente loopCount une seule fois
         if (isLeagueVictory) {
           const rs = getRunState(this._registry);
           setRunState(this._registry, { ...rs, loopCount: (rs.loopCount ?? 0) + 1 });

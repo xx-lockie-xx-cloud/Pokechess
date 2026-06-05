@@ -395,14 +395,14 @@ class UIManagerClass {
             return;
           }
           this._closeOverlay('arenaVictory');
-          // Passage à la map SUIVANTE : le seed MAÎTRE reste inchangé.
-          // On réinitialise seulement la progression (nœuds visités/disponibles).
+          // currentMap et la progression ont déjà été réinitialisés à la victoire
+          // du boss. On régénère simplement la map suivante depuis le seed maître.
           const rs = this.registry.get('runState') ?? {};
-          this.registry.set('runState', {
-            ...rs,
-            mapVisited: [], mapAvailable: [], lastNodeCol: 0,
+          this.show('map', {
+            ...nextData,
+            mapIndex: rs.currentMap ?? nextData.mapIndex,
+            seed:     rs.seed ?? null,
           });
-          this.show('map', { ...nextData, seed: rs.seed ?? null });
         });
         break;
     }
@@ -618,8 +618,21 @@ class UIManagerClass {
 
     if (isWin) {
       if (result.nodeType === 'boss') {
-        // ArenaVictory overlay par-dessus la map (pas besoin de relancer MapScene)
-        this.show('arenaVictory', { mapIndex: result.mapIndex });
+        // Avance IMMÉDIATEMENT vers la map suivante et réinitialise la progression.
+        // Ainsi, si le joueur quitte sur l'écran de victoire, "Continuer" reprend
+        // bien sur la map suivante (et non sur la map résolue).
+        const rs       = this.registry.get('runState') ?? {};
+        const beatenIdx = result.mapIndex ?? rs.currentMap ?? 0;
+        const nextIdx   = beatenIdx + 1;
+        const isLeague  = beatenIdx >= 8;
+        this.registry.set('runState', {
+          ...rs,
+          currentMap:   nextIdx,
+          mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
+          infiniteMode: isLeague ? true : rs.infiniteMode,
+        });
+        // L'écran de victoire affiche l'arène VAINCUE (beatenIdx)
+        this.show('arenaVictory', { mapIndex: beatenIdx });
       } else {
         // Overlay combat fermé → map déjà visible, on rafraîchit juste les nœuds
         this._refreshMapScene({
