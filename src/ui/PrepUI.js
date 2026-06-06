@@ -28,7 +28,7 @@ import { getBSTTier, getRunState, setRunState, applyAnomalyToUnits,
          removeFromInventory, getInventory,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
 import { ITEMS }                         from '../data/items.js';
-import { getActiveSynergies, getFullStats }  from '../data/synergies.js';
+import { getActiveSynergies, getFullStats, assignCorners, ensureCorners }  from '../data/synergies.js';
 import { getLevelBadgeHTML, getLevelBonus }  from '../data/levelSystem.js';
 import { getPokemonPassive }                 from '../data/passiveHooks.js';
 import { getMove }                           from '../data/moves.js';
@@ -227,11 +227,15 @@ export const PrepUI = {
     slot.setAttribute('draggable', 'false');  // drag géré par Pointer Events
 
     if (unit) {
-      // Coins de type — avec anomalie si active
+      // Coins de type — attribution aléatoire stockée sur l'unité [TL,TR,BR,BL]
+      // (anomalie : on recompose les coins depuis les types d'anomalie si actifs)
       const _anomTypes = getRunState(this._registry)?.anomalyTypes;
       const displayTypes = (_anomTypes?.[unit.id]) ?? unit.types;
-      const c1 = hexToCSS(TC[displayTypes[0]] ?? 0x888888);
-      const c2 = hexToCSS(TC[displayTypes[1]] ?? TC[displayTypes[0]] ?? 0x888888);
+      // Assure des coins ; si anomalie active, recompose selon les types d'anomalie
+      let corners = ensureCorners(unit);
+      if (_anomTypes?.[unit.id]) corners = assignCorners({ types: displayTypes });
+      const cc = (i) => hexToCSS(TC[corners[i]] ?? 0x888888);
+      const cTL = cc(0), cTR = cc(1), cBR = cc(2), cBL = cc(3);
 
       // Objet équipé
       const itemHtml = unit.heldItem
@@ -241,10 +245,10 @@ export const PrepUI = {
       const unitLevel = meta?.pokemonLevels?.[unit.id] ?? 1;
 
       slot.innerHTML = `
-        <span class="type-corner tl" style="border-color:${c1} transparent transparent transparent"></span>
-        <span class="type-corner tr" style="border-color:transparent ${c2} transparent transparent"></span>
-        <span class="type-corner bl" style="border-color:transparent transparent transparent ${c1}"></span>
-        <span class="type-corner br" style="border-color:transparent transparent ${c2} transparent"></span>
+        <span class="type-corner tl" style="border-color:${cTL} transparent transparent transparent"></span>
+        <span class="type-corner tr" style="border-color:transparent ${cTR} transparent transparent"></span>
+        <span class="type-corner bl" style="border-color:transparent transparent transparent ${cBL}"></span>
+        <span class="type-corner br" style="border-color:transparent transparent ${cBR} transparent"></span>
         <img src="${unit.spriteUrl}" alt="${unit.name}"
              onerror="this.src='assets/placeholder.png'" />
         <span class="slot-name">${unit.name}</span>
@@ -737,9 +741,10 @@ export const PrepUI = {
         ? `<span style="color:#ffd700">${EFFECT_LABELS[syn.effect] ?? syn.effect}</span>`
         : '';
 
+      const tierLabel = syn.tier === 3 ? '3★' : syn.tier === 2 ? '2★' : '1★';
       const tooltipHtml = `
-        <div class="pop-title">${syn.icon} ${syn.type} — ${syn.tier === 3 ? '3★' : '2★'}</div>
-        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px">${syn.count} pokémons</div>
+        <div class="pop-title">${syn.icon} ${syn.type} — ${tierLabel}</div>
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px">${syn.count} coins réunis</div>
         ${bonusLines}
         ${effectLine ? `<br>${effectLine}` : ''}
       `;
@@ -1248,12 +1253,15 @@ export const PrepUI = {
           if (!replaced) {
             const anomalyTypes = getRunState(this._registry)?.anomalyTypes;
           const evoTypes = anomalyTypes?.[evoId] ?? evoPok.types;
-          this._field[c][r] = {
+          const evolved = {
               ...evoPok, col: c, row: r,
               uid: u.uid, heldItem: u.heldItem ?? null,
               isInTeam: true, attributes: [],
               types: evoTypes,
             };
+            // Re-tirage des coins à l'évolution (selon les nouveaux types)
+            evolved.corners = assignCorners(evolved);
+            this._field[c][r] = evolved;
             replaced = true;
           } else {
             // Remet l'objet du 2e exemplaire dans l'inventaire

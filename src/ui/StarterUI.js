@@ -14,6 +14,7 @@ import { POKEMONS }                    from '../data/pokemons.js';
 import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
 import { initRun, applyAnomalyToUnits, getBSTTier } from '../data/runState.js';
+import { assignCorners }               from '../data/synergies.js';
 import { TYPE_COLORS as TC }           from '../data/pokemons.js';
 
 // IDs des starters proposés
@@ -261,6 +262,8 @@ export const StarterUI = {
 
     newBtn.addEventListener('click', () => {
       if (!this._selected) return;
+      // Attribue les coins du starter (monotype: 4 identiques / bi-type: 2+2 aléatoire)
+      this._selected.corners = assignCorners(this._selected);
       console.log('Starter confirmé :', this._selected.name);
       initRun(this._registry, this._selected);
       console.log('playerUnits après initRun :', this._registry.get('playerUnits'));
@@ -271,6 +274,7 @@ export const StarterUI = {
         const units = this._registry.get('playerUnits') ?? [];
         const clone = { ...this._selected,
           uid: this._selected.id + '_clone_' + Date.now(),
+          corners: assignCorners(this._selected),
           col: 1, row: 0, isInTeam: true };
         this._registry.set('playerUnits', [...units, clone]);
       }

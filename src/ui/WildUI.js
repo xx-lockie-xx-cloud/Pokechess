@@ -20,6 +20,7 @@ import {
   weightedWildDraw, BANK_MAX_SIZE,
   addSeenPokemon, applyAnomalyToUnits
 } from '../data/runState.js';
+import { assignCorners } from '../data/synergies.js';
 import { RelicEngine } from '../combat/RelicEngine.js';
 
 function hexToCSS(hex) {
@@ -438,14 +439,18 @@ export const WildUI = {
       return;
     }
     removeCoins(this._registry, finalPrice);
+    // Attribue les coins du Pokémon capturé (tirage aléatoire pour les bi-types)
+    this._selected.corners = assignCorners(this._selected);
     const added = addToBank(this._registry, this._selected);
     if (!added) {
       addCoins(this._registry, finalPrice);
       return;
     }
-    // Doppelgänger : ajoute un clone
+    // Doppelgänger : ajoute un clone (avec ses propres coins)
     if (isDoppel) {
-      const clone = { ...this._selected, uid: this._selected.id + '_clone_' + Date.now() };
+      const clone = { ...this._selected,
+        uid: this._selected.id + '_clone_' + Date.now(),
+        corners: assignCorners(this._selected) };
       addToBank(this._registry, clone);
     }
 
