@@ -1480,8 +1480,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 /* ── Slots de combat ──────────────────────────────────────────────────────── */
 .combat-slot {
-  width:  var(--slot-size);
-  height: var(--slot-size);
+  width:  var(--combat-slot-size, var(--slot-size));
+  height: var(--combat-slot-size, var(--slot-size));
   background: var(--bg-panel);
   border: 1.5px solid var(--border-default);
   border-radius: var(--radius-sm);
@@ -1549,9 +1549,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 .combat-sprite {
-  width:  var(--sprite-size) !important;
-  height: var(--sprite-size) !important;
-  object-fit: none;
+  width:  var(--combat-sprite-size, var(--sprite-size)) !important;
+  height: var(--combat-sprite-size, var(--sprite-size)) !important;
+  object-fit: none;        /* sprite 96px natif → net, sans redimensionnement */
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
@@ -2613,6 +2613,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
 
+  /* ── 0. Combat : frames AGRANDIES (slot ~108px / sprite natif ~96px) ──────
+     Variables dédiées au combat UNIQUEMENT (la prép garde --slot-size petit).
+     min(..., vw) : se réduit sur les très petits écrans pour rester à l'écran. */
+  :root {
+    --combat-slot-size:   min(108px, 28vw);
+    --combat-sprite-size: calc(var(--combat-slot-size) - 12px);
+  }
+
   /* ── 1. Header : icônes uniquement, pas de texte ─────────────────────────
      On masque le texte des boutons et on réduit leur taille
      pour éviter la congestion sur petits écrans               */
@@ -2664,9 +2672,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   }
 
   .combat-sprite {
-    /* Sprite réduit et contenu dans le slot */
-    width:  calc(var(--slot-size) - 14px) !important;
-    height: calc(var(--slot-size) - 14px) !important;
+    /* Suit la taille combat dédiée (≈96px au plafond → quasi natif et net) */
+    width:  var(--combat-sprite-size) !important;
+    height: var(--combat-sprite-size) !important;
     object-fit: contain !important;
     max-width:  100%;
     max-height: 100%;
@@ -4315,9 +4323,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .game-logo     { margin-bottom: 10px; } /* écart réduit sous le titre */
   .menu-buttons  { margin-top: 4px; gap: 8px; }
   .menu-grid-2col { margin: 8px auto 6px; }
-}
-
-  50%       { box-shadow: 0 0 24px rgba(255, 215, 0, 1); }
 }
 
 /* ── Popover partagé (stats détaillées, synergies) — viewport-safe ────────── */
