@@ -228,12 +228,9 @@ export const PrepUI = {
 
     if (unit) {
       // Coins de type — attribution aléatoire stockée sur l'unité [TL,TR,BR,BL]
-      // (anomalie : on recompose les coins depuis les types d'anomalie si actifs)
-      const _anomTypes = getRunState(this._registry)?.anomalyTypes;
-      const displayTypes = (_anomTypes?.[unit.id]) ?? unit.types;
-      // Assure des coins ; si anomalie active, recompose selon les types d'anomalie
+      // On utilise TOUJOURS les coins stockés pour que l'affichage corresponde
+      // exactement au calcul de synergie (getActiveSynergies lit aussi unit.corners).
       let corners = ensureCorners(unit);
-      if (_anomTypes?.[unit.id]) corners = assignCorners({ types: displayTypes });
       const cc = (i) => hexToCSS(TC[corners[i]] ?? 0x888888);
       const cTL = cc(0), cTR = cc(1), cBR = cc(2), cBL = cc(3);
 

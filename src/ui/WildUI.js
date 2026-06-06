@@ -257,8 +257,13 @@ export const WildUI = {
     card.className = `poke-card card-tier-${tier}`;
     card.dataset.id = pokemon.id;
 
-    const c1 = hexToCSS(TC[pokemon.types[0]] ?? 0x888888);
-    const c2 = hexToCSS(TC[pokemon.types[1]] ?? TC[pokemon.types[0]] ?? 0x888888);
+    // Attribue les coins dès la présentation (fixés pour cette rencontre)
+    if (!Array.isArray(pokemon.corners) || pokemon.corners.length !== 4) {
+      pokemon.corners = assignCorners(pokemon);
+    }
+    const cn  = pokemon.corners;
+    const cc  = (i) => hexToCSS(TC[cn[i]] ?? 0x888888);
+    const cTL = cc(0), cTR = cc(1), cBR = cc(2), cBL = cc(3);
 
     const price = CAPTURE_PRICE[tier] ?? 3;
 
@@ -267,10 +272,10 @@ export const WildUI = {
 
     card.innerHTML = `
       ${buildCardFrame(tier)}
-      <span class="type-corner tl" style="border-color: ${c1} transparent transparent transparent"></span>
-      <span class="type-corner tr" style="border-color: transparent ${c2} transparent transparent"></span>
-      <span class="type-corner bl" style="border-color: transparent transparent transparent ${c1}"></span>
-      <span class="type-corner br" style="border-color: transparent transparent ${c2} transparent"></span>
+      <span class="type-corner tl" style="border-color: ${cTL} transparent transparent transparent"></span>
+      <span class="type-corner tr" style="border-color: transparent ${cTR} transparent transparent"></span>
+      <span class="type-corner bl" style="border-color: transparent transparent transparent ${cBL}"></span>
+      <span class="type-corner br" style="border-color: transparent transparent ${cBR} transparent"></span>
       ${isPochette
         ? `<span class="card-mystery">?</span>`
         : `<img src="${pokemon.spriteUrl}" alt="${pokemon.name}"
@@ -439,14 +444,16 @@ export const WildUI = {
       return;
     }
     removeCoins(this._registry, finalPrice);
-    // Attribue les coins du Pokémon capturé (tirage aléatoire pour les bi-types)
-    this._selected.corners = assignCorners(this._selected);
+    // Les coins ont déjà été fixés à la rencontre ; on s'assure juste qu'ils existent
+    if (!Array.isArray(this._selected.corners) || this._selected.corners.length !== 4) {
+      this._selected.corners = assignCorners(this._selected);
+    }
     const added = addToBank(this._registry, this._selected);
     if (!added) {
       addCoins(this._registry, finalPrice);
       return;
     }
-    // Doppelgänger : ajoute un clone (avec ses propres coins)
+    // Doppelgänger : ajoute un clone (avec ses propres coins distincts)
     if (isDoppel) {
       const clone = { ...this._selected,
         uid: this._selected.id + '_clone_' + Date.now(),
