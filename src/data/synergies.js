@@ -117,6 +117,8 @@ export const SYNERGIES = {
   },
   "Insecte": {
     icon: "🦋", color: 0xa8b820,
+    // Bonus tous-stats additionnel par palier (1★/2★/3★) pour compenser leurs stats faibles
+    allStatsPerTier: [1.10, 1.20, 1.30],
     seuil2: { label: "+15% VIT + ATK", statBonus: { spd: 1.15, atk: 1.15 }, effect: null },
     seuil3: { label: "+25% VIT + ATK + Essaim", statBonus: { spd: 1.25, atk: 1.25 }, effect: "swarm" },
   },
@@ -140,15 +142,42 @@ export const SYNERGIES = {
 // ─────────────────────────────────────────────────────────────────────────────
 const STAT_LABELS = { hp:'PV', atk:'ATK', spa:'SP.ATK', def:'DEF', spd_def:'SP.DEF', spd:'VIT' };
 
+// Équilibrage : sauf Normal/Insecte/Dragon, chaque synergie booste 2 stats
+// identiques à 10/25/35 % (1★/2★/3★). L'effet spécial reste au 3★.
+const UNIFORM_TIERS = [1.10, 1.25, 1.35];
+const SYNERGY_STAT_PAIRS = {
+  "Feu":      ['atk', 'spa'],
+  "Eau":      ['def', 'spd_def'],
+  "Plante":   ['hp',  'def'],
+  "Électrik": ['spd', 'spa'],
+  "Psy":      ['spa', 'spd_def'],
+  "Roche":    ['def', 'hp'],
+  "Sol":      ['def', 'hp'],
+  "Vol":      ['spd', 'atk'],
+  "Combat":   ['atk', 'def'],
+  "Poison":   ['spa', 'def'],
+  "Glace":    ['spd_def', 'spa'],
+  "Spectre":  ['spa', 'spd'],
+  "Fée":      ['spd_def', 'hp'],
+  "Acier":    ['def', 'spd_def'],
+  "Ténèbres": ['atk', 'spd'],
+};
+
 function _interp(a, b, t) { return a + (b - a) * t; }
 
-function _deriveTierData(synergy, tier) {
+function _deriveTierData(synergy, tier, type = null) {
   const s2 = synergy.seuil2 ?? { statBonus:{}, effect:null };
   const s3 = synergy.seuil3 ?? s2;
   let statBonus = {};
   let effect = null;
 
-  if (tier === 1) {
+  const pair = type ? SYNERGY_STAT_PAIRS[type] : null;
+  if (pair) {
+    // Synergie équilibrée : 2 stats à la valeur uniforme du palier
+    const mult = UNIFORM_TIERS[tier - 1] ?? 1;
+    pair.forEach(k => { statBonus[k] = mult; });
+    if (tier === 3) effect = s3.effect ?? null;
+  } else if (tier === 1) {
     statBonus = { ...(s2.statBonus ?? {}) };
   } else if (tier === 3) {
     // 3★ : seuil3 renforcé de 15 % sur la part de bonus
@@ -163,6 +192,16 @@ function _deriveTierData(synergy, tier) {
       const a = s2.statBonus?.[k] ?? 1;
       const b = s3.statBonus?.[k] ?? 1;
       statBonus[k] = Math.round(_interp(a, b, 0.5) * 1000) / 1000;
+    });
+  }
+
+  // Bonus tous-stats additionnel par palier (ex. Insecte : 1★+10% / 2★+20% / 3★+30%)
+  const allMult = synergy.allStatsPerTier?.[tier - 1];
+  if (allMult && allMult !== 1) {
+    const ALL = ['hp', 'atk', 'spa', 'def', 'spd_def', 'spd'];
+    ALL.forEach(k => {
+      const cur = statBonus[k] ?? 1;
+      statBonus[k] = Math.round(cur * allMult * 1000) / 1000;  // se combine au bonus existant
     });
   }
 
@@ -255,7 +294,7 @@ export function getActiveSynergies(fieldUnits, relicId = null) {
     else if (conv >= need.t2) tier = 2;
     else if (conv >= need.t1) tier = 1;
     if (tier === 0) return;
-    const data = _deriveTierData(synergy, tier);
+    const data = _deriveTierData(synergy, tier, type);
     active.push({
       type, icon: synergy.icon, color: synergy.color,
       count: conv, tier,
@@ -286,7 +325,7 @@ function _legacyCountSynergies(units, relicId = null) {
     else if (count >= need.t2) tier = 2;
     else if (count >= need.t1) tier = 1;
     if (tier === 0) return;
-    const data = _deriveTierData(synergy, tier);
+    const data = _deriveTierData(synergy, tier, type);
     active.push({
       type, icon: synergy.icon, color: synergy.color,
       count, tier,
