@@ -1075,6 +1075,8 @@ export class CombatEngine {
       targetId:     target.uid,   targetName:   target.name,   targetSide:   target.side,
       damage, multiplier: mult, typeMult, isSwarm,
       isMove:       !!move, moveName: move?.name ?? null,
+      // Catégorie : capacité → move.cat ; attaque de base → physique si ATK≥SP.ATK
+      category:     move?.cat ?? (((attacker.atk ?? 0) >= (attacker.spa ?? 0)) ? 'physical' : 'special'),
       // Type de l'attaque : type du move, sinon dernier type utilisé par l'attaquant
       attackType:   move?.type ?? attacker._lastAttackType ?? attacker.types?.[0] ?? 'Normal',
       targetHpLeft: target.hp, targetMaxHp: target.maxHp,
