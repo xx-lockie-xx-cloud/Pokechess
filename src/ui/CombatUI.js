@@ -595,13 +595,26 @@ export const CombatUI = {
     this._livePlayerUnits = engine.playerUnits;
     this._liveEnemyUnits  = engine.enemyUnits;
 
-    // ── Anti-exploit : la défaite est SCELLÉE dès le calcul du combat ──────────
-    // Le combat est pré-simulé, donc l'issue est connue avant la lecture.
-    // Si le joueur perd, on supprime la save ET on scelle la run :
-    // quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
+    // ── Issue connue dès le calcul (combat pré-simulé) ────────────────────────
     if (winner !== 'player') {
+      // Anti-exploit : défaite SCELLÉE immédiatement.
+      // Quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
       this._registry?.sealRun?.();   // bloque tout autosave ultérieur
       SaveManager.deleteSave?.();    // efface la sauvegarde de run existante
+    } else if (this._data?.nodeType === 'boss' && this._registry && !this._mapAdvanced) {
+      // Victoire de BOSS : on avance la map DÈS le calcul (avant la lecture),
+      // pour que quitter pendant la lecture reprenne bien sur la map suivante.
+      this._mapAdvanced = true;
+      const rs        = this._registry.get('runState') ?? {};
+      const beatenIdx = this._data.mapIndex ?? rs.currentMap ?? 0;
+      const nextIdx   = beatenIdx + 1;
+      const isLeague  = beatenIdx >= 8;
+      this._registry.set('runState', {
+        ...rs,
+        currentMap:   nextIdx,
+        mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
+        infiniteMode: isLeague ? true : rs.infiniteMode,
+      });
     }
 
     this._animateLog(log, 0, () => this._onCombatEnd(winner, log));
@@ -1098,25 +1111,9 @@ export const CombatUI = {
       });
     }
 
-    // ── Boss vaincu : on avance la map DÈS l'affichage des résultats ──────────
-    // (avant même le clic sur "Badge obtenu"), pour que quitter ici reprenne
-    // bien sur la map suivante.
-    if (isWin && this._data?.nodeType === 'boss' && this._registry) {
-      const rs        = this._registry.get('runState') ?? {};
-      // Garde-fou : n'avance qu'une seule fois (si pas déjà avancé pour ce combat)
-      if (!this._mapAdvanced) {
-        this._mapAdvanced = true;
-        const beatenIdx = this._data.mapIndex ?? rs.currentMap ?? 0;
-        const nextIdx   = beatenIdx + 1;
-        const isLeague  = beatenIdx >= 8;
-        this._registry.set('runState', {
-          ...rs,
-          currentMap:   nextIdx,
-          mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
-          infiniteMode: isLeague ? true : rs.infiniteMode,
-        });
-      }
-    }
+    // Note : l'avancement de la map (victoire de boss) et le scellement (défaite)
+    // se font désormais DÈS le calcul du combat (voir _startCombat, après resolve()),
+    // pour que quitter pendant la lecture reprenne sur le bon état.
 
     // Gain de niveau pour les pokémons survivants après une victoire
     if (isWin && SaveManager) {

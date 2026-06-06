@@ -712,7 +712,7 @@ class UIManagerClass {
 
     if (isWin) {
       if (result.nodeType === 'boss') {
-        // currentMap a déjà été avancé à l'affichage des résultats (_onCombatEnd).
+        // currentMap a déjà été avancé DÈS le calcul du combat (resolve()).
         // On affiche l'écran de victoire (arène vaincue = result.mapIndex).
         this.show('arenaVictory', {
           mapIndex:     result.mapIndex,
