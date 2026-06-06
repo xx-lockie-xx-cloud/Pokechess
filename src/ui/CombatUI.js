@@ -770,6 +770,10 @@ export const CombatUI = {
         this._showStatChange(key, event.label, event.color);
         // Met à jour le badge permanent
         this._addStatBadge(key, event.stat, event.mult, event.color, event.label);
+        // Aura : ↑ vertes si gain (mult>1), ↓ rouges si perte (mult<1)
+        if (event.mult != null && event.mult !== 1) {
+          this._statAura(key, event.mult > 1);
+        }
         return 90;
       }
 
@@ -826,6 +830,11 @@ export const CombatUI = {
                       event.effect === 'poison' ? '#a040a0' :
                       event.effect === 'curse'  ? '#705898' : '#ff4444';
         this._showStatusDamage(targetKey, event.damage, color, event.label);
+        // Icônes montantes selon l'effet (brûlure 🔥 / poison ☠ / autre 💥)
+        const dmgIcon = event.effect === 'burn' ? '🔥' :
+                        event.effect === 'poison' ? '☠️' :
+                        event.effect === 'recoil' ? '💥' : '💢';
+        this._floatRiseIcons(targetKey, dmgIcon, { color, count: 3 });
         if (event.targetHpLeft <= 0) this._fadeOutSlot(targetKey);
         return 120;
       }
@@ -834,6 +843,8 @@ export const CombatUI = {
         const targetKey = this._buildKey(event.targetSide, event.targetId);
         this._updateHpBar(targetKey, event.targetHpLeft, event.targetMaxHp);
         this._showHealText(targetKey, event.heal, event.label);
+        // Croix vertes montantes
+        this._floatRiseIcons(targetKey, '✚', { color: '#39d353', count: 3 });
         return 100;
       }
 
@@ -1040,6 +1051,80 @@ export const CombatUI = {
   },
 
   // ── (fin du socle d'animation) ────────────────────────────────────────────
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODULE E — Auras de stats : flèches ↑ vertes (buff) / ↓ rouges (debuff)
+  // Une seule aura par vague (coalescence des stat_change consécutifs même unité).
+  // ═══════════════════════════════════════════════════════════════════════════
+  _statAura(key, isBuff) {
+    // Coalescence : ignore si une aura de même sens a déjà été lancée très récemment
+    this._lastAura = this._lastAura ?? {};
+    const guardKey = `${key}_${isBuff ? 'up' : 'down'}`;
+    const now = performance.now();
+    if (this._lastAura[guardKey] && now - this._lastAura[guardKey] < 280) return;
+    this._lastAura[guardKey] = now;
+
+    const c = this._slotCenterClient(key);
+    if (!c) return;
+    const arrow = isBuff ? '▲' : '▼';
+    const color = isBuff ? '#39d353' : '#ff4d4d';
+    const n = 3;
+    for (let i = 0; i < n; i++) {
+      const offX = (i - 1) * 14 + (Math.random() - 0.5) * 6;
+      const a = document.createElement('div');
+      a.textContent = arrow;
+      Object.assign(a.style, {
+        position: 'fixed',
+        left: `${c.x + offX}px`,
+        top:  `${c.y + (isBuff ? c.h * 0.25 : -c.h * 0.25)}px`,
+        fontSize: '15px', fontWeight: '900', color,
+        textShadow: `0 0 6px ${color}`,
+        zIndex: '9999', pointerEvents: 'none',
+        transform: 'translate(-50%,-50%)',
+        transition: 'transform 0.6s ease-out, opacity 0.6s ease-out',
+        opacity: '0.95',
+      });
+      document.body.appendChild(a);
+      void a.offsetWidth;
+      const rise = isBuff ? -c.h * 0.7 : c.h * 0.7;   // monte (buff) ou descend (debuff)
+      // Décalage progressif des 3 flèches
+      setTimeout(() => {
+        a.style.transform = `translate(-50%, calc(-50% + ${rise}px))`;
+        a.style.opacity = '0';
+      }, i * 70);
+      setTimeout(() => a.remove(), 700 + i * 70);
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODULE F — Icônes flottantes montantes (soin ✚, poison ☠, brûlure 🔥)
+  // ═══════════════════════════════════════════════════════════════════════════
+  _floatRiseIcons(key, icon, { color = '#fff', count = 3 } = {}) {
+    const c = this._slotCenterClient(key);
+    if (!c) return;
+    for (let i = 0; i < count; i++) {
+      const offX = (i - (count - 1) / 2) * 13 + (Math.random() - 0.5) * 6;
+      const el = document.createElement('div');
+      el.textContent = icon;
+      Object.assign(el.style, {
+        position: 'fixed',
+        left: `${c.x + offX}px`, top: `${c.y}px`,
+        fontSize: '14px', zIndex: '9999', pointerEvents: 'none',
+        color, textShadow: color !== '#fff' ? `0 0 5px ${color}` : 'none',
+        transform: 'translate(-50%,-50%)',
+        transition: 'transform 0.65s ease-out, opacity 0.65s ease-out',
+        opacity: '1',
+      });
+      document.body.appendChild(el);
+      void el.offsetWidth;
+      setTimeout(() => {
+        el.style.transform = `translate(-50%, calc(-50% - ${c.h * 0.65 + Math.random() * 10}px))`;
+        el.style.opacity = '0';
+      }, i * 60);
+      setTimeout(() => el.remove(), 720 + i * 60);
+    }
+  },
+
 
 
   _fadeOutSlot(key) {
