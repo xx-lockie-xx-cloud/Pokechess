@@ -4520,3 +4520,41 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   0%   { transform: scale(0.8); opacity: 0; }
   100% { transform: scale(1);   opacity: 1; }
 }
+
+/* ── Choix de seed (menu nouvelle partie) ─────────────────────────────────── */
+.seed-chooser {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.seed-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a0aec0;
+  cursor: pointer;
+  user-select: none;
+}
+.seed-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: #ffd700;
+  cursor: pointer;
+}
+.seed-input {
+  width: 100%;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #4a5a7c;
+  background: #2a3a5c;
+  color: #e2e8f0;
+  font-size: 13px;
+  text-align: center;
+  outline: none;
+}
+.seed-input::placeholder { color: #718096; }
+.seed-input:focus { border-color: #ffd700; }
