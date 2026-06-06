@@ -736,16 +736,26 @@ export const CombatUI = {
         const targetKey   = this._buildKey(event.targetSide,   event.targetId);
         if (event.attackerMana !== undefined) this._updateManaBar(attackerKey, event.attackerMana);
         if (event.targetMana   !== undefined) this._updateManaBar(targetKey,   event.targetMana);
-        // Note : les barres ATB ne sont plus modifiées ici, elles sont pilotées
-        // par _fillATBUntil (option C) et gelées pendant l'animation d'attaque.
         this._flashSlot(attackerKey, 'flash-yellow');
         if (event.isMove) this._showMoveAnimation(attackerKey, event.moveName ?? '');
-        setTimeout(() => {
+
+        const isCrit = event.typeMult >= 2;
+        // Impact : flash cible + dégâts + burst d'emojis de type
+        const onImpact = () => {
           this._flashSlot(targetKey, 'flash-red');
           this._updateHpBar(targetKey, event.targetHpLeft, event.targetMaxHp);
           this._showDamageText(targetKey, event.damage, event.typeMult);
-        }, 100);
-        return event.isMove ? 350 : DELAY_ATTACK;
+          this._impactBurst(targetKey, { type: event.attackType, isCrit });
+        };
+
+        // Physique → lunge ; Spéciale → projectile coloré par type
+        if (event.category === 'physical') {
+          this._playPhysicalLunge(attackerKey, targetKey, { onImpact });
+          return event.isMove ? 480 : 560;
+        } else {
+          this._playProjectile(attackerKey, targetKey, { type: event.attackType, onImpact });
+          return event.isMove ? 430 : 520;
+        }
       }
 
       case 'ultimate_start': {
@@ -897,6 +907,132 @@ export const CombatUI = {
     slot.appendChild(txt);
     setTimeout(() => txt.remove(), 950);
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODULE B — Socle d'animation (sprites, positions, projectiles, impacts)
+  // ═══════════════════════════════════════════════════════════════════════════
+  _spriteEl(key) {
+    const slot = this._slots[key];
+    return slot ? slot.querySelector('.combat-sprite-wrapper') : null;
+  },
+
+  // Centre d'un slot en coordonnées client (pour projectiles en position:fixed)
+  _slotCenterClient(key) {
+    const slot = this._slots[key];
+    if (!slot) return null;
+    const r = slot.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+  },
+
+  _typeEmoji(type) {
+    const M = {
+      Feu:'🔥', Eau:'💧', Plante:'🌿', Électrik:'⚡', Glace:'❄️', Combat:'👊',
+      Poison:'☠️', Sol:'🌋', Vol:'🪶', Psy:'🔮', Insecte:'🐛', Roche:'🪨',
+      Spectre:'👻', Dragon:'🐉', Ténèbres:'🌑', Acier:'⚙️', Fée:'✨', Normal:'⭐',
+    };
+    return M[type] ?? '✦';
+  },
+
+  // ── MODULE C — Attaque PHYSIQUE : lunge "Hearthstone" (armement → charge → retour)
+  // Rotation accompagnant la translation + grossissement à l'armement.
+  _playPhysicalLunge(attackerKey, targetKey, { onImpact } = {}) {
+    const el = this._spriteEl(attackerKey);
+    const aC = this._slotCenterClient(attackerKey);
+    const tC = this._slotCenterClient(targetKey);
+    if (!el || !aC || !tC) { if (onImpact) onImpact(); return; }
+
+    const dx = tC.x - aC.x, dy = tC.y - aC.y;
+    const goingRight = dx >= 0;
+    // Droite : armement -30° (anti-horaire) → impact +30° (horaire). Gauche : inverse.
+    const armAngle = goingRight ? -30 : 30;
+    const hitAngle = goingRight ? 30 : -30;
+    // Charge partielle (~60% de la distance) pour limiter le chevauchement
+    const moveX = dx * 0.6, moveY = dy * 0.6;
+    const recoilX = -dx * 0.10, recoilY = -dy * 0.10;  // léger recul à l'armement
+
+    el.style.zIndex = '60';
+    el.style.willChange = 'transform';
+
+    // Phase 1 — Armement (~110ms) : recul + rotation de départ + grossissement 1.15
+    el.style.transition = 'transform 0.11s ease-in';
+    el.style.transform  = `translate(${recoilX}px, ${recoilY}px) rotate(${armAngle}deg) scale(1.15)`;
+
+    setTimeout(() => {
+      // Phase 2 — Charge (~150ms) : translation vers la cible + sweep de rotation + scale ~1
+      el.style.transition = 'transform 0.15s cubic-bezier(0.5,0,0.9,0.4)';
+      el.style.transform  = `translate(${moveX}px, ${moveY}px) rotate(${hitAngle}deg) scale(1.0)`;
+      setTimeout(() => {
+        if (onImpact) onImpact();   // impact au contact
+        // Phase 3 — Retour (~200ms)
+        el.style.transition = 'transform 0.2s ease-out';
+        el.style.transform  = 'translate(0,0) rotate(0deg) scale(1)';
+        setTimeout(() => {
+          el.style.transition = '';
+          el.style.zIndex = '';
+          el.style.willChange = '';
+        }, 210);
+      }, 150);
+    }, 110);
+  },
+
+  // ── MODULE D — Attaque SPÉCIALE : projectile coloré attaquant → cible
+  _playProjectile(attackerKey, targetKey, { type, onImpact } = {}) {
+    const aC = this._slotCenterClient(attackerKey);
+    const tC = this._slotCenterClient(targetKey);
+    if (!aC || !tC) { if (onImpact) onImpact(); return; }
+
+    const color = this._typeColor(type);
+    const orb = document.createElement('div');
+    orb.className = 'combat-projectile';
+    Object.assign(orb.style, {
+      position: 'fixed', left: `${aC.x}px`, top: `${aC.y}px`,
+      width: '16px', height: '16px', borderRadius: '50%',
+      background: `radial-gradient(circle at 35% 35%, #fff, ${color} 60%, ${color})`,
+      boxShadow: `0 0 10px 3px ${color}`,
+      transform: 'translate(-50%,-50%)', zIndex: '70', pointerEvents: 'none',
+      transition: 'left 0.25s linear, top 0.25s linear',
+    });
+    document.body.appendChild(orb);
+    // Lance le projectile
+    requestAnimationFrame(() => {
+      orb.style.left = `${tC.x}px`;
+      orb.style.top  = `${tC.y}px`;
+    });
+    setTimeout(() => {
+      orb.remove();
+      if (onImpact) onImpact();
+    }, 250);
+  },
+
+  // ── Burst d'impact : flash + emojis de type qui s'écartent du point d'impact
+  _impactBurst(targetKey, { type, isCrit } = {}) {
+    const c = this._slotCenterClient(targetKey);
+    if (!c) return;
+    const emoji = this._typeEmoji(type);
+    const n = isCrit ? 6 : 4;
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.5;
+      const dist = (isCrit ? 34 : 26) + Math.random() * 8;
+      const ex = Math.cos(ang) * dist, ey = Math.sin(ang) * dist;
+      const p = document.createElement('div');
+      p.textContent = emoji;
+      Object.assign(p.style, {
+        position: 'fixed', left: `${c.x}px`, top: `${c.y}px`,
+        fontSize: isCrit ? '17px' : '14px', zIndex: '71', pointerEvents: 'none',
+        transform: 'translate(-50%,-50%)', transition: 'transform 0.4s ease-out, opacity 0.4s ease-out',
+        opacity: '1',
+      });
+      document.body.appendChild(p);
+      requestAnimationFrame(() => {
+        p.style.transform = `translate(calc(-50% + ${ex}px), calc(-50% + ${ey}px)) scale(${isCrit?1.3:1})`;
+        p.style.opacity = '0';
+      });
+      setTimeout(() => p.remove(), 450);
+    }
+  },
+
+  // ── (fin du socle d'animation) ────────────────────────────────────────────
+
 
   _fadeOutSlot(key) {
     const slot = this._slots[key];
