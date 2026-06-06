@@ -6,6 +6,7 @@
 
 import { POKEMONS }    from './pokemons.js';
 import { getBSTTier }  from './runState.js';
+import { TRAINER_ARCHETYPES, TRAINER_ARCHETYPES_EXTRA, generateEnemyTeam } from './trainers.js';
 
 // ── Métadonnées des 8 arènes (sans équipes statiques) ────────────────────────
 export const ARENAS = [
@@ -223,6 +224,51 @@ export function generateLeagueTeam(mapIndex = 7, difficultyMult = 1.0, rng = Mat
   }
 
   return { team, type: chosenType };
+}
+
+// ── Génère le MAÎTRE de la ligue : archétype aléatoire en version "Maître" ───
+// Pioche un archétype connu, construit son équipe (boost de stats lié à la
+// difficulté), et renvoie nom/sprite/couleur correspondant à l'archétype.
+export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal', rng = Math.random.bind(Math)) {
+  // Boost de stats "Maître" selon la difficulté
+  const MASTER_MULT = { easy: 1.15, normal: 1.30, hard: 1.50, expert: 1.70 };
+  const mult = MASTER_MULT[difficulty] ?? 1.30;
+
+  // Pool d'archétypes : base + extra (avec un pool exploitable)
+  const archetypes = [...TRAINER_ARCHETYPES, ...TRAINER_ARCHETYPES_EXTRA]
+    .filter(a => Array.isArray(a.pool) && a.pool.length >= 4);
+  const arch = archetypes[Math.floor(rng() * archetypes.length)];
+
+  // Budget élevé pour la ligue (courbe + difficulté)
+  const BASE_BUDGET = 1000;
+  const MAX_BUDGET  = 2600;
+  const ratio       = Math.min(mapIndex / 8, 1);
+  const curved      = Math.pow(ratio, 1.2);
+  const budget      = Math.round(
+    (BASE_BUDGET + (MAX_BUDGET - BASE_BUDGET) * curved) * mult
+  );
+
+  // Construit l'équipe depuis le pool de l'archétype (6 unités max)
+  const rawTeam = generateEnemyTeam(arch, budget, 6, Math.min(mapIndex, 8), rng);
+
+  // Applique le boost "Maître" aux stats de chaque pokémon
+  const team = rawTeam.map(u => {
+    const boosted = {};
+    Object.entries(u.stats ?? {}).forEach(([k, v]) => {
+      boosted[k] = Math.round(v * mult);
+    });
+    return { ...u, stats: boosted, _master: true };
+  });
+
+  return {
+    team,
+    name:         `Maître ${arch.name}`,
+    type:         arch.types?.[0] ?? null,
+    color:        arch.color ?? 0xffd700,
+    spriteCombat: arch.spriteCombat ?? null,
+    spriteMap:    arch.spriteMap ?? null,
+    archetypeId:  arch.id,
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

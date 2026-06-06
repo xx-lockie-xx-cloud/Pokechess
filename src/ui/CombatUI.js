@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
+import { TYPE_COLORS } from '../data/pokemons.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
 import { addCoins, getEnemyMultiplier, getRunState } from '../data/runState.js';
@@ -28,6 +29,9 @@ export const CombatUI = {
   _speed:       1,
   _combatLog:   [],
   _unsubscribe: null,   // pour nettoyer le listener registre
+  _atbDisplay:  {},     // valeur affichée (0-100) de chaque barre ATB par clé
+  _atbSpeed:    {},     // vitesse ATB (100 + spd) de chaque unité par clé
+  _atbRaf:      null,   // handle requestAnimationFrame de l'animation en cours
 
   // ─────────────────────────────────────────────────────────────────────────
   init(data, registry, onDone) {
@@ -37,15 +41,25 @@ export const CombatUI = {
     this._data          = data;
     this._registry      = registry;
     this._onDone        = onDone;
-    this._enemyUnits    = data.enemyUnits ?? [];
+    // Applique anomalyTypes dès l'init pour que tous les affichages soient corrects
+    const _anom = registry.get?.('runState')?.anomalyTypes ?? null;
+    const _applyAnom = units => !_anom ? units : units.map(u =>
+      _anom[u.id] ? { ...u, types: _anom[u.id] } : u
+    );
+    this._enemyUnits    = _applyAnom(data.enemyUnits ?? []);
     this._slots         = {};
     this._hpState       = {};
     this._statusTracker = {};
     this._speed         = 1;
     this._combatLog     = [];
+    this._atbDisplay    = {};
+    this._atbSpeed      = {};
+    this._mapAdvanced   = false;
+    this._statsRecorded = false;
+    if (this._atbRaf) { cancelAnimationFrame(this._atbRaf); this._atbRaf = null; }
 
     // Lit toujours depuis le registre (priorité sur data.playerUnits)
-    this._playerUnits = registry.get('playerUnits') ?? data.playerUnits ?? [];
+    this._playerUnits = _applyAnom(registry.get('playerUnits') ?? data.playerUnits ?? []);
 
     this._render();
     this._bindTeamListener();
@@ -162,6 +176,25 @@ export const CombatUI = {
     const btnRow = document.createElement('div');
     btnRow.className = 'combat-btn-row';
 
+    // Bandeau info relique (Pacte de Sang, Bénédiction, Sablier, etc.)
+    const relicId = this._registry?.get?.('runState')?.relic?.id;
+    const RELIC_WARNINGS = {
+      'pacte_de_sang': '💀 Pacte de Sang — HP ×0.8 / ATK ×1.3 pour tous',
+      'benediction':   '🩹 Bénédiction — HP ×1.3 / ATK ×0.75 pour tous',
+      'sablier':       '⏱ Sablier — Combat limité à 25 actions par camp',
+      'de_maudit':     '🎲 Dé Maudit — 1 unité de chaque camp démarre à 50% HP',
+      'condensateur':  '🔋 Condensateur — Toutes les unités démarrent avec 50 mana',
+      'contrat_maudit':'🩸 Contrat Maudit — HP ×0.9 pour tous',
+      'revanche':      '🔁 Revanche — Ultime déclenché à la mort si mana ≥ 50',
+    };
+    const warning = relicId ? RELIC_WARNINGS[relicId] : null;
+    if (warning) {
+      const relicInfo = document.createElement('div');
+      relicInfo.className   = 'combat-relic-info';
+      relicInfo.textContent = warning;
+      btnRow.appendChild(relicInfo);
+    }
+
     const btn = document.createElement('button');
     btn.className   = 'btn-danger btn-large';
     btn.id          = 'btn-start-combat';
@@ -204,6 +237,21 @@ export const CombatUI = {
     const slot = document.createElement('div');
     slot.className = `combat-slot ${unit ? 'occupied' : 'empty'}`;
     if (!unit) return slot;
+
+    // Couronne : badge 👑 sur le top BST de chaque camp
+    const _relicId = this._registry?.get?.('runState')?.relic?.id;
+    if (_relicId === 'couronne') {
+      const campUnits = side === 'player' ? this._playerUnits : this._enemyUnits;
+      const bst = u => (u.stats?.hp??0)+(u.stats?.atk??0)+(u.stats?.spa??0)+
+                       (u.stats?.def??0)+(u.stats?.spd_def??0)+(u.stats?.spd??0);
+      const topId = [...campUnits].sort((a,b) => bst(b)-bst(a))[0]?.id;
+      if (unit && unit.id === topId) {
+        const crown = document.createElement('span');
+        crown.textContent = '👑';
+        crown.style.cssText = 'position:absolute;top:2px;left:2px;font-size:10px;z-index:5;pointer-events:none';
+        slot.appendChild(crown);
+      }
+    }
 
     // Encyclopédie : badge stats sur les ennemis
     if (side === 'enemy') {
@@ -482,8 +530,28 @@ export const CombatUI = {
       ? RelicEngine.modifySynergies(relicId, rawPlayerSynergies, this._playerUnits)
       : rawPlayerSynergies;
     const meta = SaveManager.loadMeta() ?? {};
+
+    // ── Couronne : marque le top BST AVANT getFullStats (sinon le ×2 ne s'applique pas)
+    // "Le plus fort" = plus haut BST avec le bonus de NIVEAU appliqué
+    // (stats de base × bonus niveau, hors synergies pour éviter la circularité).
+    if (relicId === 'couronne') {
+      const lvlBst = (u) => {
+        const lvl = meta?.pokemonLevels?.[u.id] ?? 1;
+        const m   = lvl > 1 ? 1 + (lvl - 1) * 0.005 : 1;
+        const s   = u.stats ?? u;
+        return ((s.hp??0)+(s.atk??0)+(s.spa??0)+(s.def??0)+(s.spd_def??0)+(s.spd??0)) * m;
+      };
+      // Nettoie d'anciens marquages puis remarque le top de chaque camp
+      this._playerUnits.forEach(u => { if (u) delete u._doubleSynergyBonus; });
+      this._enemyUnits.forEach(u  => { if (u) delete u._doubleSynergyBonus; });
+      const topP = [...this._playerUnits].filter(Boolean).sort((a,b) => lvlBst(b)-lvlBst(a))[0];
+      const topE = [...this._enemyUnits].filter(Boolean).sort((a,b) => lvlBst(b)-lvlBst(a))[0];
+      if (topP) topP._doubleSynergyBonus = true;
+      if (topE) topE._doubleSynergyBonus = true;
+    }
+
     const playerForEngine = this._playerUnits.map(u => {
-      const full = getFullStats(u, this._playerUnits, meta);
+      const full = getFullStats(u, this._playerUnits, meta, relicId);
       return { ...u, attributes: u.attributes ?? [], stats: full.withSynergy };
     });
 
@@ -501,24 +569,14 @@ export const CombatUI = {
     });
     const enemySynergies = getActiveSynergies(enemyForEngine, relicId);
 
-    // Injecte les niveaux dans les unités joueur (meta déjà déclaré plus haut)
-    // Couronne : trouve le top BST de chaque camp pour le marquer
-    const bst = u => (u.stats?.hp??u.hp??0)+(u.stats?.atk??u.atk??0)+
-      (u.stats?.spa??u.spa??0)+(u.stats?.def??u.def??0)+
-      (u.stats?.spd_def??u.spd_def??0)+(u.stats?.spd??u.spd??0);
-    if (relicId === 'couronne') {
-      const topP = [...this._playerUnits].sort((a,b) => bst(b)-bst(a))[0];
-      const topE = [...this._enemyUnits].sort((a,b) => bst(b)-bst(a))[0];
-      if (topP) topP._doubleSynergyBonus = true;
-      if (topE) topE._doubleSynergyBonus = true;
-    }
-
     const withLevels = units => units.map(u => {
       let unit = { ...u, _level: meta.pokemonLevels?.[u.id] ?? 1 };
       // Anomalie : réassigne les types
       if (anomalyTypes) RelicEngine.applyAnomalyTypes(unit, anomalyTypes);
       // Modificateurs de stats de la relique (Pacte de Sang, Bénédiction, Contrat Maudit)
       if (relicId) RelicEngine.applyStatModifier(relicId, unit);
+      // Passe relicId à l'unité pour getFullStats (Miroir, Couronne)
+      unit._relicId = relicId;
       // Alternance de type d'attaque (bitype)
       unit._attackTypeTurn = 0;
       return unit;
@@ -537,14 +595,114 @@ export const CombatUI = {
     this._livePlayerUnits = engine.playerUnits;
     this._liveEnemyUnits  = engine.enemyUnits;
 
+    // ── Anti-exploit : la défaite est SCELLÉE dès le calcul du combat ──────────
+    // Le combat est pré-simulé, donc l'issue est connue avant la lecture.
+    // Si le joueur perd, on supprime la save ET on scelle la run :
+    // quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
+    if (winner !== 'player') {
+      this._registry?.sealRun?.();   // bloque tout autosave ultérieur
+      SaveManager.deleteSave?.();    // efface la sauvegarde de run existante
+    }
+
     this._animateLog(log, 0, () => this._onCombatEnd(winner, log));
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // ATB — Option C : remplissage temps réel piloté par l'ordre du log
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Initialise les vitesses ATB (100 + spd) et remet les barres à 0
+  _initATBState() {
+    this._atbDisplay = {};
+    this._atbSpeed   = {};
+    const register = (units, side) => {
+      units.filter(Boolean).forEach(u => {
+        const uid = u.uid ?? `${u.id}_${u.col}_${u.row}`;
+        const key = `${side}_${uid}`;
+        const spd = u.stats?.spd ?? u.spd ?? 1;
+        this._atbSpeed[key]   = 100 + spd;
+        this._atbDisplay[key] = 0;
+        this._updateATBBar(key, 0);
+      });
+    };
+    register(this._playerUnits, 'player');
+    register(this._enemyUnits,  'enemy');
+  },
+
+  // Anime toutes les barres jusqu'à ce que l'acteur atteigne 100%.
+  // Les autres montent proportionnellement à leur vitesse (math ATB fidèle).
+  // Appelle `done` une fois l'acteur à 100%.
+  _fillATBUntil(actorKey, done) {
+    const startActor = this._atbDisplay[actorKey] ?? 0;
+    const spdActor   = this._atbSpeed[actorKey]   ?? 100;
+
+    // Temps ATB nécessaire pour que l'acteur atteigne 100%
+    const atbTime = Math.max(0, (100 - startActor) / spdActor);
+
+    // Cibles : chaque unité monte de vitesse × atbTime (cappé à 100)
+    const targets = {};
+    Object.keys(this._atbDisplay).forEach(key => {
+      const start = this._atbDisplay[key] ?? 0;
+      const gain  = (this._atbSpeed[key] ?? 100) * atbTime;
+      targets[key] = (key === actorKey) ? 100 : Math.min(100, start + gain);
+    });
+
+    // Durée visuelle (modulée par la vitesse de lecture)
+    const VISUAL_MS = 480 / (this._speed || 1);
+    const starts    = { ...this._atbDisplay };
+    const t0        = performance.now();
+
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / VISUAL_MS);
+      Object.keys(targets).forEach(key => {
+        const v = starts[key] + (targets[key] - starts[key]) * p;
+        this._atbDisplay[key] = v;
+        this._updateATBBar(key, v, key === actorKey && p >= 0.999);
+      });
+      if (p < 1) {
+        this._atbRaf = requestAnimationFrame(step);
+      } else {
+        this._atbRaf = null;
+        done();
+      }
+    };
+    this._atbRaf = requestAnimationFrame(step);
+  },
+
+  // Réinitialise la barre d'une unité après qu'elle a agi
+  _resetATB(key) {
+    this._atbDisplay[key] = 0;
+    this._updateATBBar(key, 0);
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
   _animateLog(log, index, onComplete) {
+    // À la première frame, initialise les vitesses ATB
+    if (index === 0) this._initATBState();
+
     if (index >= log.length) { onComplete(); return; }
-    const delay = Math.round(this._handleEvent(log[index]) / this._speed);
-    setTimeout(() => this._animateLog(log, index + 1, onComplete), delay);
+
+    const event = log[index];
+    const next  = () => this._animateLog(log, index + 1, onComplete);
+
+    // Un 'turn_start' signale qu'une unité va agir → on remplit sa barre à 100%
+    // AVANT de jouer l'action (les barres montent progressivement, pause ensuite).
+    if (event.type === 'turn_start' && event.unitId) {
+      const actorKey = this._buildKey(event.unitSide ?? 'player', event.unitId);
+      this._setNextActor(event.unitId, event.unitSide ?? 'player');
+      this._fillATBUntil(actorKey, () => {
+        // L'acteur est à 100% : on joue le turn_start puis on enchaîne.
+        // Les barres restent gelées pendant les animations d'attaque qui suivent.
+        const delay = Math.round(this._handleEvent(event) / this._speed);
+        this._resetATB(actorKey);
+        setTimeout(next, delay);
+      });
+      return;
+    }
+
+    // Tous les autres événements : comportement normal (barres gelées)
+    const delay = Math.round(this._handleEvent(event) / this._speed);
+    setTimeout(next, delay);
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -554,15 +712,9 @@ export const CombatUI = {
 
     switch (event.type) {
       case 'turn_start': {
-        // L'unité qui agit est "next" → barre dorée, reset après action
-        if (event.unitId) {
-          const actKey = this._buildKey(event.unitSide ?? 'player', event.unitId);
-          // Reset sa barre à 0 (elle vient d'agir)
-          this._updateATBBar(actKey, 0, true);
-          // Repasse toutes les autres barres en mauve
-          this._setNextActor(event.unitId, event.unitSide ?? 'player');
-        }
-        this._appendLog(`<span class="log-turn">⚡ ${event.unitName ?? 'Pokémon'} agit</span>`);
+        // La barre de l'acteur est déjà à 100% (gérée par _fillATBUntil / RAF).
+        // On ne touche plus la barre ici : elle sera reset après l'action.
+        this._appendLog(`<span class="log-turn">⚡ ${event.unitName ?? 'Pokémon'} attaque :</span>`);
         return DELAY_TURN_START;
       }
 
@@ -571,8 +723,8 @@ export const CombatUI = {
         const targetKey   = this._buildKey(event.targetSide,   event.targetId);
         if (event.attackerMana !== undefined) this._updateManaBar(attackerKey, event.attackerMana);
         if (event.targetMana   !== undefined) this._updateManaBar(targetKey,   event.targetMana);
-        if (event.attackerAtb  !== undefined) this._updateATBBar(attackerKey, event.attackerAtb);
-        if (event.targetAtb    !== undefined) this._updateATBBar(targetKey,   event.targetAtb);
+        // Note : les barres ATB ne sont plus modifiées ici, elles sont pilotées
+        // par _fillATBUntil (option C) et gelées pendant l'animation d'attaque.
         this._flashSlot(attackerKey, 'flash-yellow');
         if (event.isMove) this._showMoveAnimation(attackerKey, event.moveName ?? '');
         setTimeout(() => {
@@ -928,10 +1080,43 @@ export const CombatUI = {
 
   // ─────────────────────────────────────────────────────────────────────────
   _onCombatEnd(winner, log = []) {
+    // Stoppe l'animation ATB en cours
+    if (this._atbRaf) { cancelAnimationFrame(this._atbRaf); this._atbRaf = null; }
     const isWin = winner === 'player';
 
     const phase = document.getElementById('combat-phase-text');
     if (phase) phase.textContent = isWin ? '🏆 Victoire !' : '💀 Défaite...';
+
+    // ── Statistiques : enregistre l'issue du combat UNE seule fois ────────────
+    if (!this._statsRecorded) {
+      this._statsRecorded = true;
+      const rsStats = this._registry?.get?.('runState') ?? {};
+      SaveManager.recordCombatResult?.(rsStats, {
+        winner,
+        nodeType: this._data?.nodeType ?? 'combat',
+        mapIndex: this._data?.mapIndex ?? 0,
+      });
+    }
+
+    // ── Boss vaincu : on avance la map DÈS l'affichage des résultats ──────────
+    // (avant même le clic sur "Badge obtenu"), pour que quitter ici reprenne
+    // bien sur la map suivante.
+    if (isWin && this._data?.nodeType === 'boss' && this._registry) {
+      const rs        = this._registry.get('runState') ?? {};
+      // Garde-fou : n'avance qu'une seule fois (si pas déjà avancé pour ce combat)
+      if (!this._mapAdvanced) {
+        this._mapAdvanced = true;
+        const beatenIdx = this._data.mapIndex ?? rs.currentMap ?? 0;
+        const nextIdx   = beatenIdx + 1;
+        const isLeague  = beatenIdx >= 8;
+        this._registry.set('runState', {
+          ...rs,
+          currentMap:   nextIdx,
+          mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
+          infiniteMode: isLeague ? true : rs.infiniteMode,
+        });
+      }
+    }
 
     // Gain de niveau pour les pokémons survivants après une victoire
     if (isWin && SaveManager) {
@@ -951,7 +1136,10 @@ export const CombatUI = {
 
     if (isWin) {
       addCoins(this._registry, 3);
-      this._showRewardAnimation('+3 💰');
+      // Bourse Dorée (et toute relique avec ECON_WIN_COINS) : pièces bonus
+      const bonusCoins = RelicEngine.winCoins(getRunState(this._registry)?.relic?.id);
+      if (bonusCoins > 0) addCoins(this._registry, bonusCoins);
+      this._showRewardAnimation(`+${3 + bonusCoins} 💰`);
     }
 
     const screen = document.getElementById('overlay-combat');
@@ -1030,6 +1218,7 @@ export const CombatUI = {
           winner, playerUnits, playerLosses, ultimateUsed,
           activeSynergies, maxPoisonStacks, explosionWin,
           mapIndex: this._data?.mapIndex ?? 0,
+          nodeType: this._data?.nodeType ?? 'combat',
         };
 
         // Vérifie les achievements
@@ -1046,10 +1235,16 @@ export const CombatUI = {
 
         this._onDone({
           winner,
-          nodeType:  this._data.nodeType  ?? 'combat',
-          mapIndex:  this._data.mapIndex  ?? 0,
-          mapNodes:  this._data.mapNodes  ?? null,
-          startNode: this._data.startNode ?? null,
+          nodeType:     this._data.nodeType  ?? 'combat',
+          mapIndex:     this._data.mapIndex  ?? 0,
+          mapNodes:     this._data.mapNodes  ?? null,
+          startNode:    this._data.startNode ?? null,
+          trainerName:  this._data.trainerName  ?? null,
+          leagueSprite: this._data.leagueSprite ?? null,
+          isLeague:     this._data.isLeague     ?? false,
+          // Équipe sur le terrain au moment de la victoire (pour la photo de classe)
+          fieldTeam:    (this._registry?.get?.('playerUnits') ?? this._playerUnits ?? [])
+                          .filter(Boolean).map(u => ({ id: u.id, name: u.name, spriteUrl: u.spriteUrl })),
         });
       }
     });
@@ -1152,16 +1347,34 @@ export const CombatUI = {
   },
 
   // ── Journal de combat ────────────────────────────────────────────────────
+  // Couleur CSS d'un type (depuis TYPE_COLORS qui sont des nombres hex)
+  _typeColor(type) {
+    const hex = TYPE_COLORS[type];
+    if (hex == null) return '#e2e8f0';
+    const n = (typeof hex === 'number') ? hex : parseInt(String(hex).replace('#',''), 16);
+    return `#${(n & 0xFFFFFF).toString(16).padStart(6, '0')}`;
+  },
+
   _logEvent(event) {
     const t = event.type;
     if (t === 'attack') {
-      const mover = event.isMove ? `<span class="log-move">⚡${event.moveName}</span> ` : '';
+      const tc = this._typeColor(event.attackType);
       const eff   = event.typeMult >= 2 ? ' <span class="log-super">super efficace!</span>'
                   : event.typeMult <= 0.5 ? ' <span class="log-weak">peu efficace</span>' : '';
       const crit  = event.isCrit ? ' <span class="log-crit">critique!</span>' : '';
-      this._appendLog(
-        `${event.attackerName} → ${event.targetName}: ${mover}<b>-${event.damage} PV</b>${eff}${crit}`
-      );
+      if (event.isMove) {
+        // Capacité : on garde le nom du move coloré (l'ultime a sa propre ligne)
+        const moveLabel = `<span class="log-move" style="color:${tc};font-weight:700">⚡${event.moveName}</span>`;
+        this._appendLog(
+          `${moveLabel} → <b style="color:${tc}">${event.targetName}</b> <b>-${event.damage} PV</b>${eff}${crit}`
+        );
+      } else {
+        // Attaque normale : pas de nom d'attaquant (déjà annoncé par "agit"),
+        // juste [type coloré] [cible] - [dégâts] PV
+        this._appendLog(
+          `<span class="log-attack-line">↳ <span style="color:${tc};font-weight:700">[${event.attackType}]</span> ${event.targetName} <b>-${event.damage} PV</b>${eff}${crit}</span>`
+        );
+      }
     } else if (t === 'status_applied') {
       const stacks = event.stacks > 1 ? ` ×${event.stacks}` : '';
       this._appendLog(`<span class="log-status">${event.label}${stacks}</span> sur ${event.targetName}`);
@@ -1176,8 +1389,9 @@ export const CombatUI = {
     } else if (t === 'unit_fainted') {
       this._appendLog(`<span class="log-faint">💀 ${event.unitName} est K.O. !</span>`);
     } else if (t === 'ultimate_start') {
+      const tc = this._typeColor(event.moveType);
       this._appendLog(
-        `<span class="log-move">⚡ ${event.attackerSide === 'player' ? '🔵' : '🔴'} ${event.moveName} !</span>`
+        `<span class="log-move" style="color:${tc};font-weight:800">⚡ ${event.attackerSide === 'player' ? '🔵' : '🔴'} ${event.moveName} !</span>`
       );
     } else if (t === 'attack_skipped') {
       this._appendLog(`${event.attackerSide === 'player' ? '🔵' : '🔴'} <i>${event.label}</i>`);
@@ -1257,6 +1471,8 @@ export const CombatUI = {
 
   _getTrainerSpritePath() {
     if (this._data.nodeType === 'boss') {
+      // Ligue : sprite du Maître (archétype) ; sinon sprite du champion d'arène
+      if (this._data.leagueSprite) return this._data.leagueSprite;
       const arena = getArenaForMap(this._data.mapIndex ?? 0);
       return arena?.championSpriteCombat ?? null;
     }

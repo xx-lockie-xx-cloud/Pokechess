@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // game.js — Point d'entrée
+console.log('[game.js] module chargé');
 // Architecture : UIManager gère tous les écrans en HTML/CSS pur.
 // Plus de Phaser — la map est rendue en CSS/SVG par MapUI.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -11,6 +12,7 @@ window.UIManager   = UIManager;
 window.SaveManager = SaveManager;
 
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('[game.js] DOMContentLoaded');
 
   // ── Registre léger ────────────────────────────────────────────────────────
   const registry = {
@@ -23,13 +25,18 @@ document.addEventListener('DOMContentLoaded', () => {
       this._data.set(key, value);
       this.events.emit(`changedata-${key}`, this, value, old);
       // Auto-save silencieuse à chaque changement d'état
-      if (key === 'runState' || key === 'playerUnits') {
+      // (sauf si la run a été scellée comme perdue → on ne recrée pas la save)
+      if ((key === 'runState' || key === 'playerUnits') && !this._runSealed) {
         SaveManager.save(this);
       }
       return this;
     },
 
-    reset() { this._data.clear(); return this; },
+    // Scelle la run (défaite) : empêche toute nouvelle sauvegarde jusqu'au reset
+    sealRun()   { this._runSealed = true;  return this; },
+    unsealRun() { this._runSealed = false; return this; },
+
+    reset() { this._data.clear(); this._runSealed = false; return this; },
 
     events: {
       _listeners: new Map(),
@@ -50,5 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.gameRegistry = registry;
 
+  console.log('[game.js] appel UIManager.init');
   UIManager.init(registry);
 });

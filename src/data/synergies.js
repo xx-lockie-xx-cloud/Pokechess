@@ -101,22 +101,30 @@ export const SYNERGIES = {
 // ─────────────────────────────────────────────────────────────────────────────
 // getActiveSynergies — synergies actives depuis les unités sur le terrain
 // ─────────────────────────────────────────────────────────────────────────────
-export function getActiveSynergies(fieldUnits) {
+export function getActiveSynergies(fieldUnits, relicId = null) {
   const typeCounts = {};
   fieldUnits.filter(Boolean).forEach(unit => {
     // Les légendaires (T5) comptent pour 2 dans les synergies
     const weight = getBSTTier(unit) >= 5 ? 2 : 1;
-    unit.types.forEach(type => {
-      typeCounts[type] = (typeCounts[type] ?? 0) + weight;
+    // Cristal Pur : les monotypes comptent +1 de plus
+    const isMono = new Set(unit.types ?? []).size === 1;
+    const cristalBonus = (relicId === 'cristal_pur' && isMono) ? 1 : 0;
+    (unit.types ?? []).forEach(type => {
+      typeCounts[type] = (typeCounts[type] ?? 0) + weight + cristalBonus;
     });
   });
 
   const active = [];
+  // Catalyseur : abaisse les seuils de 1
+  //   2★ se déclenche à 1 pokémon (au lieu de 2)
+  //   3★ se déclenche à 3 pokémons (au lieu de 4)
+  const thresholdT2 = relicId === 'catalyseur' ? 1 : 2;
+  const thresholdT3 = relicId === 'catalyseur' ? 3 : 4;
   Object.entries(typeCounts).forEach(([type, count]) => {
-    if (count < 2) return;  // seuil 1 : 2 pokémons
+    if (count < thresholdT2) return;       // seuil 2★
     const synergy = SYNERGIES[type];
     if (!synergy) return;
-    const tier = count >= 4 ? 3 : 2;  // seuil 2 : 4 pokémons
+    const tier = count >= thresholdT3 ? 3 : 2;  // seuil 3★
     const data  = tier === 3 ? synergy.seuil3 : synergy.seuil2;
     active.push({
       type, icon: synergy.icon, color: synergy.color,
@@ -134,12 +142,14 @@ export function getActiveSynergies(fieldUnits) {
 // getFullStats — empile base → objet → synergies
 // Retourne les trois niveaux + métadonnées pour la toile SVG
 // ─────────────────────────────────────────────────────────────────────────────
-export function getFullStats(unit, fieldUnits = [], meta = null) {
+export function getFullStats(unit, fieldUnits = [], meta = null, relicId = null) {
   const base     = { ...(unit.stats ?? {}) };
   const withItem = getEffectiveStats(unit, meta);   // base + niveau + objet
 
   // Bonus de synergies applicables à cette unité
-  const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean));
+  // (relicId pour que catalyseur/cristal_pur affectent les seuils)
+  const rid        = relicId ?? unit._relicId ?? null;
+  const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean), rid);
   const synBonus   = {};
 
   // Bonus de synergies appliqués à TOUTE la composition
@@ -154,9 +164,14 @@ export function getFullStats(unit, fieldUnits = [], meta = null) {
   const withSynergy   = { ...withItem };
   const synergyBoosted = new Set();
 
+  // Miroir : ×1.5 sur tous les bonus synergies
+  // Couronne : ×2 sur les bonus synergies du top BST
+  const miroirMult   = unit._relicId === 'miroir' ? 1.5 : 1;
+  const couronneMult = unit._doubleSynergyBonus   ? 2   : 1;
   Object.entries(synBonus).forEach(([stat, mult]) => {
     if (withSynergy[stat] != null) {
-      withSynergy[stat] = Math.round(withSynergy[stat] * mult);
+      const finalMult = 1 + (mult - 1) * miroirMult * couronneMult;
+      withSynergy[stat] = Math.round(withSynergy[stat] * finalMult);
       synergyBoosted.add(stat);
     }
   });

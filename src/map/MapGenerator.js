@@ -4,7 +4,7 @@
 
 import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES, generateEnemyTeam } from '../data/trainers.js';
 import { getArenaForMap, generateArenaTeam,
-         generateLeagueTeam }              from '../data/arenas.js';
+         generateLeagueTeam, generateLeagueMaster } from '../data/arenas.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRNG déterministe — Mulberry32 (rapide, bonne distribution)
@@ -96,9 +96,12 @@ export class MapGenerator {
 
   // ── Génère la map depuis un seed ──────────────────────────────────────────
   generate(mapIndex = 0, prevArena = null, seed = null) {
-    // Seed : fourni (restauration) ou généré (nouvelle map)
+    // Seed maître de l'épopée : fourni (restauration/run en cours) ou généré (nouvelle run)
     this._seed    = seed ?? MapGenerator.generateSeed();
-    const rng     = createRNG(this._seed);
+    // Combine le seed maître avec mapIndex → layout déterministe et unique par map
+    // Deux joueurs avec le même seed obtiennent EXACTEMENT les mêmes maps
+    const mapRngSeed = (this._seed >>> 0) ^ ((mapIndex + 1) * 0x9E3779B1);
+    const rng     = createRNG(mapRngSeed >>> 0);
 
     this.mapIndex = mapIndex;
     this.cols     = 3 + Math.floor(mapIndex / 2);
@@ -117,8 +120,12 @@ export class MapGenerator {
       for (let row = 0; row < numNodes; row++) {
         let type = isBoss ? NODE_TYPES.BOSS : nodeTypeFromRNG(rng);
 
+        // Nœud Mystère : on résout son vrai type (pour la logique combat/boutique/
+        // objet) mais on le marque pour afficher "❓" sur la carte au lieu du sprite.
+        let isMystery = false;
         if (type === NODE_TYPES.RANDOM) {
           type = randomNodeTypeForRandom(rng);
+          isMystery = true;
         }
         if (type === NODE_TYPES.SHOP) {
           if (isEarlyCol || shopCount >= MAX_SHOPS) {
@@ -155,12 +162,14 @@ export class MapGenerator {
           const bossMaxUnits = maxUnitsForStep(mapIndex, col, this.cols);
           const bossBudget   = budgetForStep(mapIndex, col, this.cols, difficulty);
 
-          let bossTeam, bossName;
+          let bossTeam, bossName, bossSprite = null, bossColor = 0xffd700;
           if (mapIndex >= 8) {
-            // Map 8 = Ligue Pokémon (9e map) → équipe aléatoire type commun, synergie 3★ garantie
-            const leagueResult = generateLeagueTeam(mapIndex, 1.0, rng);
-            bossTeam = leagueResult.team;
-            bossName = `Ligue Pokémon — type ${leagueResult.type}`;
+            // Map 8+ = Ligue Pokémon → MAÎTRE : archétype aléatoire en version Maître
+            const master = generateLeagueMaster(mapIndex, difficulty, rng);
+            bossTeam   = master.team;
+            bossName   = master.name;
+            bossSprite = master.spriteCombat;
+            bossColor  = master.color;
           } else {
             bossTeam = arenaData
               ? generateArenaTeam(arenaData, mapIndex, bossBudget, bossMaxUnits, rng)
@@ -170,8 +179,10 @@ export class MapGenerator {
 
           trainerData = {
             name:    bossName,
-            color:   0xffd700,
+            color:   bossColor,
             isArena: true,
+            isLeague: mapIndex >= 8,
+            leagueSprite: bossSprite,
             arena:   arenaData,
             units:   bossTeam,
           };
@@ -180,6 +191,7 @@ export class MapGenerator {
         colNodes.push({
           id:          `${col}_${row}`,
           col, row, type,
+          isMystery,
           trainer:     trainerData,
           connections: [],
           visited:     false,

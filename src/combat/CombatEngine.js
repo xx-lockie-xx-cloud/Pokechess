@@ -150,6 +150,7 @@ export class CombatEngine {
 
     let actionCount   = 0;    // nombre total d'actions (pour les effets périodiques)
     let globalActions = 0;    // sécurité anti-boucle infinie
+    let winner        = null; // gagnant (peut être fixé par le Sablier)
     const MAX_ACTIONS = 500;
 
     // Taille du tick : chaque tick avance les barres de (speed/10) points
@@ -192,7 +193,7 @@ export class CombatEngine {
 
         // Log de l'action
         actionCount++;
-        this.log.push({ type: 'turn_start', turn: actionCount, unitId: unit.uid, unitName: unit.name });
+        this.log.push({ type: 'turn_start', turn: actionCount, unitId: unit.uid, unitName: unit.name, unitSide: unit.side });
 
         // Bâillement → sommeil (décrémenté à chaque action de l'unité)
         const delay = unit.statusEffects.find(s => s.type === 'delayed_sleep');
@@ -222,7 +223,8 @@ export class CombatEngine {
 
     }
 
-    const winner = this._winner();
+    // Si le Sablier n'a pas déjà tranché, on calcule le gagnant normalement
+    if (winner == null) winner = this._winner();
     this.log.push({ type: 'combat_end', winner, turn: actionCount });
     return { log: this.log, winner };
   }
@@ -512,9 +514,11 @@ export class CombatEngine {
       const move = getMove(unit.id);
       if (move) {
         unit.mana = 0;
+        // isUltimate: true → CombatEngine utilisera attacker.types[0] comme type
+        const ultimateMove = { ...move, isUltimate: true };
         this.log.push({ type:'ultimate_start', attackerId:unit.uid,
-          attackerSide:unit.side, moveName:move.name, moveType:move.type });
-        this._executeMove(unit, move);
+          attackerSide:unit.side, moveName:move.name, moveType:unit.types[0] });
+        this._executeMove(unit, ultimateMove);
         return;
       }
     }
@@ -1071,6 +1075,8 @@ export class CombatEngine {
       targetId:     target.uid,   targetName:   target.name,   targetSide:   target.side,
       damage, multiplier: mult, typeMult, isSwarm,
       isMove:       !!move, moveName: move?.name ?? null,
+      // Type de l'attaque : type du move, sinon dernier type utilisé par l'attaquant
+      attackType:   move?.type ?? attacker._lastAttackType ?? attacker.types?.[0] ?? 'Normal',
       targetHpLeft: target.hp, targetMaxHp: target.maxHp,
       attackerMana: attacker.mana, targetMana: target.mana,
       attackerAtb:  Math.max(0, Math.min(100, attacker.atbBar ?? 0)),
@@ -1098,6 +1104,7 @@ export class CombatEngine {
     const atkTypeIdx = attacker._attackTypeTurn ?? 0;
     const atkType    = attacker.types[atkTypeIdx % attacker.types.length] ?? attacker.types[0];
     attacker._attackTypeTurn = atkTypeIdx + 1;
+    attacker._lastAttackType = atkType;  // mémorise pour le log
 
     const typeMult = getTypeMultiplier(atkType, target.types);
     const random   = (85 + Math.random() * 15) / 100;
@@ -1388,9 +1395,9 @@ export class CombatEngine {
     if (this.relicId && RelicEngine.checkDeathUltimate(this.relicId, unit) && !unit._revengeUsed) {
       unit._revengeUsed = true;
       const enemies = unit.side === 'player' ? this.enemyUnits : this.playerUnits;
-      const allies  = unit.side === 'player' ? this.playerUnits : this.enemyUnits;
       unit.hp = 1; // temporairement vivant pour l'ultime
-      this._castUltimate(unit, enemies, allies);
+      const move = getMove(unit.id);
+      if (move) this._executeMove(unit, move);
       unit.hp = 0; // revient à 0 après
     }
 
@@ -1415,6 +1422,7 @@ export class CombatEngine {
     }
 
     unit._faintLogged = true;
+    unit._dead = true;  // bloque les soins passifs (ex: Enracinement)
     unit.hp = 0;
     this.log.push({ type:'unit_fainted', unitId:unit.uid, unitName:unit.name, unitSide:unit.side });
     if (unit.types.includes('Dragon'))

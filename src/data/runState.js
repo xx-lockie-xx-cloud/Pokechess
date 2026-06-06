@@ -31,18 +31,18 @@ export function initRun(registry, starterPokemon) {
   const uid     = `${starterPokemon.id}_starter_${Date.now()}`;
   const starter = { ...starterPokemon, uid, isInTeam: true, col: 0, row: 0 };
 
-  // Préserve les champs meta définis avant initRun (relique, difficulté, seed, anomalyTypes)
+  // Préserve relic, difficulty, seed, anomalyTypes définis avant le starter
   const prev = registry.get('runState') ?? {};
+  const startCoins = prev?.relic?.id === 'contrat_maudit' ? 13 : 5;
 
   registry.set('runState', {
     currentMap:    0,
-    coins:         5,
+    coins:         startCoins,
     inventory:     [],
     playerBank:    [],
     unlockedSlots: 3,
     seenPokemon:   [],
     loopCount:     0,
-    // Champs préservés
     difficulty:    prev.difficulty   ?? 'easy',
     seed:          prev.seed         ?? String(Date.now()),
     relic:         prev.relic        ?? null,
@@ -239,7 +239,10 @@ export function getMapLayout(registry) {
 
 // ── Sauvegarde de la progression sur la map ────────────────────────────────
 export function saveMapProgress(registry, seed, visitedNodes, availableNodes, col = 0) {
+  const cur = getRunState(registry);
   setRunState(registry, {
+    // Seed maître de l'épopée : défini une seule fois, jamais écrasé ensuite
+    seed:         cur.seed ?? seed,
     mapSeed:      seed,
     mapVisited:   visitedNodes,
     mapAvailable: availableNodes,
@@ -255,4 +258,21 @@ export function getMapProgress(registry) {
     available: state.mapAvailable ?? [],
     col:       state.lastNodeCol  ?? 0,
   };
+}
+
+// ── Helper anomalie : retourne les types effectifs d'une unité ──────────────
+export function getUnitTypes(unit, registry) {
+  const anomalyTypes = registry?.get?.('runState')?.anomalyTypes;
+  if (anomalyTypes?.[unit.id]) return anomalyTypes[unit.id];
+  return unit.types ?? [];
+}
+
+// ── Applique anomalyTypes à une liste d'unités (mutation) ───────────────────
+export function applyAnomalyToUnits(units, registry) {
+  const anomalyTypes = registry?.get?.('runState')?.anomalyTypes;
+  if (!anomalyTypes) return units;
+  return units.map(u => anomalyTypes[u.id]
+    ? { ...u, types: anomalyTypes[u.id] }
+    : u
+  );
 }

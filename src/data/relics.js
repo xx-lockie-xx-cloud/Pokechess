@@ -11,6 +11,7 @@ export const RELICS = {
     category: 'economy',
     unlockAchievement: 'curieux',
     apply: { kind: 'shop_slots', value: 4 },
+    hooks: { ECON_SHOP_SLOTS: 4 },
   },
 
   bourse_doree: {
@@ -19,6 +20,7 @@ export const RELICS = {
     category: 'economy',
     unlockAchievement: 'riche',
     apply: { kind: 'coins_per_win', value: 2 },
+    hooks: { ECON_WIN_COINS: 2 },
   },
 
   braderie: {
@@ -27,6 +29,7 @@ export const RELICS = {
     category: 'economy',
     unlockAchievement: 'collectionneur',
     apply: { kind: 'sell_full_price' },
+    hooks: { ECON_SELL_MULT: 1.0 },
   },
 
   pochette_surprise: {
@@ -35,6 +38,7 @@ export const RELICS = {
     category: 'economy',
     unlockAchievement: 'coup_de_chance',
     apply: { kind: 'start_random_item' },
+    hooks: { RUN_START_ITEM: true, DISPLAY_MASK_WILD: true },
   },
 
   // ── Combat Symétrique ──────────────────────────────────────────────────────
@@ -44,6 +48,7 @@ export const RELICS = {
     category: 'combat',
     unlockAchievement: 'ultime',
     apply: { kind: 'start_mana', value: 50, symmetric: true },
+    hooks: { PRE_MANA: 50 },
   },
 
   pacte_de_sang: {
@@ -52,6 +57,7 @@ export const RELICS = {
     category: 'combat',
     unlockAchievement: 'sacrifice',
     apply: { kind: 'stat_modifier', stats: { hp: 0.80, atk: 1.30, spa: 1.30 }, symmetric: true },
+    hooks: { STAT_MULT: { hp: 0.80, atk: 1.30, spa: 1.30 } },
   },
 
   de_maudit: {
@@ -60,6 +66,7 @@ export const RELICS = {
     category: 'combat',
     unlockAchievement: 'empoisonneur',
     apply: { kind: 'random_unit_half_hp', symmetric: true },
+    hooks: { PRE_HALF_HP: 0.50 },
   },
 
   sablier: {
@@ -68,6 +75,7 @@ export const RELICS = {
     category: 'combat',
     unlockAchievement: 'synergiste',
     apply: { kind: 'action_limit', value: 25, symmetric: true },
+    hooks: { TICK_ACTION_LIMIT: 25 },
   },
 
   benediction: {
@@ -76,6 +84,7 @@ export const RELICS = {
     category: 'combat',
     unlockAchievement: 'exterminateur',
     apply: { kind: 'stat_modifier', stats: { hp: 1.30, atk: 0.75, spa: 0.75 }, symmetric: true },
+    hooks: { STAT_MULT: { hp: 1.30, atk: 0.75, spa: 0.75 } },
   },
 
   revanche: {
@@ -84,6 +93,7 @@ export const RELICS = {
     category: 'combat',
     unlockAchievement: 'lv100_eau_1',
     apply: { kind: 'death_ultimate', mana_threshold: 50, symmetric: true },
+    hooks: { ON_DEATH_ULTIMATE: 50 },
   },
 
   contrat_maudit: {
@@ -92,6 +102,7 @@ export const RELICS = {
     category: 'combat',
     unlockAchievement: 'premier_badge',
     apply: { kind: 'start_coins_hp_penalty', coins: 8, hp_mult: 0.90, symmetric: true },
+    hooks: { RUN_START_COINS: 8, STAT_MULT: { hp: 0.90 } },
   },
 
   // ── Synergies ──────────────────────────────────────────────────────────────
@@ -101,14 +112,16 @@ export const RELICS = {
     category: 'synergy',
     unlockAchievement: 'lv100',
     apply: { kind: 'synergy_threshold', delta: -1, symmetric: true },
+    hooks: { SYN_THRESHOLD: -1 },
   },
 
   miroir: {
     id: 'miroir', name: 'Miroir', icon: '🪞',
-    desc: 'La synergie la plus forte de chaque équipe est multipliée ×1.5.',
+    desc: 'Toutes les synergies actives sont multipliées ×1.5 pour les deux camps.',
     category: 'synergy',
     unlockAchievement: 'champion_kanto',
-    apply: { kind: 'top_synergy_boost', mult: 1.5, symmetric: true },
+    apply: { kind: 'all_synergy_boost', mult: 1.5, symmetric: true },
+    hooks: { SYN_ALL_BOOST: 1.5 },
   },
 
   cristal_pur: {
@@ -117,6 +130,7 @@ export const RELICS = {
     category: 'synergy',
     unlockAchievement: 'legendaire_team',
     apply: { kind: 'monotype_double', symmetric: true },
+    hooks: { SYN_MONOTYPE: 2 },
   },
 
   couronne: {
@@ -125,6 +139,7 @@ export const RELICS = {
     category: 'synergy',
     unlockAchievement: 'league_feu',
     apply: { kind: 'top_bst_double_synergy', symmetric: true },
+    hooks: { SYN_TOP_BST_DOUBLE: 2, PRE_MARK_TOP_BST: true },
   },
 
   // ── Progression & Information ──────────────────────────────────────────────
@@ -134,6 +149,7 @@ export const RELICS = {
     category: 'info',
     unlockAchievement: 'encyclopedie',
     apply: { kind: 'show_enemy_stats' },
+    hooks: { DISPLAY_ENEMY_STATS: true },
   },
 
   aimant: {
@@ -142,14 +158,16 @@ export const RELICS = {
     category: 'info',
     unlockAchievement: 'lv25',
     apply: { kind: 'wild_slots', value: 4 },
+    hooks: { ECON_WILD_SLOTS: 4 },
   },
 
-  etoile_montante: {
-    id: 'etoile_montante', name: 'Étoile Montante', icon: '⭐',
-    desc: 'Après avoir choisi ton starter, tu reçois automatiquement un second exemplaire identique.',
+  doppelganger: {
+    id: 'doppelganger', name: 'Doppelgänger', icon: '👥',
+    desc: 'Chaque pokémon capturé ou acheté arrive en double, mais coûte le double en pièces.',
     category: 'progression',
     unlockAchievement: 'reptincel_100',
-    apply: { kind: 'double_starter' },
+    apply: { kind: 'double_capture' },
+    hooks: { ECON_CAPTURE: 2 },
   },
 
   medaille: {
@@ -158,6 +176,7 @@ export const RELICS = {
     category: 'progression',
     unlockAchievement: 'lv50',
     apply: { kind: 'level_per_arena', value: 1 },
+    hooks: { ECON_ARENA_LEVEL: 1 },
   },
 
   // ── Challenge Unique ───────────────────────────────────────────────────────
@@ -167,6 +186,7 @@ export const RELICS = {
     category: 'challenge',
     unlockAchievement: 'lv100_feu_1',
     apply: { kind: 'random_types', symmetric: true },
+    hooks: { RUN_START_TYPES: true },
   },
 };
 

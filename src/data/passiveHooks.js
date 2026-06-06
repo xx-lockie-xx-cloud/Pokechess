@@ -48,8 +48,8 @@ export const POKEMON_PASSIVES = {
 
   // ── Starters Feu ─────────────────────────────────────────────────────────
   4: {
-    35: { id:'brasier', name:'Brasier', desc:'Si PV<50% → +20% ATK',
-      hooks:{ ON_ACTION: [{ type:'conditional_stat', stat:'atk', mult:1.20, condition:'hp_below', threshold:0.50 }] } },
+    35: { id:'brasier', name:'Brasier', desc:'Si PV<50% → +25% ATK et SP.ATK',
+      hooks:{ ON_ACTION: [{ type:'conditional_stat', stats:['atk','spa'], mult:1.25, condition:'hp_below', threshold:0.50 }] } },
     70: { id:'torche', name:'Torche', desc:'Immunisé Brûlure + absorbe dégâts Feu',
       hooks:{ ON_SETUP: [{ type:'type_immunity', damageType:'Feu' },
                          { type:'status_immunity', statuses:['burn'] }] } },

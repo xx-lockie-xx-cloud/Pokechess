@@ -2,33 +2,121 @@
 // ArenaVictoryUI.js — Remplace ArenaVictoryScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getArenaForMap }           from '../data/arenas.js';
+import { getArenaForMap, ARENAS }   from '../data/arenas.js';
 import { getRunState, setRunState, tryUnlockSlot } from '../data/runState.js';
+import { RelicEngine } from '../combat/RelicEngine.js';
 
 export const ArenaVictoryUI = {
   _data:     null,
   _registry: null,
   _onDone:   null,
+  _originalContentHTML: null,
 
   init(data, registry, onDone) {
     this._data     = data;
     this._registry = registry;
     this._onDone   = onDone;
 
-    const arena = getArenaForMap(data.mapIndex ?? 0);
-    this._render(arena, data.mapIndex ?? 0);
-    this._spawnParticles();
-    this._bindButton(arena, data.mapIndex ?? 0);
+    // Sauvegarde la structure HTML originale (arènes) une seule fois, car
+    // l'écran de ligue remplace tout le contenu de .screen-content.
+    const content = document.querySelector('#overlay-arena-victory .screen-content');
+    if (content && this._originalContentHTML == null) {
+      this._originalContentHTML = content.innerHTML;
+    }
+
+    const mapIndex = data.mapIndex ?? 0;
+    const arena    = getArenaForMap(mapIndex);
+
+    // mapIndex 8 = Ligue (9e map) → écran ÉPIQUE
+    // mapIndex > 8 = ligues du mode endless → écran intermédiaire
+    if (mapIndex === 8) {
+      this._renderLeagueVictory(mapIndex, false);
+      this._bindButton(arena, mapIndex);
+    } else if (mapIndex > 8) {
+      this._renderLeagueVictory(mapIndex, true);
+      this._bindButton(arena, mapIndex);
+    } else {
+      // Restaure la structure d'arène si elle avait été remplacée par la ligue
+      if (content && this._originalContentHTML != null) {
+        content.innerHTML = this._originalContentHTML;
+      }
+      this._render(arena, mapIndex);
+      this._spawnParticles();
+      this._bindButton(arena, mapIndex);
+    }
+  },
+
+  // ── Écran de victoire de LIGUE (épique map 8 / intermédiaire endless) ───────
+  _renderLeagueVictory(mapIndex, isEndless) {
+    // Enregistre le badge de ligue dans runState (comme une arène)
+    const rs = getRunState(this._registry);
+    const leagueId = 'league_' + mapIndex;
+    if (!(rs.badgesEarned ?? []).includes(leagueId)) {
+      setRunState(this._registry, { badgesEarned: [...(rs.badgesEarned ?? []), leagueId] });
+    }
+
+    const masterName   = this._data.trainerName  ?? 'Maître';
+    const masterSprite = this._data.leagueSprite  ?? null;
+    const fieldTeam    = this._data.fieldTeam     ?? [];
+
+    const content = document.querySelector('#overlay-arena-victory .screen-content');
+    if (!content) return;
+
+    if (!isEndless) {
+      // ── ÉCRAN ÉPIQUE (Ligue map 9) ──────────────────────────────────────────
+      // Les 8 badges des arènes
+      const badgeSprites = ARENAS.map(a => a.badgeSprite);
+      const badgesHtml = badgeSprites.map((src, i) => `
+        <img class="lv-badge" src="${src}" alt="badge"
+             style="animation-delay:${0.15 * i}s"
+             onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'🏅',className:'lv-badge-fallback'}))" />
+      `).join('');
+
+      // Photo de classe : sprites de l'équipe terrain, légèrement chevauchés
+      const photoHtml = fieldTeam.map((u, i) => `
+        <img class="lv-photo-mon" src="${u.spriteUrl}" alt="${u.name}"
+             style="margin-left:${i === 0 ? 0 : -18}px; z-index:${i}; animation-delay:${0.6 + 0.1 * i}s"
+             onerror="this.src='assets/placeholder.png'" />
+      `).join('');
+
+      content.innerHTML = `
+        <div class="lv-rays"></div>
+        <div class="league-victory epic">
+          <div class="lv-banner">🏆 CHAMPION DE LA LIGUE 🏆</div>
+          <div class="lv-master">
+            ${masterSprite ? `<img src="${masterSprite}" alt="${masterName}" class="lv-master-sprite"
+                 onerror="this.style.display='none'" />` : ''}
+            <div class="lv-master-text">Vous avez vaincu<br><strong>${masterName}</strong></div>
+          </div>
+          <div class="lv-badges-row">${badgesHtml}</div>
+          <div class="lv-photo-label">Votre équipe championne</div>
+          <div class="lv-photo">${photoHtml}</div>
+        </div>
+        <button id="btn-next-map" class="btn-primary btn-large">♾️ Continuer en mode infini</button>
+      `;
+      this._spawnConfetti(60);
+    } else {
+      // ── ÉCRAN INTERMÉDIAIRE (ligues endless) ────────────────────────────────
+      content.innerHTML = `
+        <div class="league-victory endless">
+          ${masterSprite ? `<img src="${masterSprite}" alt="${masterName}" class="lv-master-sprite"
+               onerror="this.style.display='none'" />` : '<span style="font-size:72px">🏆</span>'}
+          <div class="lv-endless-text">Vous avez vaincu<br><strong>${masterName}</strong></div>
+        </div>
+        <button id="btn-next-map" class="btn-primary btn-large">♾️ Continuer</button>
+      `;
+      this._spawnConfetti(35);
+    }
   },
 
   _render(arena, mapIndex) {
     // Médaille : +1 niveau à tous les pokémons après chaque arène
-    const rsCheck = getRunState(this._registry);
-    if (rsCheck?.relic?.id === 'medaille' && mapIndex < 8) {
-      const meta = SaveManager.loadMeta();
+    const rsCheck   = getRunState(this._registry);
+    const lvlGain   = RelicEngine.arenaLevels(rsCheck?.relic?.id);
+    if (lvlGain > 0 && mapIndex < 8) {
       const playerUnits = this._registry?.get?.('playerUnits') ?? [];
       playerUnits.forEach(u => {
-        if (u?.id) SaveManager.gainPokemonLevel(u.id);
+        if (u?.id) for (let i = 0; i < lvlGain; i++) window.SaveManager?.gainPokemonLevel(u.id);
       });
     }
 
@@ -131,6 +219,30 @@ export const ArenaVictoryUI = {
     }
   },
 
+  // Confettis festifs (plus nombreux et colorés que _spawnParticles)
+  _spawnConfetti(count = 50) {
+    const colors = ['#ffd700','#ff6b6b','#74b9ff','#55efc4','#ffeaa7','#fd79a8','#a29bfe','#fdcb6e'];
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'lv-confetti';
+      const size = 6 + Math.random() * 8;
+      const isRect = Math.random() > 0.5;
+      p.style.cssText = `
+        left: ${Math.random() * 100}%;
+        top: -24px;
+        width: ${size}px;
+        height: ${isRect ? size * 0.5 : size}px;
+        background: ${colors[Math.floor(Math.random() * colors.length)]};
+        border-radius: ${isRect ? '1px' : '50%'};
+        animation-duration: ${2 + Math.random() * 2.5}s;
+        animation-delay: ${Math.random() * 1.2}s;
+        transform: rotate(${Math.random() * 360}deg);
+      `;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 5000);
+    }
+  },
+
   _bindButton(arena, mapIndex) {
     const btn = document.getElementById('btn-next-map');
     if (!btn) return;
@@ -164,14 +276,11 @@ export const ArenaVictoryUI = {
     btn.parentNode.replaceChild(newBtn, btn);
 
     newBtn.addEventListener('click', () => {
-      const state   = getRunState(this._registry);
-      const nextIdx = (state.currentMap ?? 0) + 1;
-      setRunState(this._registry, {
-        currentMap:   nextIdx,
-        infiniteMode: isLeagueVictory,
-      });
+      const state = getRunState(this._registry);
+      // currentMap a DÉJÀ été avancé à la victoire du boss → on le lit tel quel.
+      const nextIdx = state.currentMap ?? (mapIndex + 1);
       if (this._onDone) {
-        // Mode infini : incrémente loopCount
+        // Mode infini : incrémente loopCount une seule fois
         if (isLeagueVictory) {
           const rs = getRunState(this._registry);
           setRunState(this._registry, { ...rs, loopCount: (rs.loopCount ?? 0) + 1 });

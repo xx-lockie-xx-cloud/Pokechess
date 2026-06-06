@@ -5,7 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="PokeChess" />
   <title>PokeChess</title>
+  <!-- Icônes : onglet navigateur + écran d'accueil mobile -->
+  <link rel="icon" type="image/png" href="assets/favicon.png" />
+  <link rel="shortcut icon" type="image/png" href="assets/favicon.png" />
+  <link rel="apple-touch-icon" href="assets/favicon.png" />
   <link rel="stylesheet" href="src/styles/main.css" />
 </head>
 <body>
@@ -17,10 +22,12 @@
         🏠<span class="btn-home-text"> Menu</span>
       </button>
       <button id="btn-pokedex" class="btn-secondary">📖<span class="btn-pokedex-text"> Pokédex</span></button>
+      <button id="btn-epopee" class="btn-epopee" title="Détails de l'épopée">📜</button>
     </div>
     <div class="header-center">
-      <span class="game-title-header">PokeChess</span>
-      <div id="header-relic" class="header-relic" style="display:none"></div>
+      <img src="assets/favicon.png" alt="PokeChess" class="header-logo"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" />
+      <span class="game-title-header" style="display:none">PokeChess</span>
     </div>
     <div class="header-right">
       <span id="ui-coins">💰 0</span>
@@ -34,45 +41,35 @@
       <h1 class="game-logo">PokeChess</h1>
       <p class="game-subtitle">Un autochess inspiré de Pokémon</p>
 
+      <!-- Nouvelle Partie / Continuer -->
       <div class="menu-buttons">
-        <button id="btn-new-game" class="btn-primary btn-large">
-          🎮 Nouvelle Partie
-        </button>
-
-        <button id="btn-continue" class="btn-secondary btn-large hidden">
-          ▶ Continuer
-        </button>
+        <button id="btn-new-game" class="btn-primary btn-large">🎮 Nouvelle Partie</button>
+        <button id="btn-continue" class="btn-secondary btn-large hidden">▶ Continuer</button>
         <div id="save-meta" class="save-meta hidden"></div>
-
-        <div class="menu-save-actions hidden" id="menu-save-actions">
-          <button id="btn-export-save" class="btn-ghost">
-            💾 Exporter la sauvegarde
-          </button>
-          <button id="btn-import-save" class="btn-ghost">
-            📂 Importer une sauvegarde
-          </button>
-          <button id="btn-delete-save" class="btn-ghost btn-danger">
-            🗑 Supprimer la sauvegarde
-          </button>
-        </div>
       </div>
 
-      <button id="btn-relics-library" class="btn-secondary btn-achievements-menu">
-        💎 Reliques
-      </button>
-      <button id="btn-achievements" class="btn-secondary btn-achievements-menu">
-        🏅 Succès
-      </button>
-      <button id="btn-talent-tree" class="btn-secondary btn-talent-tree-menu">
-        🌟 Arbres de Talents
-      </button>
+      <!-- Grille 2 colonnes : Reliques | Succès / Stats | Talents -->
+      <div class="menu-grid-2col">
+        <button id="btn-relics-library" class="btn-secondary menu-grid-btn">💎 Reliques</button>
+        <button id="btn-achievements"   class="btn-secondary menu-grid-btn">🏅 Succès</button>
+        <button id="btn-stats"          class="btn-secondary menu-grid-btn">📊 Statistiques</button>
+        <button id="btn-talent-tree"    class="btn-secondary menu-grid-btn">🌟 Talents</button>
+      </div>
+
+      <!-- Difficultés débloquées -->
       <div id="menu-difficulty" class="menu-difficulty"></div>
-      <div class="menu-save-actions hidden" id="menu-save-actions-extra">
-        <button id="btn-reset-all" class="btn-ghost btn-danger">
-          💀 Réinitialiser toute la progression
-        </button>
+
+      <!-- Boutons sauvegarde sur une ligne -->
+      <div class="menu-save-row hidden" id="menu-save-actions">
+        <button id="btn-export-save" class="btn-ghost btn-save-small">💾 Exporter</button>
+        <button id="btn-import-save" class="btn-ghost btn-save-small">📂 Importer</button>
+        <button id="btn-delete-save" class="btn-ghost btn-danger btn-save-small">🗑 Supprimer</button>
       </div>
-      <p class="version-label">v0.4</p>
+
+      <!-- Réinitialisation globale -->
+      <button id="btn-reset-all" class="btn-ghost btn-reset-all">💀 Réinitialiser toute la progression</button>
+
+      <p class="version-label">v0.5</p>
     </div>
   </div>
 

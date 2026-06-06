@@ -23,7 +23,7 @@
 
 import { POKEMONS, TYPE_COLORS as TC }   from '../data/pokemons.js';
 import { GRID_COLS, GRID_ROWS }          from '../board.js';
-import { getBSTTier, getRunState, setRunState,
+import { getBSTTier, getRunState, setRunState, applyAnomalyToUnits,
          addCoins, addToInventory,
          removeFromInventory, getInventory,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
@@ -33,6 +33,7 @@ import { getLevelBadgeHTML, getLevelBonus }  from '../data/levelSystem.js';
 import { getPokemonPassive }                 from '../data/passiveHooks.js';
 import { getMove }                           from '../data/moves.js';
 import { canEvolve, getEvolutionId }     from '../data/evolutionData.js';
+import { RelicEngine }                   from '../combat/RelicEngine.js';
 
 function hexToCSS(hex) {
   const r = (hex >> 16) & 0xff;
@@ -170,6 +171,8 @@ export const PrepUI = {
           locked.dataset.source = 'field';
           locked.dataset.col    = c;
           locked.dataset.row    = r;
+          // Le drop est détecté par _dropTargetAt (Pointer Events) via data-source.
+          // _onDrop autorise terrain→terrain (repositionnement) même sur case verrouillée.
           grid.appendChild(locked);
           continue;
         }
@@ -221,12 +224,14 @@ export const PrepUI = {
   _createSlot(unit, { selected, onClick, onDragStart, onDragOver, onDrop }) {
     const slot = document.createElement('div');
     slot.className = `slot${unit ? ' occupied' : ''}${selected ? ' selected' : ''}`;
-    slot.setAttribute('draggable', !!unit);
+    slot.setAttribute('draggable', 'false');  // drag géré par Pointer Events
 
     if (unit) {
-      // Coins de type
-      const c1 = hexToCSS(TC[unit.types[0]] ?? 0x888888);
-      const c2 = hexToCSS(TC[unit.types[1]] ?? TC[unit.types[0]] ?? 0x888888);
+      // Coins de type — avec anomalie si active
+      const _anomTypes = getRunState(this._registry)?.anomalyTypes;
+      const displayTypes = (_anomTypes?.[unit.id]) ?? unit.types;
+      const c1 = hexToCSS(TC[displayTypes[0]] ?? 0x888888);
+      const c2 = hexToCSS(TC[displayTypes[1]] ?? TC[displayTypes[0]] ?? 0x888888);
 
       // Objet équipé
       const itemHtml = unit.heldItem
@@ -245,8 +250,20 @@ export const PrepUI = {
         <span class="slot-name">${unit.name}</span>
         ${unitLevel > 1 ? getLevelBadgeHTML(unitLevel) : ''}
         ${(() => {
+          const rid = getRunState(this._registry)?.relic?.id;
+          const INFO = { 'pacte_de_sang':'💀 HP-20%', 'benediction':'🩹 HP+30%', 'contrat_maudit':'🩸 HP-10%' };
+          return rid && INFO[rid] ? `<span class="slot-relic-mod" title="${INFO[rid]}">${INFO[rid]}</span>` : '';
+        })()}
+        ${(() => {
           const passive = getPokemonPassive(unit.id, unitLevel);
           return passive ? `<span class="slot-passive-badge" title="${passive.name}: ${passive.desc}">✨</span>` : '';
+        })()}
+        ${(() => {
+          if (getRunState(this._registry)?.relic?.id !== 'couronne') return '';
+          const allUnits = this._getAllFieldUnits();
+          const bst = u => (u.stats?.hp??0)+(u.stats?.atk??0)+(u.stats?.spa??0)+(u.stats?.def??0)+(u.stats?.spd_def??0)+(u.stats?.spd??0);
+          const topId = allUnits.sort((a,b) => bst(b)-bst(a))[0]?.id;
+          return topId === unit.id ? '<span class="slot-crown" title="👑 Couronne — synergies ×2">👑</span>' : '';
         })()}
         ${itemHtml}
       `;
@@ -257,60 +274,117 @@ export const PrepUI = {
     // Événements
     slot.addEventListener('click', onClick);
 
-    if (onDragStart) {
-      slot.addEventListener('dragstart', (e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        onDragStart();
+    // ── Drag des pokémons via Pointer Events (souris + tactile fiable) ─────────
+    // Le HTML5 DnD natif ne fonctionne pas sur mobile ; on utilise pointerdown.
+    if (onDragStart && unit) {
+      slot.style.touchAction = 'none';   // évite le scroll pendant le drag
+      slot.addEventListener('pointerdown', (e) => {
+        // Ignore le clic droit / boutons secondaires
+        if (e.button && e.button !== 0) return;
+        this._startPointerDrag(e, slot, onDragStart);
       });
     }
-    if (onDragOver) {
-      slot.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        slot.classList.add('drag-over');
-        onDragOver();
-      });
-      slot.addEventListener('dragleave', () => {
-        slot.classList.remove('drag-over');
-      });
-    }
-    // Réception du drop d'objet inventaire
-slot.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  // Accepte aussi bien le drop pokémon que le drop objet
-  e.dataTransfer.dropEffect = 'move';
-  if (unit) slot.classList.add('drag-over');
-});
 
-slot.addEventListener('drop', (e) => {
-  e.preventDefault();
-  slot.classList.remove('drag-over');
-
-  // Drop d'un objet inventaire sur un pokémon
-  if (this._draggedItem && unit) {
-    this._equipItem(this._draggedItem, 
-      // Détecte si c'est un slot terrain ou banque depuis l'id du slot
-      slot.dataset.source === 'field' ? 'field' : 'bank',
-      parseInt(slot.dataset.col ?? 0),
-      parseInt(slot.dataset.row ?? 0),
-      parseInt(slot.dataset.idx ?? 0)
-    );
-    this._draggedItem = null;
-    return;
-  }
-  // Drop pokémon → comportement existant
-  if (onDrop) onDrop();
-  });
-
-  if (onDrop) {
-    slot.addEventListener('drop', (e) => {
-      e.preventDefault();
-      slot.classList.remove('drag-over');
-      onDrop();
+    // ── Réception d'un objet inventaire déposé (DnD natif, depuis l'inventaire) ─
+    slot.addEventListener('dragover', (e) => {
+      if (this._draggedItem && unit) { e.preventDefault(); slot.classList.add('drag-over'); }
     });
-  }
+    slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+    slot.addEventListener('drop', (e) => {
+      slot.classList.remove('drag-over');
+      if (this._draggedItem && unit) {
+        e.preventDefault();
+        this._equipItem(this._draggedItem,
+          slot.dataset.source === 'field' ? 'field' : 'bank',
+          parseInt(slot.dataset.col ?? 0),
+          parseInt(slot.dataset.row ?? 0),
+          parseInt(slot.dataset.idx ?? 0)
+        );
+        this._draggedItem = null;
+      }
+    });
 
     return slot;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Drag par Pointer Events — fiable sur mobile (tactile) et desktop (souris)
+  // ─────────────────────────────────────────────────────────────────────────
+  _startPointerDrag(e, slot, onDragStart) {
+    const startX = e.clientX, startY = e.clientY;
+    let dragging = false;
+    let ghost    = null;
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      // Seuil : on ne démarre le drag qu'après un vrai mouvement (sinon = tap)
+      if (!dragging && Math.hypot(dx, dy) < 8) return;
+      if (!dragging) {
+        dragging = true;
+        onDragStart();                       // pose this._dragSource
+        slot.classList.add('dragging-source');
+        // Fantôme suivant le doigt / curseur
+        ghost = slot.cloneNode(true);
+        Object.assign(ghost.style, {
+          position: 'fixed', pointerEvents: 'none', opacity: '0.85',
+          zIndex: '99998', width: `${slot.offsetWidth}px`, height: `${slot.offsetHeight}px`,
+          transform: 'translate(-50%, -50%)', margin: '0',
+        });
+        document.body.appendChild(ghost);
+        // Re-render pour débloquer les cases verrouillées (drag terrain→terrain)
+        this._renderAll();
+      }
+      ghost.style.left = `${ev.clientX}px`;
+      ghost.style.top  = `${ev.clientY}px`;
+      this._highlightDropTargetAt(ev.clientX, ev.clientY);
+    };
+
+    const onUp = (ev) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      if (ghost) ghost.remove();
+      slot.classList.remove('dragging-source');
+      this._clearDropHighlight();
+      if (!dragging) { this._dragSource = null; return; }  // simple tap → le click gère
+
+      // Empêche le click fantôme post-drag
+      this._dragJustEnded = true;
+      setTimeout(() => { this._dragJustEnded = false; }, 80);
+
+      const target = this._dropTargetAt(ev.clientX, ev.clientY);
+      if (target?.type === 'field')      this._onDrop('field', target.col, target.row);
+      else if (target?.type === 'bank')  this._onDrop('bank', target.idx);
+      else { this._dragSource = null; this._renderAll(); }  // hors zone → annule
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  },
+
+  // Retourne la cible de drop sous le point (x, y), ou null
+  _dropTargetAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const slotEl = el.closest('[data-source]');
+    if (!slotEl) return null;
+    if (slotEl.dataset.source === 'field')
+      return { type: 'field', col: parseInt(slotEl.dataset.col), row: parseInt(slotEl.dataset.row) };
+    if (slotEl.dataset.source === 'bank')
+      return { type: 'bank', idx: parseInt(slotEl.dataset.idx) };
+    return null;
+  },
+
+  _highlightDropTargetAt(x, y) {
+    this._clearDropHighlight();
+    const el = document.elementFromPoint(x, y);
+    const slotEl = el?.closest('[data-source]');
+    if (slotEl) slotEl.classList.add('drag-over');
+  },
+
+  _clearDropHighlight() {
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -326,13 +400,12 @@ slot.addEventListener('drop', (e) => {
       return;
     }
 
-    // Clic sur un pokémon → affiche ses stats, pas de déplacement
+    // Clic = affichage des stats uniquement (le déplacement se fait au drag & drop)
     if (unit) {
       this._selectedCard = { pokemon: unit, source: 'field', col, row };
       this._renderAll();
       this._drawSpider(unit);
     } else {
-      // Clic sur slot vide → désélectionne
       this._selectedCard = null;
       this._clearSpider();
       this._renderAll();
@@ -352,7 +425,7 @@ slot.addEventListener('drop', (e) => {
       return;
     }
 
-    // Clic → affiche stats uniquement
+    // Clic = affichage des stats uniquement (déplacement au drag & drop)
     if (unit) {
       this._selectedCard = { pokemon: unit, source: 'bank', idx };
       this._renderAll();
@@ -407,8 +480,22 @@ slot.addEventListener('drop', (e) => {
         return;
       }
 
-      // Récupère l'occupant actuel de la cible
+      // Contrainte d'équipe : un dépôt depuis la BANQUE augmente le nombre
+      // d'unités sur le terrain → autorisé seulement si on reste sous la limite.
+      // Un déplacement terrain→terrain ne change pas le total → toujours autorisé
+      // (y compris sur une case verrouillée).
       const existing = this._field[colOrIdx][row] ?? null;
+      if (src.source === 'bank' && !existing) {
+        const maxUnits = getUnlockedSlots(this._registry);
+        const totalOnField = Object.values(this._field)
+          .flatMap(col => Object.values(col)).filter(Boolean).length;
+        if (totalOnField >= maxUnits) {
+          // Terrain plein : on refuse le dépôt depuis la banque
+          this._dragSource = null;
+          this._renderAll();
+          return;
+        }
+      }
 
       // Vide la source
       if (src.source === 'field') {
@@ -574,10 +661,8 @@ slot.addEventListener('drop', (e) => {
     const { pokemon, source, col, row, idx } = this._selectedCard;
     if (!pokemon?.heldItem) return;
     const item      = pokemon.heldItem;
-    const isBraderie = getRunState(this._registry)?.relic?.id === 'braderie';
-    const sellPrice  = isBraderie
-      ? (item.price ?? 4)
-      : Math.max(0, Math.floor((item.price ?? 4) / 2));
+    const sellMult  = RelicEngine.sellMult(getRunState(this._registry)?.relic?.id);
+    const sellPrice = Math.max(0, Math.floor((item.price ?? 4) * sellMult));
     const ok = confirm(`Vendre ${item.emoji} ${item.name} pour ${sellPrice} 💰 ?`);
     if (!ok) return;
     addCoins(this._registry, sellPrice);
@@ -611,7 +696,8 @@ slot.addEventListener('drop', (e) => {
     container.innerHTML = '';
 
     const units     = this._getAllFieldUnits();
-    const synergies = getActiveSynergies(units);
+    const relicId   = getRunState(this._registry)?.relic?.id;
+    const synergies = getActiveSynergies(units, relicId);
 
     if (synergies.length === 0) {
       container.innerHTML = '<span style="font-size:11px;color:var(--text-muted)">Aucune</span>';
@@ -639,6 +725,11 @@ slot.addEventListener('drop', (e) => {
       // Détail des bonus stats
       const bonusLines = Object.entries(syn.statBonus ?? {}).map(([stat, mult]) => {
         const pct = Math.round((mult - 1) * 100);
+        if (relicId === 'miroir') {
+          const boosted = Math.round(pct * 1.5);
+          const extra   = boosted - pct;
+          return `${STAT_LABELS[stat] ?? stat} +${boosted}% (+${pct}+${extra}%) 🪞`;
+        }
         return `${STAT_LABELS[stat] ?? stat} +${pct}%`;
       }).join('<br>');
 
@@ -646,16 +737,18 @@ slot.addEventListener('drop', (e) => {
         ? `<span style="color:#ffd700">${EFFECT_LABELS[syn.effect] ?? syn.effect}</span>`
         : '';
 
-      badge.innerHTML = `
-        ${syn.icon} ${syn.type} ${'★'.repeat(syn.tier)}
-        <span class="synergy-tooltip">
-          <strong>${syn.icon} ${syn.type} — ${syn.tier === 3 ? '3★' : '2★'}</strong>
-          <span style="color:var(--text-muted);font-size:9px">${syn.count} pokémons</span>
-          <hr style="border-color:var(--border-default);margin:3px 0">
-          ${bonusLines}
-          ${effectLine ? `<br>${effectLine}` : ''}
-        </span>
+      const tooltipHtml = `
+        <div class="pop-title">${syn.icon} ${syn.type} — ${syn.tier === 3 ? '3★' : '2★'}</div>
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px">${syn.count} pokémons</div>
+        ${bonusLines}
+        ${effectLine ? `<br>${effectLine}` : ''}
       `;
+      badge.innerHTML = `${syn.icon} ${syn.type} ${'★'.repeat(syn.tier)}`;
+      badge.style.cursor = 'pointer';
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.UIManager?.showPopover) window.UIManager.showPopover(badge, tooltipHtml);
+      });
       container.appendChild(badge);
     });
   },
@@ -840,7 +933,8 @@ slot.addEventListener('drop', (e) => {
 
     // Trois niveaux de stats
     const metaLvl = window.SaveManager?.loadMeta() ?? null;
-    const full    = getFullStats(pokemon, fieldUnits, metaLvl);
+    const relicId = getRunState(this._registry)?.relic?.id ?? null;
+    const full    = getFullStats(pokemon, fieldUnits, metaLvl, relicId);
     const { base, withItem, withSynergy, itemBoosted, synergyBoosted, synColor } = full;
 
     const hasSynColor    = !!synColor;
@@ -862,6 +956,46 @@ slot.addEventListener('drop', (e) => {
 
     // Rétrocompatibilité : ax.value = stat finale, ax.base = stat de base
     axes.forEach(ax => { ax.value = ax.synV; ax.base = ax.baseV; });
+
+    // ── Décomposition détaillée par stat (pour le popover au clic) ────────────
+    // base → +niveau → +objet → +synergies
+    const levelMult = pLevelSvg > 1 ? 1 + (pLevelSvg - 1) * 0.005 : 1;
+    const heldItemName = pokemon.heldItem?.name ?? null;
+    // Synergies actives qui boostent chaque stat
+    const activeSyns = getActiveSynergies(fieldUnits.filter(Boolean), relicId);
+    const synOriginFor = (statKey) => {
+      const origins = [];
+      activeSyns.forEach(syn => {
+        if (syn.statBonus && syn.statBonus[statKey] && syn.statBonus[statKey] !== 1) {
+          origins.push(`${syn.type} ×${syn.count}`);
+        }
+      });
+      return origins;
+    };
+    this._statBreakdowns = {};
+    const STAT_NAMES = { hp:'❤️ PV', atk:'⚔️ Attaque', spa:'🔮 Atq. Spé.',
+      def:'🛡️ Défense', spd_def:'💎 Déf. Spé.', spd:'👟 Vitesse' };
+    axes.forEach(ax => {
+      const afterLevel = Math.round(ax.baseV * levelMult);
+      const levelDelta = afterLevel - ax.baseV;
+      const itemDelta  = ax.itemV - afterLevel;
+      const synDelta   = ax.synV - ax.itemV;
+      const rows = [`<div class="pop-row"><span>Base</span><span>${ax.baseV}</span></div>`];
+      if (levelDelta !== 0)
+        rows.push(`<div class="pop-row"><span>+${levelDelta} <span class="pop-origin">(Niv. ${pLevelSvg})</span></span></div>`);
+      if (itemDelta !== 0 && heldItemName)
+        rows.push(`<div class="pop-row"><span>+${itemDelta} <span class="pop-origin">(${heldItemName})</span></span></div>`);
+      else if (itemDelta !== 0)
+        rows.push(`<div class="pop-row"><span>+${itemDelta} <span class="pop-origin">(objet)</span></span></div>`);
+      if (synDelta !== 0) {
+        const origins = synOriginFor(ax.key);
+        const label   = origins.length ? origins.join(', ') : 'synergie';
+        rows.push(`<div class="pop-row"><span>+${synDelta} <span class="pop-origin">(${label})</span></span></div>`);
+      }
+      rows.push(`<div class="pop-row pop-total"><span>Total</span><span>${ax.synV}</span></div>`);
+      this._statBreakdowns[ax.key] =
+        `<div class="pop-title">${STAT_NAMES[ax.key] ?? ax.key}</div>${rows.join('')}`;
+    });
 
     const toRad = d => d * Math.PI / 180;
 
@@ -921,7 +1055,7 @@ slot.addEventListener('drop', (e) => {
     // La toile reste 120px, seuls les textes sortent légèrement
     const isMobile  = window.innerWidth <= 768;
     const emojiSize = isMobile ? 38 : 13;
-    const valSize   = isMobile ? 56 : 8;
+    const valSize   = isMobile ? 66 : 11;
     const labelDist = isMobile ? 12 : 18;  // très proche de la toile sur mobile
 
     // Icônes + valeurs
@@ -937,15 +1071,8 @@ slot.addEventListener('drop', (e) => {
 
       const valColor = isMain ? '#ffd700' : isSynBoost ? finalColor : isItmBoost ? '#55efc4' : '#a0aec0';
 
-      // Construction de la valeur avec annotations
-      let valueStr = `${ax.synV}`;
-      if (isSynBoost && ax.synV > ax.itemV) {
-        const synDelta = ax.synV - ax.itemV;
-        valueStr += ` <tspan fill="${finalColor}" font-size="7">+${synDelta}</tspan>`;
-      } else if (isItmBoost && ax.itemV > ax.baseV) {
-        const itmDelta = ax.itemV - ax.baseV;
-        valueStr += ` <tspan fill="#55efc4" font-size="7">+${itmDelta}</tspan>`;
-      }
+      // Affiche UNIQUEMENT le total final (le détail est dans le popover au clic)
+      const valueStr = `${ax.synV}`;
 
       const bgColor  = isMain ? '#ffd700' : isSynBoost ? finalColor : '#55efc4';
       const bgOpFill = isMain ? '0.12' : isSynBoost ? '0.12' : '0.08';
@@ -957,14 +1084,21 @@ slot.addEventListener('drop', (e) => {
                 stroke="${bgColor}" stroke-width="0.8" stroke-opacity="${bgOpStr}"/>`
         : '';
 
+      // Zone cliquable transparente (pour ouvrir le popover de détail)
+      const hitRect = `<rect x="${(lx - 12).toFixed(1)}" y="${(ly - 16).toFixed(1)}"
+              width="24" height="26" rx="4" fill="transparent"
+              style="cursor:pointer" data-stat-popover="${ax.key}"/>`;
+
       return `
         ${bgRect}
         <text x="${lx.toFixed(1)}" y="${(ly - 6).toFixed(1)}"
-              text-anchor="middle" font-size="${emojiSize}" dominant-baseline="middle">${ax.emoji}</text>
+              text-anchor="middle" font-size="${emojiSize}" dominant-baseline="middle"
+              style="pointer-events:none">${ax.emoji}</text>
         <text x="${lx.toFixed(1)}" y="${(ly + 8).toFixed(1)}"
               text-anchor="middle" font-size="${valSize}" fill="${valColor}"
               font-weight="${isMain || isBoostedAny ? 'bold' : 'normal'}"
-              dominant-baseline="middle">${valueStr}</text>
+              dominant-baseline="middle" style="pointer-events:none">${valueStr}</text>
+        ${hitRect}
       `;
     }).join('');
 
@@ -1025,6 +1159,18 @@ slot.addEventListener('drop', (e) => {
       ${labels}
 
     `;
+
+    // Attache les handlers de clic sur les zones de stats → popover de détail
+    svg.querySelectorAll('[data-stat-popover]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const key = el.getAttribute('data-stat-popover');
+        const html = this._statBreakdowns?.[key];
+        if (html && window.UIManager?.showPopover) {
+          window.UIManager.showPopover(el, html);
+        }
+      });
+    });
   },
 
   _clearSpider() {
@@ -1100,10 +1246,13 @@ slot.addEventListener('drop', (e) => {
         const u = this._field[c][r];
         if (u?.id === baseId) {
           if (!replaced) {
-            this._field[c][r] = {
+            const anomalyTypes = getRunState(this._registry)?.anomalyTypes;
+          const evoTypes = anomalyTypes?.[evoId] ?? evoPok.types;
+          this._field[c][r] = {
               ...evoPok, col: c, row: r,
               uid: u.uid, heldItem: u.heldItem ?? null,
-              isInTeam: true, attributes: []
+              isInTeam: true, attributes: [],
+              types: evoTypes,
             };
             replaced = true;
           } else {
@@ -1151,7 +1300,17 @@ slot.addEventListener('drop', (e) => {
     for (let c = 0; c < GRID_COLS; c++)
       for (let r = 0; r < GRID_ROWS; r++)
         if (this._field[c][r]) units.push(this._field[c][r]);
-    return units;
+    const result  = applyAnomalyToUnits(units, this._registry);
+    const relicId = getRunState(this._registry)?.relic?.id ?? null;
+    // Marque Miroir et Couronne sur les unités pour getFullStats
+    if (relicId === 'couronne' && result.length) {
+      const bst = u => (u.stats?.hp??0)+(u.stats?.atk??0)+(u.stats?.spa??0)+
+                       (u.stats?.def??0)+(u.stats?.spd_def??0)+(u.stats?.spd??0);
+      const topId = [...result].sort((a,b) => bst(b)-bst(a))[0]?.id;
+      result.forEach(u => { u._doubleSynergyBonus = u.id === topId; });
+    }
+    result.forEach(u => { u._relicId = relicId; });
+    return result;
   },
 
   _updateBankLabel() {

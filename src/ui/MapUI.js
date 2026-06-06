@@ -31,6 +31,14 @@ const NODE_META = {
 export const MapUI = {
   // État
   _nodes:    [],
+  // Hash simple pour convertir un seed string en nombre déterministe
+  _hashString(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h);
+  },
   _start:    null,
   _mapIdx:   0,
   _seed:     null,
@@ -55,42 +63,42 @@ export const MapUI = {
     this._mapIdx = data?.mapIndex ?? state.currentMap ?? 0;
     const gen    = new MapGenerator();
 
-    if (data?.seed != null) {
-      // ── Restauration depuis seed ───────────────────────────────────────────
-      // Même seed → même PRNG → même layout garanti
-      this._nodes = gen.generate(this._mapIdx, data?.prevArena ?? null, data.seed);
-      this._start = gen._startNode;
-      this._seed  = data.seed;
-      gen.restoreState(
-        this._nodes, this._start,
-        data.visitedNodes   ?? [],
-        data.availableNodes ?? []
-      );
-    } else {
-      // ── Nouvelle map (ou retour depuis combat avec mapNodes) ───────────────
-      // On génère toujours depuis un nouveau seed (le seed sera sauvé après)
-      const prevArena = data?.prevArena ?? null;
-      this._nodes = gen.generate(this._mapIdx, prevArena);
-      this._start = gen._startNode;
-      this._seed  = gen._seed;
-      // Si mapNodes passé (retour combat), restaure l'état visited/available
-      // depuis le registre (sauvé dans runState)
-      if (data?.mapNodes) {
-        // Recopie visited/available depuis les mapNodes fournis
-        const visitedSet   = new Set();
-        const availableSet = new Set();
-        data.mapNodes.forEach(col => col.forEach(n => {
-          if (n.visited)   visitedSet.add(n.id);
-          if (n.available) availableSet.add(n.id);
-        }));
-        if (data.startNode?.visited) visitedSet.add('start');
-        gen.restoreState(
-          this._nodes, this._start,
-          [...visitedSet], [...availableSet]
-        );
-        // Conserve le seed existant si disponible dans les data
-        if (data.existingSeed != null) this._seed = data.existingSeed;
-      }
+    // ── SEED MAÎTRE de l'épopée ────────────────────────────────────────────────
+    // Toujours le même pour toute la run → réutilisé pour chaque map.
+    // Priorité : data.seed (restauration) > state.seed (run en cours) > nouveau
+    let masterSeed = data?.seed ?? state.seed ?? null;
+    if (masterSeed == null) {
+      masterSeed = MapGenerator.generateSeed();
+    }
+    // Normalise en nombre (le seed peut être stocké en string)
+    masterSeed = (typeof masterSeed === 'string')
+      ? (parseInt(masterSeed, 10) || this._hashString(masterSeed))
+      : masterSeed;
+    this._seed = masterSeed;
+
+    // Génère le layout de CETTE map depuis le seed maître + mapIndex (déterministe)
+    this._nodes = gen.generate(this._mapIdx, data?.prevArena ?? null, masterSeed);
+    this._start = gen._startNode;
+
+    // Restaure la progression (nœuds visités/disponibles) si on revient sur cette map
+    let visited   = data?.visitedNodes   ?? null;
+    let available = data?.availableNodes ?? null;
+
+    // Retour depuis un combat : reconstruit visited/available depuis mapNodes
+    if (data?.mapNodes && !visited) {
+      const visitedSet   = new Set();
+      const availableSet = new Set();
+      data.mapNodes.forEach(col => col.forEach(n => {
+        if (n.visited)   visitedSet.add(n.id);
+        if (n.available) availableSet.add(n.id);
+      }));
+      if (data.startNode?.visited) visitedSet.add('start');
+      visited   = [...visitedSet];
+      available = [...availableSet];
+    }
+
+    if (visited && visited.length) {
+      gen.restoreState(this._nodes, this._start, visited, available ?? []);
     }
 
     // Construit la structure de base (titre + viewport)
@@ -103,7 +111,7 @@ export const MapUI = {
     // Titre
     const title = document.createElement('div');
     const dest  = ARENAS[this._mapIdx];
-    title.textContent = `En Route vers ${dest?.city ?? `Route ${this._mapIdx + 1}`}`;
+    title.textContent = `En Route vers ${dest?.city ?? ('Route ' + (this._mapIdx + 1))}`;
     title.style.cssText = `
       flex-shrink: 0;
       text-align: center;
@@ -192,7 +200,7 @@ export const MapUI = {
   // ─────────────────────────────────────────────────────────────────────────
   _renderWorld() {
     // Badge relique active
-    const rsMap     = this._registry?.get?.('runState') ?? {};
+    const rsMap     = getRunState(this._reg) ?? {};
     const relicBadge = document.getElementById('map-relic-badge');
     if (relicBadge && typeof RelicUI !== 'undefined') {
       relicBadge.innerHTML = rsMap?.relic?.id
@@ -358,7 +366,10 @@ export const MapUI = {
     const isBoss      = node.type === NODE_TYPES.BOSS;
     const isAvailable = node.available && !node.visited;
     const isVisited   = node.visited;
-    const meta        = NODE_META[node.type] ?? NODE_META.combat;
+    // Un nœud mystère non visité utilise la lueur neutre "mystère" (ne trahit pas le type)
+    const meta        = (node.isMystery && !isVisited)
+      ? NODE_META.random
+      : (NODE_META[node.type] ?? NODE_META.combat);
 
     // Wrapper positionné
     const wrap = document.createElement('div');
@@ -414,8 +425,17 @@ export const MapUI = {
       flex-shrink: 0;
     `;
 
-    const spriteSrc = this._getSprite(node);
-    if (spriteSrc) {
+    // Nœud Mystère non visité : on masque la vraie nature derrière un "❓"
+    const showMystery = node.isMystery && !isVisited;
+
+    const spriteSrc = showMystery ? null : this._getSprite(node);
+    if (showMystery) {
+      const q = document.createElement('span');
+      q.textContent   = '❓';
+      q.style.cssText = `font-size: ${SPRITE * 0.6}px; line-height: 1; pointer-events: none;
+        filter: drop-shadow(0 0 ${4*z}px rgba(79,195,247,0.7));`;
+      inner.appendChild(q);
+    } else if (spriteSrc) {
       const img = document.createElement('img');
       img.src             = spriteSrc;
       img.draggable       = false;
@@ -493,6 +513,7 @@ export const MapUI = {
     if (isVisited && !isStart)     return '✓';
     if (isStart && node.prevArena) return node.prevArena.city;
     if (isStart)                   return 'Départ';
+    if (node.isMystery)            return 'Mystère';
     if (isBoss && node.trainer)    return node.trainer.name ?? 'Arène';
     return (NODE_META[node.type] ?? NODE_META.combat).label;
   },
@@ -515,6 +536,8 @@ export const MapUI = {
         enemyUnits:         node.trainer?.units       ?? [],
         trainerName:        node.trainer?.name        ?? 'Dresseur',
         trainerArchetypeId: node.trainer?.archetypeId ?? null,
+        leagueSprite:       node.trainer?.leagueSprite ?? null,
+        isLeague:           node.trainer?.isLeague    ?? false,
         mapNodes:           this._nodes,
         startNode:          this._start,
         mapIndex:           this._mapIdx,
