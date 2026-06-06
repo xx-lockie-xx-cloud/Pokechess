@@ -135,7 +135,7 @@ export const SaveManager = {
       bestMap:       0,
       badgesEarned:  [],
       totalWins:     0,
-      difficulty:    'normal',
+      difficulty:    'easy',
       pokemonLevels: {},
       seenPokemon:   [],
       caughtPokemon: [],
@@ -201,7 +201,19 @@ export const SaveManager = {
     return { gained: true, newLevel, pokemonId };
   },
 
-  getDifficulty() { return this.loadMeta().difficulty ?? 'normal'; },
+  getDifficulty() {
+    const meta   = this.loadMeta();
+    const stored = meta.difficulty ?? 'easy';
+    const ach    = meta.achievements ?? {};
+    // Conditions de déblocage (miroir de DIFFICULTIES dans levelSystem.js)
+    const REQ = { easy: null, normal: 'ligue_easy', hard: 'ligue_normal', expert: 'ligue_hard_relic' };
+    const isUnlocked = (id) => !REQ[id] || !!ach[REQ[id]];
+    // Si la difficulté stockée n'est pas débloquée (ex: défaut hérité), on retombe
+    // sur la plus haute difficulté réellement débloquée → évite de jouer "normal"
+    // en croyant jouer "facile".
+    if (isUnlocked(stored)) return stored;
+    return ['expert', 'hard', 'normal', 'easy'].find(isUnlocked) ?? 'easy';
+  },
 
   setDifficulty(id) {
     const meta = this.loadMeta();
