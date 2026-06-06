@@ -1198,6 +1198,12 @@ export const PrepUI = {
   },
 
   _proposeEvolution(baseId) {
+    // Évoli (133) : choix entre Aquali / Voltali / Pyroli
+    if (baseId === 133) {
+      this._proposeEeveeEvolution();
+      return;
+    }
+
     const evoId   = getEvolutionId(baseId);
     const evoPok  = POKEMONS.find(p => p.id === evoId);
     const basePok = POKEMONS.find(p => p.id === baseId);
@@ -1236,6 +1242,63 @@ export const PrepUI = {
     document.getElementById('evo-no').addEventListener('click', () => {
       popup.remove();
     });
+  },
+
+  // ── Évolution d'Évoli : choix entre Aquali / Voltali / Pyroli ──────────────
+  _proposeEeveeEvolution() {
+    const CHOICES = [
+      { id: 134, name: 'Aquali',  type: 'Eau',      icon: '💧', color: '#3498db' },
+      { id: 135, name: 'Voltali', type: 'Électrik', icon: '⚡', color: '#f1c40f' },
+      { id: 136, name: 'Pyroli',  type: 'Feu',      icon: '🔥', color: '#e74c3c' },
+    ];
+
+    const popup = document.createElement('div');
+    popup.style.cssText = `
+      position:fixed;inset:0;background:rgba(0,0,0,0.75);
+      display:flex;align-items:center;justify-content:center;z-index:500;padding:16px
+    `;
+
+    const cardsHtml = CHOICES.map(c => {
+      const pok = POKEMONS.find(p => p.id === c.id);
+      return `
+        <button class="evo-choice-card" data-evo="${c.id}"
+          style="background:var(--bg-card,#0f3460);border:2px solid ${c.color};
+                 border-radius:12px;padding:12px 8px;cursor:pointer;display:flex;
+                 flex-direction:column;align-items:center;gap:4px;min-width:90px;
+                 transition:transform 0.12s,box-shadow 0.12s">
+          <img src="${pok?.spriteUrl ?? ''}" alt="${c.name}"
+               style="width:64px;height:64px;image-rendering:pixelated;pointer-events:none"
+               onerror="this.style.display='none'" />
+          <span style="font-weight:700;color:#e2e8f0;font-size:13px;pointer-events:none">${c.name}</span>
+          <span style="font-size:11px;color:${c.color};pointer-events:none">${c.icon} ${c.type}</span>
+        </button>`;
+    }).join('');
+
+    popup.innerHTML = `
+      <div style="background:var(--bg-base,#1a1a2e);border:2px solid var(--color-gold,#ffd700);
+                  border-radius:14px;padding:24px 20px;text-align:center;max-width:360px;width:100%">
+        <p style="font-size:18px;color:var(--color-gold,#ffd700);font-weight:700;margin:0 0 4px">
+          ✨ Évolution d'Évoli
+        </p>
+        <p style="font-size:12px;color:var(--text-muted,#a0aec0);margin:0 0 18px">
+          Choisis la forme d'évolution (les 2 Évoli fusionnent).
+        </p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          ${cardsHtml}
+        </div>
+        <button id="evo-cancel" class="btn-ghost" style="margin-top:18px">✕ Annuler</button>
+      </div>
+    `;
+    document.body.appendChild(popup);
+
+    popup.querySelectorAll('.evo-choice-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const evoId = parseInt(btn.dataset.evo);
+        popup.remove();
+        this._evolve(133, evoId);
+      });
+    });
+    document.getElementById('evo-cancel').addEventListener('click', () => popup.remove());
   },
 
   _evolve(baseId, evoId) {
