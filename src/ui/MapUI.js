@@ -366,7 +366,10 @@ export const MapUI = {
     const isBoss      = node.type === NODE_TYPES.BOSS;
     const isAvailable = node.available && !node.visited;
     const isVisited   = node.visited;
-    const meta        = NODE_META[node.type] ?? NODE_META.combat;
+    // Un nœud mystère non visité utilise la lueur neutre "mystère" (ne trahit pas le type)
+    const meta        = (node.isMystery && !isVisited)
+      ? NODE_META.random
+      : (NODE_META[node.type] ?? NODE_META.combat);
 
     // Wrapper positionné
     const wrap = document.createElement('div');
@@ -422,8 +425,17 @@ export const MapUI = {
       flex-shrink: 0;
     `;
 
-    const spriteSrc = this._getSprite(node);
-    if (spriteSrc) {
+    // Nœud Mystère non visité : on masque la vraie nature derrière un "❓"
+    const showMystery = node.isMystery && !isVisited;
+
+    const spriteSrc = showMystery ? null : this._getSprite(node);
+    if (showMystery) {
+      const q = document.createElement('span');
+      q.textContent   = '❓';
+      q.style.cssText = `font-size: ${SPRITE * 0.6}px; line-height: 1; pointer-events: none;
+        filter: drop-shadow(0 0 ${4*z}px rgba(79,195,247,0.7));`;
+      inner.appendChild(q);
+    } else if (spriteSrc) {
       const img = document.createElement('img');
       img.src             = spriteSrc;
       img.draggable       = false;
@@ -501,6 +513,7 @@ export const MapUI = {
     if (isVisited && !isStart)     return '✓';
     if (isStart && node.prevArena) return node.prevArena.city;
     if (isStart)                   return 'Départ';
+    if (node.isMystery)            return 'Mystère';
     if (isBoss && node.trainer)    return node.trainer.name ?? 'Arène';
     return (NODE_META[node.type] ?? NODE_META.combat).label;
   },
