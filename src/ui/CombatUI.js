@@ -937,6 +937,7 @@ export const CombatUI = {
   // Rotation accompagnant la translation + grossissement à l'armement.
   _playPhysicalLunge(attackerKey, targetKey, { onImpact } = {}) {
     const el = this._spriteEl(attackerKey);
+    const slot = this._slots[attackerKey];
     const aC = this._slotCenterClient(attackerKey);
     const tC = this._slotCenterClient(targetKey);
     if (!el || !aC || !tC) { if (onImpact) onImpact(); return; }
@@ -950,6 +951,9 @@ export const CombatUI = {
     const moveX = dx * 0.6, moveY = dy * 0.6;
     const recoilX = -dx * 0.10, recoilY = -dy * 0.10;  // léger recul à l'armement
 
+    // Le slot doit cesser de découper le sprite pendant le mouvement, et passer
+    // au-dessus des slots voisins.
+    if (slot) { slot.style.overflow = 'visible'; slot.style.zIndex = '60'; }
     el.style.zIndex = '60';
     el.style.willChange = 'transform';
 
@@ -968,8 +972,10 @@ export const CombatUI = {
         el.style.transform  = 'translate(0,0) rotate(0deg) scale(1)';
         setTimeout(() => {
           el.style.transition = '';
+          el.style.transform  = '';
           el.style.zIndex = '';
           el.style.willChange = '';
+          if (slot) { slot.style.overflow = ''; slot.style.zIndex = ''; }
         }, 210);
       }, 150);
     }, 110);
@@ -986,13 +992,14 @@ export const CombatUI = {
     orb.className = 'combat-projectile';
     Object.assign(orb.style, {
       position: 'fixed', left: `${aC.x}px`, top: `${aC.y}px`,
-      width: '16px', height: '16px', borderRadius: '50%',
+      width: '18px', height: '18px', borderRadius: '50%',
       background: `radial-gradient(circle at 35% 35%, #fff, ${color} 60%, ${color})`,
-      boxShadow: `0 0 10px 3px ${color}`,
-      transform: 'translate(-50%,-50%)', zIndex: '70', pointerEvents: 'none',
+      boxShadow: `0 0 12px 4px ${color}`,
+      transform: 'translate(-50%,-50%)', zIndex: '9999', pointerEvents: 'none',
       transition: 'left 0.25s linear, top 0.25s linear',
     });
     document.body.appendChild(orb);
+    void orb.offsetWidth;   // force un reflow pour que la transition s'amorce
     // Lance le projectile
     requestAnimationFrame(() => {
       orb.style.left = `${tC.x}px`;
@@ -1018,11 +1025,12 @@ export const CombatUI = {
       p.textContent = emoji;
       Object.assign(p.style, {
         position: 'fixed', left: `${c.x}px`, top: `${c.y}px`,
-        fontSize: isCrit ? '17px' : '14px', zIndex: '71', pointerEvents: 'none',
+        fontSize: isCrit ? '17px' : '14px', zIndex: '9999', pointerEvents: 'none',
         transform: 'translate(-50%,-50%)', transition: 'transform 0.4s ease-out, opacity 0.4s ease-out',
         opacity: '1',
       });
       document.body.appendChild(p);
+      void p.offsetWidth;   // reflow → la transition s'amorce
       requestAnimationFrame(() => {
         p.style.transform = `translate(calc(-50% + ${ex}px), calc(-50% + ${ey}px)) scale(${isCrit?1.3:1})`;
         p.style.opacity = '0';
