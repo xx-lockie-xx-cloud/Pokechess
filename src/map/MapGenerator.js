@@ -120,8 +120,12 @@ export class MapGenerator {
       for (let row = 0; row < numNodes; row++) {
         let type = isBoss ? NODE_TYPES.BOSS : nodeTypeFromRNG(rng);
 
+        // Nœud Mystère : on résout son vrai type (pour la logique combat/boutique/
+        // objet) mais on le marque pour afficher "❓" sur la carte au lieu du sprite.
+        let isMystery = false;
         if (type === NODE_TYPES.RANDOM) {
           type = randomNodeTypeForRandom(rng);
+          isMystery = true;
         }
         if (type === NODE_TYPES.SHOP) {
           if (isEarlyCol || shopCount >= MAX_SHOPS) {
@@ -187,6 +191,7 @@ export class MapGenerator {
         colNodes.push({
           id:          `${col}_${row}`,
           col, row, type,
+          isMystery,
           trainer:     trainerData,
           connections: [],
           visited:     false,
