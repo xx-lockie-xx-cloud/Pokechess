@@ -94,6 +94,25 @@ export class MapGenerator {
     return Math.floor(Math.random() * 2147483647);
   }
 
+  // Normalise une seed saisie par le joueur (nombre OU texte) en entier valide.
+  // Retourne null si vide (→ seed aléatoire). Le texte est hashé en nombre.
+  static normalizeSeed(input) {
+    if (input == null) return null;
+    const s = String(input).trim();
+    if (s === '') return null;
+    // Purement numérique → entier direct
+    if (/^\d+$/.test(s)) {
+      const n = parseInt(s, 10);
+      return (n % 2147483647) >>> 0;
+    }
+    // Sinon : hash de chaîne (déterministe) → nombre
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;  // djb2
+    }
+    return (h % 2147483647) >>> 0;
+  }
+
   // ── Génère la map depuis un seed ──────────────────────────────────────────
   generate(mapIndex = 0, prevArena = null, seed = null) {
     // Seed maître de l'épopée : fourni (restauration/run en cours) ou généré (nouvelle run)
