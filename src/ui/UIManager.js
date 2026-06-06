@@ -176,7 +176,14 @@ class UIManagerClass {
     document.getElementById('btn-new-game')?.addEventListener('click', () => {
       console.log('[UIManager] btn-new-game cliqué');
       SaveManager.deleteRunSave();
-      const seed = MapGenerator.generateSeed();  // seed maître numérique de l'épopée
+      // Seed : personnalisée si la case "Choisir la seed" est cochée, sinon aléatoire
+      const seedToggle = document.getElementById('seed-toggle');
+      const seedInput  = document.getElementById('seed-input');
+      let seed = MapGenerator.generateSeed();
+      if (seedToggle?.checked) {
+        const custom = MapGenerator.normalizeSeed(seedInput?.value);
+        if (custom != null) seed = custom;
+      }
       const diff = SaveManager.getDifficulty() ?? 'easy';
       this.registry.reset();
       this.registry.set('runState', { currentMap:0, coins:5, inventory:[],
@@ -275,6 +282,14 @@ class UIManagerClass {
           </button>
         `).join('')}
       </div>
+      <div class="seed-chooser">
+        <label class="seed-checkbox">
+          <input type="checkbox" id="seed-toggle" />
+          <span>Choisir la seed</span>
+        </label>
+        <input type="text" id="seed-input" class="seed-input hidden"
+               placeholder="Entrez une seed (nombre ou texte)" maxlength="40" />
+      </div>
     `;
 
     container.querySelectorAll('.btn-difficulty:not(.locked)').forEach(btn => {
@@ -283,6 +298,16 @@ class UIManagerClass {
         this._renderDifficultySelector();
       });
     });
+
+    // Affiche/masque le champ seed selon la case
+    const toggle = container.querySelector('#seed-toggle');
+    const input  = container.querySelector('#seed-input');
+    if (toggle && input) {
+      toggle.addEventListener('change', () => {
+        input.classList.toggle('hidden', !toggle.checked);
+        if (toggle.checked) input.focus();
+      });
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
