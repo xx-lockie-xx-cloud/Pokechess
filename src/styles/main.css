@@ -371,6 +371,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 .btn-secondary:hover:not(:disabled) { background: rgba(255,215,0,0.12); }
 
+/* Image sur le bouton Pokédex — ajustée au bouton */
+.btn-pokedex-img {
+  height: 20px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  vertical-align: middle;
+  display: inline-block;
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--text-muted);
@@ -2609,6 +2619,13 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .btn-team-text,
   .btn-pokedex-text {
     display: none;
+  }
+
+  /* L'image Pokédex remplit le bouton carré 36px (petite marge) */
+  #btn-pokedex .btn-pokedex-img {
+    height: 28px;
+    width: 28px;
+    object-fit: contain;
   }
 
   #btn-menu-home,
