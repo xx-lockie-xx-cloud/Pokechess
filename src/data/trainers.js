@@ -1,6 +1,8 @@
 // Définition des archétypes de dresseurs et leurs pools de pokémons par type
 // La difficulté est calculée dynamiquement via la somme des stats (budget)
 
+import { assignCorners } from './synergies.js';
+
 export const TRAINER_ARCHETYPES = [
   {
     id:    'pecheur',
@@ -406,7 +408,10 @@ export function generateEnemyTeam(archetype, targetBudget, maxUnits = 6, mapInde
 
     const cell = allCells[team.length];
     spent += getBST(pick);
-    team.push({ ...pick, col: cell.col, row: cell.row, attributes: [] });
+    const enemyUnit = { ...pick, col: cell.col, row: cell.row, attributes: [] };
+    // Coins (système de synergies par placement) — tirage aléatoire pour bi-types
+    enemyUnit.corners = assignCorners(enemyUnit, rng);
+    team.push(enemyUnit);
   }
 
   return team;

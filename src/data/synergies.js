@@ -4,6 +4,40 @@
 
 import { getEffectiveStats } from './items.js';
 import { getBSTTier }       from './runState.js';
+import { GRID_COLS, GRID_ROWS } from '../board.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SYSTÈME DE COINS (corners) — base du nouveau système de synergies par placement
+// Chaque carte a 4 coins colorés par type, indexés dans le sens horaire :
+//   [0]=haut-gauche (TL), [1]=haut-droit (TR), [2]=bas-droit (BR), [3]=bas-gauche (BL)
+//   - Monotype  : les 4 coins = le type
+//   - Bi-type   : 2 coins de chaque type, répartis ALÉATOIREMENT sur les 4 positions
+// Les coins sont (re)tirés à la création (starter/capture) et à l'évolution.
+// ─────────────────────────────────────────────────────────────────────────────
+export function assignCorners(unit, rng = Math.random) {
+  const types = unit?.types ?? [];
+  let pool;
+  if (types.length >= 2) {
+    pool = [types[0], types[0], types[1], types[1]];
+  } else {
+    const t = types[0] ?? 'Normal';
+    pool = [t, t, t, t];
+  }
+  // Mélange Fisher-Yates (seul utile pour les bi-types)
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool;   // [TL, TR, BR, BL]
+}
+
+// S'assure qu'une unité a des coins (rétro-compat : assigne si absent). Ne re-tire PAS.
+export function ensureCorners(unit, rng = Math.random) {
+  if (unit && (!Array.isArray(unit.corners) || unit.corners.length !== 4)) {
+    unit.corners = assignCorners(unit, rng);
+  }
+  return unit?.corners ?? null;
+}
 
 export const SYNERGIES = {
   "Feu": {
@@ -99,42 +133,166 @@ export const SYNERGIES = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// getActiveSynergies — synergies actives depuis les unités sur le terrain
+// Dérive les données d'un palier (1★/2★/3★) depuis seuil2/seuil3.
+//   1★ = ancien seuil2 (inchangé)
+//   3★ = ancien seuil3, bonus légèrement renforcé (+15% sur la part de bonus) + effet
+//   2★ = interpolation entre les deux (pas d'effet spécial)
+// ─────────────────────────────────────────────────────────────────────────────
+const STAT_LABELS = { hp:'PV', atk:'ATK', spa:'SP.ATK', def:'DEF', spd_def:'SP.DEF', spd:'VIT' };
+
+function _interp(a, b, t) { return a + (b - a) * t; }
+
+function _deriveTierData(synergy, tier) {
+  const s2 = synergy.seuil2 ?? { statBonus:{}, effect:null };
+  const s3 = synergy.seuil3 ?? s2;
+  let statBonus = {};
+  let effect = null;
+
+  if (tier === 1) {
+    statBonus = { ...(s2.statBonus ?? {}) };
+  } else if (tier === 3) {
+    // 3★ : seuil3 renforcé de 15 % sur la part de bonus
+    Object.entries(s3.statBonus ?? {}).forEach(([k, v]) => {
+      statBonus[k] = Math.round((1 + (v - 1) * 1.15) * 1000) / 1000;
+    });
+    effect = s3.effect ?? null;
+  } else {
+    // 2★ : interpolation entre seuil2 et seuil3
+    const keys = new Set([...Object.keys(s2.statBonus ?? {}), ...Object.keys(s3.statBonus ?? {})]);
+    keys.forEach(k => {
+      const a = s2.statBonus?.[k] ?? 1;
+      const b = s3.statBonus?.[k] ?? 1;
+      statBonus[k] = Math.round(_interp(a, b, 0.5) * 1000) / 1000;
+    });
+  }
+
+  // Libellé généré depuis statBonus
+  const parts = Object.entries(statBonus).map(([k, v]) => {
+    const pct = Math.round((v - 1) * 100);
+    return `+${pct}% ${STAT_LABELS[k] ?? k}`;
+  });
+  if (effect) parts.push(_effectLabel(effect));
+  return { statBonus, effect, label: parts.join(', ') || '—' };
+}
+
+function _effectLabel(effect) {
+  const M = { burn:'Brûlure', freeze:'Gel', poison:'Poison', paralyze:'Paralysie',
+    stun:'Étourdissement', heal:'Soin', shield:'Bouclier', intimidate:'Intimidation' };
+  return M[effect] ?? effect;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getActiveSynergies — synergies par PLACEMENT (coins qui se touchent)
+//   Convergence d'un type = nb max de coins du même type se rejoignant à un sommet.
+//   2 coins → 1★ · 3 coins → 2★ · 4 coins → 3★  (catalyseur abaisse de 1)
+//   Repli temporaire sur le comptage pour les unités sans position (ennemis Ph.3).
 // ─────────────────────────────────────────────────────────────────────────────
 export function getActiveSynergies(fieldUnits, relicId = null) {
+  const units = (fieldUnits ?? []).filter(Boolean);
+
+  // Seuils de convergence (catalyseur : -1)
+  const need = relicId === 'catalyseur'
+    ? { t1: 1, t2: 2, t3: 3 }
+    : { t1: 2, t2: 3, t3: 4 };
+
+  // Unités positionnées sur la grille (col/row numériques)
+  const positioned = units.filter(u =>
+    Number.isInteger(u.col) && Number.isInteger(u.row));
+
+  // ── Repli : aucune position fiable → ancien comptage (ennemis avant Ph.3) ──
+  if (positioned.length < 2) {
+    return _legacyCountSynergies(units, relicId);
+  }
+
+  // Construit la grille [col][row]
+  const grid = {};
+  positioned.forEach(u => {
+    grid[u.col] = grid[u.col] ?? {};
+    grid[u.col][u.row] = u;
+  });
+
+  // Pour chaque type, calcule la convergence MAX à un sommet de la grille
+  const cornerOf = (u, idx) => {
+    const c = ensureCorners(u);
+    return c?.[idx] ?? null;
+  };
+  // Cristal Pur : un coin appartenant à un monotype compte double à la convergence
+  const cornerWeight = (u) => {
+    if (relicId === 'cristal_pur' && new Set(u.types ?? []).size === 1) return 2;
+    return 1;
+  };
+  const convergence = {};  // type -> max coins réunis (pondérés)
+  for (let vx = 0; vx <= GRID_COLS; vx++) {
+    for (let vy = 0; vy <= GRID_ROWS; vy++) {
+      // Cartes/coins se rejoignant au sommet (vx, vy)
+      const meeting = [
+        [vx - 1, vy - 1, 2], // BR de la carte haut-gauche
+        [vx,     vy - 1, 3], // BL de la carte haut-droite
+        [vx - 1, vy,     1], // TR de la carte bas-gauche
+        [vx,     vy,     0], // TL de la carte bas-droite
+      ];
+      const here = {};
+      meeting.forEach(([cx, cy, cornerIdx]) => {
+        const u = grid[cx]?.[cy];
+        if (!u) return;
+        const t = cornerOf(u, cornerIdx);
+        if (t) here[t] = (here[t] ?? 0) + cornerWeight(u);
+      });
+      Object.entries(here).forEach(([t, n]) => {
+        const capped = Math.min(n, 4);  // plafonne au palier max
+        if (capped > (convergence[t] ?? 0)) convergence[t] = capped;
+      });
+    }
+  }
+
+  // Convergence → palier
+  const active = [];
+  Object.entries(convergence).forEach(([type, conv]) => {
+    const synergy = SYNERGIES[type];
+    if (!synergy) return;
+    let tier = 0;
+    if (conv >= need.t3) tier = 3;
+    else if (conv >= need.t2) tier = 2;
+    else if (conv >= need.t1) tier = 1;
+    if (tier === 0) return;
+    const data = _deriveTierData(synergy, tier);
+    active.push({
+      type, icon: synergy.icon, color: synergy.color,
+      count: conv, tier,
+      label: data.label, statBonus: data.statBonus, effect: data.effect,
+    });
+  });
+  return active;
+}
+
+// Ancien système de comptage (repli pour unités sans position)
+function _legacyCountSynergies(units, relicId = null) {
   const typeCounts = {};
-  fieldUnits.filter(Boolean).forEach(unit => {
-    // Les légendaires (T5) comptent pour 2 dans les synergies
+  units.forEach(unit => {
     const weight = getBSTTier(unit) >= 5 ? 2 : 1;
-    // Cristal Pur : les monotypes comptent +1 de plus
     const isMono = new Set(unit.types ?? []).size === 1;
     const cristalBonus = (relicId === 'cristal_pur' && isMono) ? 1 : 0;
     (unit.types ?? []).forEach(type => {
       typeCounts[type] = (typeCounts[type] ?? 0) + weight + cristalBonus;
     });
   });
-
+  const need = relicId === 'catalyseur' ? { t1: 1, t2: 2, t3: 3 } : { t1: 2, t2: 3, t3: 4 };
   const active = [];
-  // Catalyseur : abaisse les seuils de 1
-  //   2★ se déclenche à 1 pokémon (au lieu de 2)
-  //   3★ se déclenche à 3 pokémons (au lieu de 4)
-  const thresholdT2 = relicId === 'catalyseur' ? 1 : 2;
-  const thresholdT3 = relicId === 'catalyseur' ? 3 : 4;
   Object.entries(typeCounts).forEach(([type, count]) => {
-    if (count < thresholdT2) return;       // seuil 2★
     const synergy = SYNERGIES[type];
     if (!synergy) return;
-    const tier = count >= thresholdT3 ? 3 : 2;  // seuil 3★
-    const data  = tier === 3 ? synergy.seuil3 : synergy.seuil2;
+    let tier = 0;
+    if (count >= need.t3) tier = 3;
+    else if (count >= need.t2) tier = 2;
+    else if (count >= need.t1) tier = 1;
+    if (tier === 0) return;
+    const data = _deriveTierData(synergy, tier);
     active.push({
       type, icon: synergy.icon, color: synergy.color,
       count, tier,
-      label:     data.label,
-      statBonus: data.statBonus,
-      effect:    data.effect,
+      label: data.label, statBonus: data.statBonus, effect: data.effect,
     });
   });
-
   return active;
 }
 
