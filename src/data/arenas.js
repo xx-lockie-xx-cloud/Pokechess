@@ -231,7 +231,7 @@ export function generateLeagueTeam(mapIndex = 7, difficultyMult = 1.0, rng = Mat
 // difficulté), et renvoie nom/sprite/couleur correspondant à l'archétype.
 export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal', rng = Math.random.bind(Math)) {
   // Boost de stats "Maître" selon la difficulté
-  const MASTER_MULT = { easy: 1.15, normal: 1.30, hard: 1.50, expert: 1.70 };
+  const MASTER_MULT = { easy: 1.15, normal: 1.30, hard: 1.40, expert: 1.50 };
   const mult = MASTER_MULT[difficulty] ?? 1.30;
 
   // Pool d'archétypes : base + extra (avec un pool exploitable)
