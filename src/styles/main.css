@@ -2223,8 +2223,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 /* ── Tabs ────────────────────────────────────────────────────────────────── */
 .pdx-tabs {
   display: flex;
-  gap: 2px;
-  padding: 10px 12px 0;
+  gap: 3px;
+  padding: 8px 10px 0;
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
   overflow-x: auto;        /* scroll horizontal des onglets */
@@ -2234,27 +2234,31 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .pdx-tabs::-webkit-scrollbar { display: none; }
 
 .pdx-tab {
-  flex-shrink: 0;          /* empêche les onglets de se comprimer */
-}
-
-.pdx-tab {
-  padding: 6px 16px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
+  flex-shrink: 0;                 /* empêche les onglets de se comprimer */
+  position: relative;
+  padding: 7px 15px 8px;
+  background: #0f1830;            /* onglet inactif : en retrait */
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
+  border: 1px solid var(--border-default);
+  border-bottom: none;
+  border-radius: 9px 9px 0 0;     /* coins supérieurs arrondis (style Chrome) */
+  margin-bottom: -1px;            /* chevauche la bordure du corps */
+  white-space: nowrap;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .pdx-tab.active {
+  background: var(--bg-panel);                  /* même fond que le corps → "soudé" */
   color: var(--color-gold);
-  border-bottom-color: var(--color-gold);
+  border-bottom: 1px solid var(--bg-panel);     /* masque la bordure sous l'onglet actif */
+  z-index: 2;
 }
 
 .pdx-tab:hover:not(.active) {
+  background: #1a2747;
   color: var(--text-secondary);
 }
 
@@ -2410,7 +2414,67 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   font-weight: 700;
 }
 
-/* ── Capacités ───────────────────────────────────────────────────────────── */
+/* ── Pokédex : recherche + fiche structurée (layout A) ──────────────────────── */
+.pdx-search-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-panel);
+  padding: 2px 0 8px;
+  margin-bottom: 2px;
+}
+.pdx-search-icon { font-size: 13px; opacity: 0.7; }
+.pdx-search {
+  flex: 1;
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 8px 12px;
+  outline: none;
+}
+.pdx-search:focus { border-color: var(--color-gold); }
+.pdx-search::placeholder { color: var(--text-muted); }
+
+.pdx-mon-list { display: flex; flex-direction: column; gap: 10px; }
+
+.pdx-mon-card {
+  background: var(--bg-base);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pdx-mon-head { display: flex; align-items: center; gap: 10px; }
+.pdx-mon-sprite {
+  width: 52px;
+  height: 52px;
+  image-rendering: pixelated;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.pdx-mon-ident { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.pdx-mon-nameline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pdx-mon-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.pdx-mon-lvlline { display: flex; align-items: center; gap: 8px; }
+
+.pdx-mon-sec { display: flex; flex-direction: column; gap: 5px; }
+.pdx-sec-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.pdx-mon-move { border-left: 3px solid; padding-left: 10px; }
+
+/* ── Capacités (anciens styles, conservés pour compat) ──────────────────────── */
 .pdx-move-entry {
   display: flex;
   gap: 10px;
