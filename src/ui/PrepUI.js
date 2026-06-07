@@ -29,7 +29,7 @@ import { getBSTTier, getRunState, setRunState, applyAnomalyToUnits,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
 import { ITEMS }                         from '../data/items.js';
 import { getActiveSynergies, getFullStats, assignCorners, ensureCorners }  from '../data/synergies.js';
-import { getLevelBadgeHTML, getLevelBonus }  from '../data/levelSystem.js';
+import { getLevelBadgeHTML, getLevelBonus, getActiveTalentEffects }  from '../data/levelSystem.js';
 import { getPokemonPassive }                 from '../data/passiveHooks.js';
 import { getMove }                           from '../data/moves.js';
 import { canEvolve, getEvolutionId }     from '../data/evolutionData.js';
@@ -936,8 +936,9 @@ export const PrepUI = {
     // Trois niveaux de stats
     const metaLvl = window.SaveManager?.loadMeta() ?? null;
     const relicId = getRunState(this._registry)?.relic?.id ?? null;
-    const full    = getFullStats(pokemon, fieldUnits, metaLvl, relicId);
-    const { base, withItem, withSynergy, itemBoosted, synergyBoosted, synColor } = full;
+    const talentEffects = getActiveTalentEffects(metaLvl);
+    const full    = getFullStats(pokemon, fieldUnits, metaLvl, relicId, talentEffects);
+    const { base, withItem, withSynergy, withTalent, itemBoosted, synergyBoosted, talentBoosted, synColor } = full;
 
     const hasSynColor    = !!synColor;
     const hasItemBoost   = itemBoosted.size > 0;
@@ -948,16 +949,16 @@ export const PrepUI = {
     const pLevelSvg       = metaLvl?.pokemonLevels?.[pokemon.id] ?? 1;
 
     const axes = [
-      { emoji: '❤️',  key: 'hp',      baseV: base.hp,              itemV: withItem.hp,              synV: withSynergy.hp,              max: 250, angle: -90  },
-      { emoji: '🔮',  key: 'spa',     baseV: base.spa  ?? base.atk, itemV: withItem.spa  ?? withItem.atk, synV: withSynergy.spa  ?? withSynergy.atk, max: 154, angle: -30  },
-      { emoji: '💎',  key: 'spd_def', baseV: base.spd_def ?? base.def, itemV: withItem.spd_def ?? withItem.def, synV: withSynergy.spd_def ?? withSynergy.def, max: 130, angle: 30  },
-      { emoji: '👟',  key: 'spd',     baseV: base.spd,              itemV: withItem.spd,             synV: withSynergy.spd,             max: 150, angle:  90  },
-      { emoji: '🛡️',  key: 'def',     baseV: base.def,              itemV: withItem.def,             synV: withSynergy.def,             max: 180, angle: 150 },
-      { emoji: '⚔️',  key: 'atk',     baseV: base.atk,              itemV: withItem.atk,             synV: withSynergy.atk,             max: 134, angle: 210 },
+      { emoji: '❤️',  key: 'hp',      baseV: base.hp,              itemV: withItem.hp,              synV: withSynergy.hp,              talV: withTalent.hp,              max: 250, angle: -90  },
+      { emoji: '🔮',  key: 'spa',     baseV: base.spa  ?? base.atk, itemV: withItem.spa  ?? withItem.atk, synV: withSynergy.spa  ?? withSynergy.atk, talV: withTalent.spa  ?? withTalent.atk, max: 154, angle: -30  },
+      { emoji: '💎',  key: 'spd_def', baseV: base.spd_def ?? base.def, itemV: withItem.spd_def ?? withItem.def, synV: withSynergy.spd_def ?? withSynergy.def, talV: withTalent.spd_def ?? withTalent.def, max: 130, angle: 30  },
+      { emoji: '👟',  key: 'spd',     baseV: base.spd,              itemV: withItem.spd,             synV: withSynergy.spd,             talV: withTalent.spd,             max: 150, angle:  90  },
+      { emoji: '🛡️',  key: 'def',     baseV: base.def,              itemV: withItem.def,             synV: withSynergy.def,             talV: withTalent.def,             max: 180, angle: 150 },
+      { emoji: '⚔️',  key: 'atk',     baseV: base.atk,              itemV: withItem.atk,             synV: withSynergy.atk,             talV: withTalent.atk,             max: 134, angle: 210 },
     ];
 
-    // Rétrocompatibilité : ax.value = stat finale, ax.base = stat de base
-    axes.forEach(ax => { ax.value = ax.synV; ax.base = ax.baseV; });
+    // Rétrocompatibilité : ax.value = stat finale (talents inclus), ax.base = stat de base
+    axes.forEach(ax => { ax.value = ax.talV ?? ax.synV; ax.base = ax.baseV; });
 
     // ── Décomposition détaillée par stat (pour le popover au clic) ────────────
     // base → +niveau → +objet → +synergies
@@ -974,6 +975,21 @@ export const PrepUI = {
       });
       return origins;
     };
+    // Talents qui boostent une stat donnée pour les types de ce pokémon
+    const talentOriginFor = (statKey) => {
+      const names = [];
+      (talentEffects ?? []).forEach(e => {
+        if (!e || !(pokemon.types ?? []).includes(e.type)) return;
+        const hits =
+          (e.kind === 'type_stat' && e.stat === statKey) ||
+          (e.kind === 'type_dual_stat' && (e.stats ?? []).includes(statKey)) ||
+          (e.kind === 'type_boost_highest') ||
+          (e.kind === 'type_stack_per_type') ||
+          (e.kind === 'type_stack_per_ally');
+        if (hits) names.push(e._name ?? e.type);
+      });
+      return names.length ? names.join(', ') : '';
+    };
     this._statBreakdowns = {};
     const STAT_NAMES = { hp:'❤️ PV', atk:'⚔️ Attaque', spa:'🔮 Atq. Spé.',
       def:'🛡️ Défense', spd_def:'💎 Déf. Spé.', spd:'👟 Vitesse' };
@@ -982,6 +998,7 @@ export const PrepUI = {
       const levelDelta = afterLevel - ax.baseV;
       const itemDelta  = ax.itemV - afterLevel;
       const synDelta   = ax.synV - ax.itemV;
+      const talDelta   = (ax.talV ?? ax.synV) - ax.synV;
       const rows = [`<div class="pop-row"><span>Base</span><span>${ax.baseV}</span></div>`];
       if (levelDelta !== 0)
         rows.push(`<div class="pop-row"><span>+${levelDelta} <span class="pop-origin">(Niv. ${pLevelSvg})</span></span></div>`);
@@ -994,7 +1011,11 @@ export const PrepUI = {
         const label   = origins.length ? origins.join(', ') : 'synergie';
         rows.push(`<div class="pop-row"><span>+${synDelta} <span class="pop-origin">(${label})</span></span></div>`);
       }
-      rows.push(`<div class="pop-row pop-total"><span>Total</span><span>${ax.synV}</span></div>`);
+      if (talDelta !== 0) {
+        const tl = talentOriginFor(ax.key);
+        rows.push(`<div class="pop-row"><span>+${talDelta} <span class="pop-origin" style="color:#a29bfe">(talent ${tl})</span></span></div>`);
+      }
+      rows.push(`<div class="pop-row pop-total"><span>Total</span><span>${ax.talV ?? ax.synV}</span></div>`);
       this._statBreakdowns[ax.key] =
         `<div class="pop-title">${STAT_NAMES[ax.key] ?? ax.key}</div>${rows.join('')}`;
     });
@@ -1010,8 +1031,8 @@ export const PrepUI = {
       y: cy + R * Math.min(ax.itemV / ax.max, 1) * Math.sin(toRad(ax.angle)),
     }));
     const pts = axes.map(ax => ({
-      x: cx + R * Math.min(ax.synV / ax.max, 1) * Math.cos(toRad(ax.angle)),
-      y: cy + R * Math.min(ax.synV / ax.max, 1) * Math.sin(toRad(ax.angle)),
+      x: cx + R * Math.min(ax.value / ax.max, 1) * Math.cos(toRad(ax.angle)),
+      y: cy + R * Math.min(ax.value / ax.max, 1) * Math.sin(toRad(ax.angle)),
     }));
 
     // Aliases pour la suite
@@ -1074,7 +1095,7 @@ export const PrepUI = {
       const valColor = isMain ? '#ffd700' : isSynBoost ? finalColor : isItmBoost ? '#55efc4' : '#a0aec0';
 
       // Affiche UNIQUEMENT le total final (le détail est dans le popover au clic)
-      const valueStr = `${ax.synV}`;
+      const valueStr = `${ax.value}`;
 
       const bgColor  = isMain ? '#ffd700' : isSynBoost ? finalColor : '#55efc4';
       const bgOpFill = isMain ? '0.12' : isSynBoost ? '0.12' : '0.08';

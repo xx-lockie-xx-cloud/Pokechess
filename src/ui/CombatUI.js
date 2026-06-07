@@ -1601,6 +1601,10 @@ export const CombatUI = {
           `<span class="log-attack-line">↳ <span style="color:${tc};font-weight:700">[${event.attackType}]</span> ${event.targetName} <b>-${event.damage} PV</b>${eff}${crit}</span>`
         );
       }
+    } else if (t === 'talent_summary') {
+      this._appendLog(`<span class="log-talent">🎯 Talents actifs : ${event.talents.join(' · ')}</span>`);
+    } else if (t === 'talent_trigger') {
+      this._appendLog(`<span class="log-talent">🎯 Talent ${event.talentType ?? ''} : ${event.label ?? ''}</span>`);
     } else if (t === 'status_applied') {
       const stacks = event.stacks > 1 ? ` ×${event.stacks}` : '';
       this._appendLog(`<span class="log-status">${event.label}${stacks}</span> sur ${event.targetName}`);
