@@ -118,7 +118,7 @@ export const SYNERGIES = {
   "Insecte": {
     icon: "🦋", color: 0xa8b820,
     // Bonus tous-stats additionnel par palier (1★/2★/3★) pour compenser leurs stats faibles
-    allStatsPerTier: [1.10, 1.20, 1.30],
+    allStatsPerTier: [1.05, 1.10, 1.15],
     seuil2: { label: "+15% VIT + ATK", statBonus: { spd: 1.15, atk: 1.15 }, effect: null },
     seuil3: { label: "+25% VIT + ATK + Essaim", statBonus: { spd: 1.25, atk: 1.25 }, effect: "swarm" },
   },

@@ -537,8 +537,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'flag', flag:'dmgReducPhysical', mult:0.75 }] } },
   },
   76: {
-    35: { id:'explosion_g', name:'Explosion', desc:'À la mort → AoE 80% HP',
-      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.80 }] } },
+    35: { id:'explosion_g', name:'Explosion', desc:'À la mort → AoE 50% HP',
+      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.50 }] } },
     70: { id:'geant', name:'Géant', desc:'Immunisé stun + -20% dégâts',
       hooks:{ ON_SETUP: [{ type:'status_immunity', statuses:['stun'] },
                          { type:'stat_boost', stat:'_dmgReduction', mult:0.80 }] } },
@@ -713,8 +713,8 @@ export const POKEMON_PASSIVES = {
   100: {
     35: { id:'explosion_im', name:'Explosion Imminente', desc:'Si PV<30% → +50% ATK',
       hooks:{ ON_ACTION: [{ type:'conditional_stat', stat:'atk', mult:1.50, condition:'hp_below', threshold:0.30 }] } },
-    70: { id:'autodestruct', name:'Autodestruction', desc:'À la mort → AoE 80% HP',
-      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.80 }] } },
+    70: { id:'autodestruct', name:'Autodestruction', desc:'À la mort → AoE 50% HP',
+      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.50 }] } },
   },
   101: {
     35: { id:'ultrarapide', name:'Ultrarapide', desc:'+25% VIT',
@@ -795,8 +795,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'flag', flag:'firstHitBoost', mult:2.0 }] } },
   },
   112: {
-    35: { id:'furie_r2', name:'Furie', desc:'+5% ATK par coup reçu',
-      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.05, max:0.50 }] } },
+    35: { id:'furie_r2', name:'Furie', desc:'+2% ATK par coup reçu',
+      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.02, max:0.50 }] } },
     70: { id:'foulee_lourde', name:'Foulée Lourde', desc:'+25% ATK',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'atk', mult:1.25 }] } },
   },
