@@ -220,19 +220,28 @@ function _effectLabel(effect) {
   return M[effect] ?? effect;
 }
 
+// Bonus d'un type à un palier donné (1/2/3★), valeurs rééquilibrées incluses.
+// Utilisé par l'encyclopédie pour afficher des bonus toujours à jour.
+export function getSynergyTierData(type, tier) {
+  const synergy = SYNERGIES[type];
+  if (!synergy) return null;
+  return _deriveTierData(synergy, tier, type);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// getActiveSynergies — synergies par PLACEMENT (coins qui se touchent)
-//   Convergence d'un type = nb max de coins du même type se rejoignant à un sommet.
-//   2 coins → 1★ · 3 coins → 2★ · 4 coins → 3★  (catalyseur abaisse de 1)
+// getActiveSynergies — synergies par PLACEMENT (contacts entre coins)
+//   Contact = un couple de coins du même type qui se touchent (adjacence
+//   horizontale, verticale ou diagonale). Les contacts s'accumulent sur tout
+//   le plateau : 1 contact → 1★ · 2 → 2★ · 4 → 3★  (catalyseur abaisse le 3★).
 //   Repli temporaire sur le comptage pour les unités sans position (ennemis Ph.3).
 // ─────────────────────────────────────────────────────────────────────────────
 export function getActiveSynergies(fieldUnits, relicId = null) {
   const units = (fieldUnits ?? []).filter(Boolean);
 
-  // Seuils de convergence (catalyseur : -1)
+  // Seuils de contacts (1 contact → 1★, 2 → 2★, 4 → 3★ ; catalyseur abaisse le 3★)
   const need = relicId === 'catalyseur'
     ? { t1: 1, t2: 2, t3: 3 }
-    : { t1: 2, t2: 3, t3: 4 };
+    : { t1: 1, t2: 2, t3: 4 };
 
   // Unités positionnées sur la grille (col/row numériques)
   const positioned = units.filter(u =>
@@ -255,49 +264,46 @@ export function getActiveSynergies(fieldUnits, relicId = null) {
     const c = ensureCorners(u);
     return c?.[idx] ?? null;
   };
-  // Cristal Pur : un coin appartenant à un monotype compte double à la convergence
-  const cornerWeight = (u) => {
-    if (relicId === 'cristal_pur' && new Set(u.types ?? []).size === 1) return 2;
-    return 1;
-  };
-  const convergence = {};  // type -> max coins réunis (pondérés)
-  for (let vx = 0; vx <= GRID_COLS; vx++) {
-    for (let vy = 0; vy <= GRID_ROWS; vy++) {
-      // Cartes/coins se rejoignant au sommet (vx, vy)
-      const meeting = [
-        [vx - 1, vy - 1, 2], // BR de la carte haut-gauche
-        [vx,     vy - 1, 3], // BL de la carte haut-droite
-        [vx - 1, vy,     1], // TR de la carte bas-gauche
-        [vx,     vy,     0], // TL de la carte bas-droite
-      ];
-      const here = {};
-      meeting.forEach(([cx, cy, cornerIdx]) => {
-        const u = grid[cx]?.[cy];
-        if (!u) return;
-        const t = cornerOf(u, cornerIdx);
-        if (t) here[t] = (here[t] ?? 0) + cornerWeight(u);
-      });
-      Object.entries(here).forEach(([t, n]) => {
-        const capped = Math.min(n, 4);  // plafonne au palier max
-        if (capped > (convergence[t] ?? 0)) convergence[t] = capped;
-      });
-    }
-  }
+  // Cristal Pur : un contact impliquant un monotype compte double
+  const isMono = (u) => new Set(u.types ?? []).size === 1;
+  const contactWeight = (a, b) =>
+    (relicId === 'cristal_pur' && (isMono(a) || isMono(b))) ? 2 : 1;
 
-  // Convergence → palier
+  // Compte les CONTACTS : couples de coins du même type qui se touchent.
+  // Chaque adjacence (horizontale, verticale, diagonale) est examinée une seule fois
+  // depuis la carte en haut/gauche du couple.
+  const contacts = {};  // type -> nombre de contacts (pondérés)
+  const addContact = (a, b, ca, cb) => {
+    const ta = cornerOf(a, ca), tb = cornerOf(b, cb);
+    if (ta && ta === tb) contacts[ta] = (contacts[ta] ?? 0) + contactWeight(a, b);
+  };
+
+  positioned.forEach(a => {
+    const cx = a.col, cy = a.row;
+    const right = grid[cx + 1]?.[cy];
+    const down  = grid[cx]?.[cy + 1];
+    const dr    = grid[cx + 1]?.[cy + 1];
+    const dl    = grid[cx - 1]?.[cy + 1];
+    if (right) { addContact(a, right, 1, 0); addContact(a, right, 2, 3); } // TR↔TL, BR↔BL
+    if (down)  { addContact(a, down,  3, 0); addContact(a, down,  2, 1); } // BL↔TL, BR↔TR
+    if (dr)    { addContact(a, dr,    2, 0); }                              // BR↔TL (diag ↘)
+    if (dl)    { addContact(a, dl,    3, 1); }                              // BL↔TR (diag ↙)
+  });
+
+  // Contacts → palier
   const active = [];
-  Object.entries(convergence).forEach(([type, conv]) => {
+  Object.entries(contacts).forEach(([type, n]) => {
     const synergy = SYNERGIES[type];
     if (!synergy) return;
     let tier = 0;
-    if (conv >= need.t3) tier = 3;
-    else if (conv >= need.t2) tier = 2;
-    else if (conv >= need.t1) tier = 1;
+    if (n >= need.t3) tier = 3;
+    else if (n >= need.t2) tier = 2;
+    else if (n >= need.t1) tier = 1;
     if (tier === 0) return;
     const data = _deriveTierData(synergy, tier, type);
     active.push({
       type, icon: synergy.icon, color: synergy.color,
-      count: conv, tier,
+      count: n, tier,
       label: data.label, statBonus: data.statBonus, effect: data.effect,
     });
   });
