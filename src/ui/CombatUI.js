@@ -569,8 +569,16 @@ export const CombatUI = {
     });
     const enemySynergies = getActiveSynergies(enemyForEngine, relicId);
 
-    const withLevels = units => units.map(u => {
-      let unit = { ...u, _level: meta.pokemonLevels?.[u.id] ?? 1 };
+    // Niveau des passifs ennemis selon la difficulté (le STAT bonus de niveau ne
+    // s'applique pas aux ennemis ; ce niveau ne sert qu'à débloquer leurs passifs).
+    //   Facile/Normal : aucun passif · Difficile : Nv.35 (1er) · Expert : Nv.70 (les deux)
+    const ENEMY_PASSIVE_LEVEL = { easy: 1, normal: 1, hard: 35, expert: 70 };
+
+    const withLevels = (units, isEnemy = false) => units.map(u => {
+      const lvl = isEnemy
+        ? (ENEMY_PASSIVE_LEVEL[diffId] ?? 1)
+        : (meta.pokemonLevels?.[u.id] ?? 1);
+      let unit = { ...u, _level: lvl };
       // Anomalie : réassigne les types
       if (anomalyTypes) RelicEngine.applyAnomalyTypes(unit, anomalyTypes);
       // Modificateurs de stats de la relique (Pacte de Sang, Bénédiction, Contrat Maudit)
@@ -584,7 +592,7 @@ export const CombatUI = {
     const activeTalentEffects = this._getActiveTalentEffects(meta, playerForEngine);
 
     const engine = new CombatEngine(
-      withLevels(playerForEngine), withLevels(enemyForEngine),
+      withLevels(playerForEngine), withLevels(enemyForEngine, true),
       playerSynergies, enemySynergies
     );
     engine._playerTalents = activeTalentEffects;
