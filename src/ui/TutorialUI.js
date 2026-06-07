@@ -526,9 +526,11 @@ export const TutorialUI = {
         ${this._title('🔗 Synergies par placement')}
         <p style="color:#718096;font-size:11px;margin:0 0 8px">
           Les synergies ne dépendent plus du nombre de Pokémon, mais de leur
-          <b style="color:#e2e8f0">placement</b> sur le terrain. Chaque carte a
-          <b style="color:#ffd700">4 coins colorés</b> par type. Quand des coins du
-          <b style="color:#e2e8f0">même type se touchent</b>, la synergie s'active.
+          <b style="color:#e2e8f0">placement</b>. Chaque carte a
+          <b style="color:#ffd700">4 coins colorés</b> par type. Chaque fois que deux
+          coins du <b style="color:#e2e8f0">même type se touchent</b>, ça compte pour
+          <b style="color:#e2e8f0">un contact</b> — et les contacts s'<b>additionnent</b>
+          sur tout le terrain.
         </p>
         <div style="display:flex;justify-content:center;align-items:center;gap:0;margin:6px 0">
           <div style="position:relative;width:48px;height:48px;background:#0f3460;border-radius:6px">
@@ -541,7 +543,7 @@ export const TutorialUI = {
           </div>
         </div>
         <div style="text-align:center;font-size:10px;color:#718096">
-          Ici 4 coins 🔥 se rejoignent à la jointure → synergie Feu maximale
+          Ici 2 couples de coins 🔥 se touchent → 2 contacts → synergie Feu 2★
         </div>
       `)}
 
@@ -558,15 +560,15 @@ export const TutorialUI = {
       `)}
 
       ${this._card(`
-        ${this._title('⭐ Paliers (coins qui se touchent)', '#ffd700')}
-        ${[['2 coins','1★','#4fc3f7'],['3 coins','2★','#74b9ff'],['4 coins','3★','#ffd700']].map(
+        ${this._title('⭐ Paliers (nombre de contacts)', '#ffd700')}
+        ${[['1 contact','1★','#4fc3f7'],['2 contacts','2★','#74b9ff'],['4 contacts','3★','#ffd700']].map(
           ([n, star, c]) => `
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px">
             <span style="color:${c};font-size:15px;font-weight:900;min-width:42px">${star}</span>
-            <span style="color:#e2e8f0;font-size:11px">${n} du même type se rejoignent</span>
+            <span style="color:#e2e8f0;font-size:11px">${n} du même type</span>
           </div>
         `).join('')}
-        ${this._tip('Le 3★ se forme uniquement aux 2 intersections centrales où 4 cartes se rejoignent : un vrai puzzle de placement !')}
+        ${this._tip('Plus tes Pokémon du même type sont collés (en rangée, en bloc, en diagonale), plus tu accumules de contacts : un bloc 2×2 monotype atteint facilement le 3★.')}
       `)}
 
       ${syns.map(({ t, icon, c, d }) => this._card(`
@@ -578,7 +580,7 @@ export const TutorialUI = {
       `, `tut-syn-card`)).join('')}
 
       ${this._card(`
-        ${this._tip('La relique Catalyseur abaisse les seuils : 1 coin → 1★, 2 → 2★, 3 → 3★.')}
+        ${this._tip('La relique Catalyseur abaisse le seuil 3★ : 3 contacts suffisent au lieu de 4.')}
       `)}
     `;
   },
