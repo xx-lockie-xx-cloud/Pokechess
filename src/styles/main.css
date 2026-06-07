@@ -3741,6 +3741,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 /* Log passif */
 .log-passive { color: #a29bfe; font-style: italic; }
+.log-talent  { color: #c4a3ff; font-weight: 700; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ACHIEVEMENT TOAST
