@@ -339,7 +339,7 @@ function _legacyCountSynergies(units, relicId = null) {
 // getFullStats — empile base → objet → synergies
 // Retourne les trois niveaux + métadonnées pour la toile SVG
 // ─────────────────────────────────────────────────────────────────────────────
-export function getFullStats(unit, fieldUnits = [], meta = null, relicId = null) {
+export function getFullStats(unit, fieldUnits = [], meta = null, relicId = null, talentEffects = []) {
   const base     = { ...(unit.stats ?? {}) };
   const withItem = getEffectiveStats(unit, meta);   // base + niveau + objet
 
@@ -377,6 +377,45 @@ export function getFullStats(unit, fieldUnits = [], meta = null, relicId = null)
     Object.keys(withItem).filter(k => withItem[k] !== base[k])
   );
 
+  // ── Couche TALENT (affichage prép ; en combat le moteur applique les talents) ──
+  // On ne l'applique que si des effets de talents sont fournis (prép). En combat,
+  // talentEffects est vide → withTalent == withSynergy, et le moteur applique seul.
+  const withTalent    = { ...withSynergy };
+  const talentBoosted = new Set();
+  const ALL_STATS = ['hp','atk','spa','def','spd_def','spd'];
+  const tMult = {};
+  const addT = (stat, m) => { tMult[stat] = (tMult[stat] ?? 1) * m; };
+  (talentEffects ?? []).forEach(e => {
+    if (!e || !(unit.types ?? []).includes(e.type)) return;
+    switch (e.kind) {
+      case 'type_stat':       addT(e.stat, e.mult); break;
+      case 'type_dual_stat':  (e.stats ?? []).forEach(s => addT(s, e.mult)); break;
+      case 'type_boost_highest': {
+        const top = Object.entries(base).sort((a,b) => b[1]-a[1])[0]?.[0];
+        if (top) addT(top, e.mult);
+        break;
+      }
+      case 'type_stack_per_type': {
+        const distinct = new Set(fieldUnits.filter(Boolean).flatMap(u => u.types ?? [])).size;
+        ALL_STATS.forEach(s => addT(s, 1 + (e.per_type ?? 0) * distinct));
+        break;
+      }
+      case 'type_stack_per_ally': {
+        const allies = fieldUnits.filter(Boolean).filter(u => (u.types ?? []).includes(e.type)).length;
+        ALL_STATS.forEach(s => addT(s, 1 + (e.per ?? e.per_ally ?? 0) * allies));
+        break;
+      }
+      // Les autres effets (proc, regen, revive, resilience, conditionnels…) sont
+      // dynamiques et gérés en combat, pas affichés comme bonus de stat fixe.
+    }
+  });
+  Object.entries(tMult).forEach(([stat, m]) => {
+    if (m !== 1 && withTalent[stat] != null) {
+      withTalent[stat] = Math.round(withTalent[stat] * m);
+      talentBoosted.add(stat);
+    }
+  });
+
   // Couleur de synergies dominante (premier type synergique actif pour cette unité)
   const activeSynForUnit = activeSyns.filter(s => unit.types?.includes(s.type));
   const synColor = activeSynForUnit.length
@@ -386,9 +425,11 @@ export function getFullStats(unit, fieldUnits = [], meta = null, relicId = null)
   return {
     base,
     withItem,
-    withSynergy,       // stats finales à utiliser pour le combat
+    withSynergy,       // stats finales pour le combat (synergie seule ; talents appliqués par le moteur)
+    withTalent,        // synergie + talents (pour l'affichage en prép)
     itemBoosted,       // Set<statKey>
     synergyBoosted,    // Set<statKey>
+    talentBoosted,     // Set<statKey>
     synColor,          // CSS color string ou null
     activeSynForUnit,  // synergies actives pour cette unité
   };

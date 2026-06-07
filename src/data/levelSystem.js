@@ -647,8 +647,8 @@ export const TALENT_TREES = {
       effect:{ kind:'type_boost_highest', type:'Normal', mult:1.10 } },
     { id:'normal_2', name:'Diversité', cost:2, desc:'+5% stats par type différent dans l\'équipe',
       effect:{ kind:'type_stack_per_type', type:'Normal', per_type:0.05 } },
-    { id:'normal_3', name:'Touche à Tout', cost:3, desc:'+1 emplacement terrain bonus',
-      effect:{ kind:'bonus_slot', amount:1 } },
+    { id:'normal_3', name:'Adaptabilité', cost:3, desc:'Normal : immunisé aux malus de stats + 2% stats / coup reçu',
+      effect:{ kind:'type_resilience', type:'Normal', ragePerHit:0.02, max:0.40 } },
   ],
 };
 
@@ -669,4 +669,19 @@ export function getUnlockedTalents(meta, type) {
 
 export function calcTalentPointsGained(badgesEarned = []) {
   return badgesEarned.length;
+}
+
+// Retourne la liste des effets de talents actifs (tous types confondus)
+// d'après les nœuds débloqués dans meta.talentTree.
+export function getActiveTalentEffects(meta) {
+  if (!meta?.talentTree) return [];
+  const effects = [];
+  Object.entries(meta.talentTree).forEach(([type, unlockedArr]) => {
+    const tree = TALENT_TREES[type];
+    if (!tree) return;
+    tree.forEach((node, i) => {
+      if (unlockedArr?.[i] && node.effect) effects.push({ ...node.effect, _name: node.name });
+    });
+  });
+  return effects;
 }
