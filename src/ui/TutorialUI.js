@@ -517,33 +517,46 @@ export const TutorialUI = {
         d:'ATK + SP.ATK + VIT croissants ; effet puissant au 3★' },
     ];
 
-    // Petit visuel : 2 cartes voisines dont les coins se touchent
-    const cornerDot = (col) =>
-      `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${col}"></span>`;
+    // Visuel : 4 Pokémon (2×2). Coins colorés par type ; les contacts du même
+    // type (couples de coins qui se touchent) sont entourés en or.
+    const dot = (x, y, c) =>
+      `<circle cx="${x}" cy="${y}" r="4" fill="${c}"/>`;
+    const ring = (x, y) =>
+      `<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="#ffd700" stroke-width="2" stroke-dasharray="3 2"/>`;
+    const RED = '#e74c3c', GRN = '#2ecc71';
+    const synSvg = `
+      <svg viewBox="0 0 132 132" width="150" height="150" style="display:block;margin:6px auto">
+        <rect x="10" y="10" width="56" height="56" rx="6" fill="#0f3460"/>
+        <rect x="66" y="10" width="56" height="56" rx="6" fill="#0f3460"/>
+        <rect x="10" y="66" width="56" height="56" rx="6" fill="#0f3460"/>
+        <rect x="66" y="66" width="56" height="56" rx="6" fill="#0f3460"/>
+        <text x="38"  y="44" font-size="22" text-anchor="middle">🔥</text>
+        <text x="94"  y="44" font-size="22" text-anchor="middle">🔥</text>
+        <text x="38"  y="100" font-size="22" text-anchor="middle">🌿</text>
+        <text x="94"  y="100" font-size="22" text-anchor="middle">🌿</text>
+        ${dot(17,17,RED)}${dot(59,17,RED)}${dot(59,59,RED)}${dot(17,59,RED)}
+        ${dot(73,17,RED)}${dot(115,17,RED)}${dot(115,59,RED)}${dot(73,59,RED)}
+        ${dot(17,73,GRN)}${dot(59,73,GRN)}${dot(59,115,GRN)}${dot(17,115,GRN)}
+        ${dot(73,73,GRN)}${dot(115,73,GRN)}${dot(115,115,GRN)}${dot(73,115,GRN)}
+        ${ring(66,17)}${ring(66,59)}
+        ${ring(66,73)}${ring(66,115)}
+      </svg>`;
 
     return `
       ${this._card(`
         ${this._title('🔗 Synergies par placement')}
         <p style="color:#718096;font-size:11px;margin:0 0 8px">
-          Les synergies ne dépendent plus du nombre de Pokémon, mais de leur
-          <b style="color:#e2e8f0">placement</b>. Chaque carte a
-          <b style="color:#ffd700">4 coins colorés</b> par type. Chaque fois que deux
-          coins du <b style="color:#e2e8f0">même type se touchent</b>, ça compte pour
-          <b style="color:#e2e8f0">un contact</b> — et les contacts s'<b>additionnent</b>
-          sur tout le terrain.
+          Place tes Pokémon pour activer des synergies. Chaque carte a
+          <b style="color:#ffd700">4 coins colorés</b> selon ses types. Quand deux coins
+          du <b style="color:#e2e8f0">même type se touchent</b> (côte à côte ou en
+          diagonale), ça forme un <b style="color:#e2e8f0">contact</b>. Plus tu accumules
+          de contacts d'un type, plus la synergie monte.
         </p>
-        <div style="display:flex;justify-content:center;align-items:center;gap:0;margin:6px 0">
-          <div style="position:relative;width:48px;height:48px;background:#0f3460;border-radius:6px">
-            <span style="position:absolute;top:3px;right:3px">${cornerDot('#e74c3c')}</span>
-            <span style="position:absolute;bottom:3px;right:3px">${cornerDot('#e74c3c')}</span>
-          </div>
-          <div style="position:relative;width:48px;height:48px;background:#0f3460;border-radius:6px">
-            <span style="position:absolute;top:3px;left:3px">${cornerDot('#e74c3c')}</span>
-            <span style="position:absolute;bottom:3px;left:3px">${cornerDot('#e74c3c')}</span>
-          </div>
-        </div>
-        <div style="text-align:center;font-size:10px;color:#718096">
-          Ici 2 couples de coins 🔥 se touchent → 2 contacts → synergie Feu 2★
+        ${synSvg}
+        <div style="text-align:center;font-size:10px;color:#718096;line-height:1.5">
+          Les deux 🔥 en haut partagent <b style="color:#ffd700">2 contacts</b> → Feu 2★.<br>
+          Les deux 🌿 en bas aussi → Plante 2★. Les coins de types différents
+          qui se touchent ne comptent pas.
         </div>
       `)}
 

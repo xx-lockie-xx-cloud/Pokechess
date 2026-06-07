@@ -65,7 +65,7 @@ const TARGET_LABEL = {
 export const PokedexUI = {
   _registry: null,
   _overlay:  null,
-  _tab:      'synergies',
+  _tab:      'moves',
 
   // ── Initialisation ────────────────────────────────────────────────────────
   init(registry) {
@@ -97,11 +97,11 @@ export const PokedexUI = {
   _render() {
     const content = document.getElementById('pokedex-content');
     if (!content) return;
-    const tabs = ['synergies', 'types', 'moves', 'reliques', 'achievements', 'tutorial'];
+    const tabs = ['moves', 'synergies', 'types', 'reliques', 'achievements', 'tutorial'];
     const tabLabels = {
+      moves:        '📕 Pokédex',
       synergies:    '🔗 Synergies',
       types:        '⚔️ Types',
-      moves:        '⚡ Capacités',
       reliques:     '💎 Reliques',
       achievements: '🏅 Succès',
       tutorial:     '📖 Guide',
@@ -154,8 +154,8 @@ export const PokedexUI = {
     if (this._tab === 'types')        this._renderTypes(body);
     if (this._tab === 'moves')        this._renderMoves(body);
     if (this._tab === 'reliques')     this._renderReliques(body);
-    if (this._tab === 'achievements') { AchievementsUI.open(); this._tab = 'synergies'; this._render(); return; }
-    if (this._tab === 'tutorial') { TutorialUI.open('intro'); this._tab = 'synergies'; this._render(); }
+    if (this._tab === 'achievements') { AchievementsUI.open(); this._tab = 'moves'; this._render(); return; }
+    if (this._tab === 'tutorial') { TutorialUI.open('intro'); this._tab = 'moves'; this._render(); }
   },
 
   // ── Onglet Reliques ────────────────────────────────────────────────────────
@@ -332,7 +332,7 @@ export const PokedexUI = {
       return;
     }
 
-    body.innerHTML = entries.map(pokemon => {
+    const listHtml = entries.map(pokemon => {
       const moveKey = POKEMON_MOVES[pokemon.id];
       if (!moveKey) return '';
       const move = MOVES[moveKey];
@@ -373,52 +373,91 @@ export const PokedexUI = {
         move.recoil ? `💥 Recul ${Math.round(move.recoil*100)}%` : null,
       ].filter(Boolean);
 
+      const passivesHtml = (() => {
+        const allPassives = POKEMON_PASSIVES[pokemon.id];
+        if (!allPassives) return '';
+        const lines = [35, 70].map(threshold => {
+          const p = allPassives[threshold];
+          if (!p) return '';
+          const unlocked = pLevel >= threshold;
+          return `
+            <div class="pdx-passive-row ${unlocked ? 'unlocked' : 'locked'}">
+              <span class="pdx-passive-lvl" style="opacity:${unlocked ? 1 : 0.4}">
+                ${unlocked ? '✨' : '🔒'} Nv.${threshold}
+              </span>
+              ${unlocked
+                ? `<div>
+                    <span class="pdx-passive-name">${p.name}</span>
+                    <span class="pdx-passive-desc">${p.desc}</span>
+                   </div>`
+                : `<span class="pdx-passive-hint">Passif masqué — atteindre le niveau ${threshold}</span>`
+              }
+            </div>`;
+        }).join('');
+        return lines
+          ? `<div class="pdx-mon-sec">
+               <div class="pdx-sec-label">🧬 Passifs</div>
+               <div class="pdx-passives">${lines}</div>
+             </div>`
+          : '';
+      })();
+
       return `
-        <div class="pdx-move-entry">
-          <div class="pdx-move-pokemon">
+        <div class="pdx-mon-card" data-search="${pokemon.id} ${pokemon.name.toLowerCase()}">
+          <div class="pdx-mon-head">
             <img src="${pokemon.spriteUrl}" alt="${pokemon.name}"
                  onerror="this.src='assets/placeholder.png'"
-                 class="pdx-pokemon-sprite ${isCaught ? 'pdx-caught' : ''}" />
-            <span class="pdx-pokemon-name">#${pokemon.id} ${pokemon.name}</span>
-            ${getLevelBadgeHTML(pLevel)}
-            <div class="pdx-level-bar-wrap">
-              <div class="pdx-level-bar" style="width:${pct}%"></div>
+                 class="pdx-mon-sprite ${isCaught ? 'pdx-caught' : ''}" />
+            <div class="pdx-mon-ident">
+              <div class="pdx-mon-nameline">
+                <span class="pdx-mon-name">#${pokemon.id} ${pokemon.name}</span>
+                ${getLevelBadgeHTML(pLevel)}
+              </div>
+              <div class="pdx-mon-lvlline">
+                <div class="pdx-level-bar-wrap">
+                  <div class="pdx-level-bar" style="width:${pct}%"></div>
+                </div>
+                ${pBonus > 0 ? `<span class="pdx-level-bonus">+${pBonus}% stats</span>` : ''}
+              </div>
             </div>
-            ${pBonus > 0 ? `<span class="pdx-level-bonus">+${pBonus}% stats</span>` : ''}
           </div>
-          <div class="pdx-move-info" style="border-left-color:${color}">
-            <div class="pdx-move-header">
-              <span class="pdx-move-name-big" style="color:${color}">⚡ ${move.name}</span>
-              <span class="pdx-type-badge-sm" style="background:${color}">${move.type}</span>
+
+          <div class="pdx-mon-sec">
+            <div class="pdx-sec-label" style="color:${color}">⚡ Ultime</div>
+            <div class="pdx-mon-move" style="border-left-color:${color}">
+              <div class="pdx-move-header">
+                <span class="pdx-move-name-big" style="color:${color}">${move.name}</span>
+                <span class="pdx-type-badge-sm" style="background:${color}">${move.type}</span>
+              </div>
+              <div class="pdx-move-tags">${tags.map(t => `<span class="pdx-tag">${t}</span>`).join('')}</div>
+              ${effects ? `<div class="pdx-move-fx">${effects}</div>` : ''}
             </div>
-            <div class="pdx-move-tags">${tags.map(t => `<span class="pdx-tag">${t}</span>`).join('')}</div>
-            ${effects ? `<div class="pdx-move-fx">${effects}</div>` : ''}
           </div>
-          ${(() => {
-            const allPassives = POKEMON_PASSIVES[pokemon.id];
-            if (!allPassives) return '';
-            const lines = [35, 70].map(threshold => {
-              const p = allPassives[threshold];
-              if (!p) return '';
-              const unlocked = pLevel >= threshold;
-              return `
-                <div class="pdx-passive-row ${unlocked ? 'unlocked' : 'locked'}">
-                  <span class="pdx-passive-lvl" style="opacity:${unlocked?1:0.4}">
-                    ${unlocked ? '✨' : '🔒'} Nv.${threshold}
-                  </span>
-                  ${unlocked
-                    ? `<div>
-                        <span class="pdx-passive-name">${p.name}</span>
-                        <span class="pdx-passive-desc">${p.desc}</span>
-                       </div>`
-                    : `<span class="pdx-passive-hint">Passif masqué — atteindre le niveau ${threshold}</span>`
-                  }
-                </div>`;
-            }).join('');
-            return lines ? `<div class="pdx-passives">${lines}</div>` : '';
-          })()}
+
+          ${passivesHtml}
         </div>`;
     }).join('');
+
+    body.innerHTML = `
+      <div class="pdx-search-wrap">
+        <span class="pdx-search-icon">🔎</span>
+        <input type="text" class="pdx-search" id="pdx-search"
+               placeholder="Rechercher un Pokémon…" autocomplete="off" />
+      </div>
+      <div class="pdx-mon-list" id="pdx-mon-list">${listHtml}</div>`;
+
+    // Filtrage en direct (par nom ou numéro), sans re-render pour garder le focus
+    const input = body.querySelector('#pdx-search');
+    const list  = body.querySelector('#pdx-mon-list');
+    if (input && list) {
+      input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        list.querySelectorAll('.pdx-mon-card').forEach(card => {
+          const hay = card.dataset.search ?? '';
+          card.style.display = (!q || hay.includes(q)) ? '' : 'none';
+        });
+      });
+    }
   },
 
   // ── Onglet Achievements ───────────────────────────────────────────────────
