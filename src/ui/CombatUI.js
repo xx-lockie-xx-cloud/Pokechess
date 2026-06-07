@@ -511,7 +511,7 @@ export const CombatUI = {
     const baseMult    = getEnemyMultiplier(mapIndex, loopCount);
     // Multiplicateur de difficulté (persistant via meta save)
     const diffId      = SaveManager.getDifficulty() ?? 'normal';
-    const diffMults   = { easy: 0.8, normal: 1.0, hard: 1.3, expert: 1.7 };
+    const diffMults   = { easy: 0.8, normal: 1.0, hard: 1.15, expert: 1.3 };
     const diffMult    = diffMults[diffId] ?? 1.0;
     const mult        = baseMult * diffMult;
 
