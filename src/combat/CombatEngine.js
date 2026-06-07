@@ -608,7 +608,19 @@ export class CombatEngine {
   // Ciblage (attaque normale)
   // ─────────────────────────────────────────────────────────────────────────
   _getTargets(unit) {
-    const enemies = this._enemiesOf(unit).filter(u => u.hp > 0 && u.untargetable === 0);
+    let pool = this._enemiesOf(unit).filter(u => u.hp > 0 && u.untargetable === 0);
+    // Talent "Intouchable une fois" : les protégés esquivent le 1er ciblage (puis consommé)
+    const protectedOnce = pool.filter(u => u._onceUntargetable);
+    if (protectedOnce.length) {
+      const available = pool.filter(u => !u._onceUntargetable);
+      protectedOnce.forEach(u => {
+        u._onceUntargetable = false;   // esquive consommée
+        this.log.push({ type:'talent_trigger', talentType:(u.types?.[0] ?? ''),
+          label:`${u.name} esquive (Intouchable) !` });
+      });
+      if (available.length) pool = available;  // sinon ils redeviennent ciblables
+    }
+    const enemies = pool;
     if (!enemies.length) return [];
 
     const hasPortee  = unit.attributes.includes('portée');
@@ -1505,6 +1517,17 @@ export class CombatEngine {
       if (sf) ally.spd = Math.round(ally.spd * (1 + sf.boost));
       const af = ally._flags?.atkOnAllyKo;
       if (af) ally.atk = Math.round(ally.atk * (1 + af.boost));
+    });
+
+    // Talent "Essaim vengeur" (type_swarm_on_ko) : à la mort d'une unité d'un type,
+    // les alliés du MÊME type encore en vie reçoivent un boost de stat.
+    fAllies.filter(a => a.hp > 0 && a._swarmOnKo).forEach(ally => {
+      if (ally.types.some(t => unit.types.includes(t))) {
+        const { stat, mult } = ally._swarmOnKo;
+        ally[stat] = Math.round((ally[stat] ?? 0) * mult);
+        this.log.push({ type:'talent_trigger', talentType:(ally.types?.[0] ?? ''),
+          label:`${ally.name} enrage (Essaim) !` });
+      }
     });
 
     // Boost attaquant sur K.O. ennemi (atkOnEnemyKo)
