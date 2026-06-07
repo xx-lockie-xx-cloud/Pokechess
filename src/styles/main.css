@@ -2271,6 +2271,23 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 /* ── Synergies ───────────────────────────────────────────────────────────── */
+.pdx-syn-intro {
+  font-size: 11px;
+  color: #b8c0d0;
+  line-height: 1.5;
+  background: #16213e;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.pdx-syn-thresholds {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #e2e8f0;
+}
 .pdx-syn-card {
   background: var(--bg-base);
   border-left: 3px solid;
