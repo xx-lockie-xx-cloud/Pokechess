@@ -40,8 +40,8 @@ export const NODE_TYPES = {
 const DIFF_BUDGETS = {
   easy:   { exp: 0.8,  min: 400, max: 1800 },
   normal: { exp: 1.0,  min: 480, max: 2400 },
-  hard:   { exp: 1.15, min: 520, max: 2800 },  // nouveau palier intermédiaire
-  expert: { exp: 1.3,  min: 560, max: 3200 },  // = ancien "Difficile"
+  hard:   { exp: 1.15, min: 537, max: 2683 },  // budget ×√1.25 (combiné avec diffMult → ~1.25×)
+  expert: { exp: 1.3,  min: 588, max: 2939 },  // budget ×√1.5  (combiné avec diffMult → ~1.5×)
 };
 
 function budgetForStep(mapIndex, col, totalCols, difficulty = 'normal') {
