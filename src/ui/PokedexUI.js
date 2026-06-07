@@ -2,7 +2,7 @@
 // PokedexUI.js — Encyclopédie in-game (Synergies · Types · Capacités · Succès)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { SYNERGIES }          from '../data/synergies.js';
+import { SYNERGIES, getSynergyTierData }          from '../data/synergies.js';
 import { TYPE_CHART }         from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES } from '../data/moves.js';
 import { getSeenPokemon }     from '../data/runState.js';
@@ -216,9 +216,22 @@ export const PokedexUI = {
 
   // ── Onglet Synergies ──────────────────────────────────────────────────────
   _renderSynergies(body) {
-    body.innerHTML = Object.entries(SYNERGIES).map(([type, syn]) => {
+    const intro = `
+      <div class="pdx-syn-intro">
+        Les synergies dépendent du <b>placement</b> : chaque carte a 4 coins colorés
+        par type. Un <b>contact</b> = un couple de coins du même type qui se touchent
+        (côte à côte ou en diagonale). Les contacts s'accumulent sur tout le terrain.
+        <div class="pdx-syn-thresholds">
+          <span><b style="color:#4fc3f7">1★</b> 1 contact</span>
+          <span><b style="color:#74b9ff">2★</b> 2 contacts</span>
+          <span><b style="color:#ffd700">3★</b> 4 contacts</span>
+        </div>
+      </div>`;
+
+    const cards = Object.entries(SYNERGIES).map(([type, syn]) => {
       const color = TYPE_COLORS[type] ?? '#888';
-      const renderTier = (tier, data) => {
+      const renderTier = (tier) => {
+        const data = getSynergyTierData(type, tier) ?? { statBonus:{}, effect:null };
         const bonuses = Object.entries(data.statBonus ?? {}).map(([stat, mult]) => {
           const pct = Math.round((mult - 1) * 100);
           return `<span class="pdx-stat-bonus">${STAT_EMOJIS[stat] ?? stat} +${pct}%</span>`;
@@ -230,7 +243,7 @@ export const PokedexUI = {
           <div class="pdx-syn-tier">
             <div class="pdx-tier-header">
               <span class="pdx-stars">${'★'.repeat(tier)}</span>
-              <span class="pdx-tier-bonuses">${bonuses}</span>
+              <span class="pdx-tier-bonuses">${bonuses || '—'}</span>
             </div>
             ${effect}
           </div>`;
@@ -240,10 +253,13 @@ export const PokedexUI = {
           <div class="pdx-syn-title">
             <span class="pdx-type-badge" style="background:${color}">${syn.icon} ${type}</span>
           </div>
-          ${renderTier(2, syn.seuil2)}
-          ${renderTier(3, syn.seuil3)}
+          ${renderTier(1)}
+          ${renderTier(2)}
+          ${renderTier(3)}
         </div>`;
     }).join('');
+
+    body.innerHTML = intro + cards;
   },
 
   // ── Onglet Types ──────────────────────────────────────────────────────────
