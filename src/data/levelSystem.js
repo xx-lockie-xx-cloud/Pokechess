@@ -209,7 +209,7 @@ export const ACHIEVEMENTS = {
   },
   legendaire_team: {
     id: 'legendaire_team', label: '👑 Légendaire',
-    desc: 'Avoir 5 pokémons T5 dans son équipe pour vaincre la ligue', category: 'roguelite',
+    desc: 'Aligner 3 pokémons T5 (légendaires) dans son équipe en combat', category: 'roguelite',
   },
   collectionneur: {
     id: 'collectionneur', label: '🎒 Collectionneur',
