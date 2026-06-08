@@ -165,38 +165,39 @@ export const CombatUI = {
     hint.textContent = '💡 Modifiez votre équipe via ⚔ Équipe avant de lancer';
     wrapper.appendChild(hint);
 
-    // Phase text
+    // Phase text (affiché uniquement pendant le combat)
     const phase = document.createElement('div');
     phase.className   = 'combat-phase';
     phase.id          = 'combat-phase-text';
-    phase.textContent = 'Préparez-vous !';
+    phase.style.display = 'none';
     wrapper.appendChild(phase);
 
-    // Boutons lancer + vitesse
-    const btnRow = document.createElement('div');
-    btnRow.className = 'combat-btn-row';
-
-    // Bandeau info relique (Pacte de Sang, Bénédiction, Sablier, etc.)
+    // Bandeau info relique — sur sa propre ligne, AVANT les boutons (n'affecte
+    // plus la rangée des boutons, donc plus de décalage vertical selon la relique).
     const relicId = this._registry?.get?.('runState')?.relic?.id;
     const RELIC_WARNINGS = {
-      'pacte_de_sang': '💀 Pacte de Sang — HP ×0.8 / ATK ×1.3 pour tous',
-      'benediction':   '🩹 Bénédiction — HP ×1.3 / ATK ×0.75 pour tous',
-      'sablier':       '⏱ Sablier — Combat limité à 25 actions par camp',
-      'de_maudit':     '🎲 Dé Maudit — 1 unité de chaque camp démarre à 50% HP',
-      'condensateur':  '🔋 Condensateur — Toutes les unités démarrent avec 50 mana',
-      'contrat_maudit':'🩸 Contrat Maudit — HP ×0.9 pour tous',
-      'revanche':      '🔁 Revanche — Ultime déclenché à la mort si mana ≥ 50',
+      'pacte_de_sang': '💀 Pacte de Sang : HP ×0.8 · ATK ×1.3',
+      'benediction':   '🩹 Bénédiction : HP ×1.3 · ATK ×0.75',
+      'sablier':       '⏱ Sablier : combat limité à 25 actions/camp',
+      'de_maudit':     '🎲 Dé Maudit : 1 unité/camp démarre à 50% HP',
+      'condensateur':  '🔋 Condensateur : toutes les unités à 50 mana',
+      'contrat_maudit':'🩸 Contrat Maudit : HP ×0.9 pour tous',
+      'revanche':      '🔁 Revanche : ultime à la mort si mana ≥ 50',
     };
     const warning = relicId ? RELIC_WARNINGS[relicId] : null;
     if (warning) {
       const relicInfo = document.createElement('div');
       relicInfo.className   = 'combat-relic-info';
       relicInfo.textContent = warning;
-      btnRow.appendChild(relicInfo);
+      wrapper.appendChild(relicInfo);
     }
 
+    // Boutons lancer + vitesse
+    const btnRow = document.createElement('div');
+    btnRow.className = 'combat-btn-row';
+
     const btn = document.createElement('button');
-    btn.className   = 'btn-danger btn-large';
+    btn.className   = 'btn-danger btn-combat-launch';
     btn.id          = 'btn-start-combat';
     btn.textContent = '⚔ Lancer le combat';
     btnRow.appendChild(btn);
@@ -498,7 +499,7 @@ export const CombatUI = {
       if (hint) hint.style.display = 'none';
 
       const phase = document.getElementById('combat-phase-text');
-      if (phase) phase.textContent = 'Combat en cours...';
+      if (phase) { phase.style.display = ''; phase.textContent = 'Combat en cours...'; }
 
       this._startCombat();
     });
