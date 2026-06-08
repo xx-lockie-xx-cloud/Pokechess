@@ -96,6 +96,9 @@ export class CombatEngine {
     return unit.statusEffects.some(s => s.type === type);
   }
   _addStatus(unit, type, turns = -1) {
+    // L'empoisonnement dure 2× plus longtemps (favorise l'accumulation de stacks).
+    // Le poison permanent (turns = -1) reste permanent.
+    if (type === 'poison' && turns > 0) turns *= 2;
     // Immunité aux statuts (posée par ON_SETUP status_immunity)
     if (unit._statusImmuneList?.includes(type)) return;
     if (unit._statusImmune) return;
@@ -1278,7 +1281,7 @@ export class CombatEngine {
       const poisonStatus = u.statusEffects.find(s => s.type === 'poison');
       if (poisonStatus) {
         const stacks = poisonStatus.stacks ?? 1;
-        const dmg    = Math.max(1, Math.ceil(u.maxHp * 0.03 * stacks));
+        const dmg    = Math.max(1, Math.ceil(u.maxHp * 0.04 * stacks));
         u.hp = Math.max(0, u.hp - dmg);
         this.log.push({ type:'effect_damage', effect:'poison',
           label: stacks > 1 ? `☠️×${stacks}` : '☠️',
