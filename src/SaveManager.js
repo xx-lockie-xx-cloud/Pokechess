@@ -335,9 +335,14 @@ export const SaveManager = {
     if (seen >= 50)  unlock('curieux');
     if (seen >= 151) unlock('encyclopedie');
 
-    const legendaryIds = [144, 145, 146, 147, 148, 149, 150, 151];
+    // Vrais légendaires : Artikodin(144), Électhor(145), Sulfura(146), Mewtwo(150), Mew(151)
+    const legendaryIds = [144, 145, 146, 150, 151];
     if ((meta.caughtPokemon ?? []).some(id => legendaryIds.includes(id)))
       unlock('coup_de_chance');
+
+    // Objets : posséder 5 objets différents simultanément
+    const distinctItems = new Set(runState?.inventory ?? []).size;
+    if (distinctItems >= 5) unlock('collectionneur');
 
     // Niveaux
     const levels   = meta.pokemonLevels ?? {};
@@ -385,7 +390,7 @@ export const SaveManager = {
         return 5;
       };
       const t5count = (combatResult.playerUnits ?? []).filter(u => bstTier(u) >= 5).length;
-      if (t5count >= 5) unlock('legendaire_team');
+      if (t5count >= 3) unlock('legendaire_team');
     }
 
     // Bénit : finir la ligue avec une relique active
