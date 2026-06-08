@@ -6,7 +6,7 @@ import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { TYPE_COLORS } from '../data/pokemons.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
-import { addCoins, getEnemyMultiplier, getRunState } from '../data/runState.js';
+import { addCoins, getEnemyMultiplier, getRunState, addSeenPokemon } from '../data/runState.js';
 import { RelicEngine }                                 from '../combat/RelicEngine.js';
 import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
@@ -47,6 +47,8 @@ export const CombatUI = {
       _anom[u.id] ? { ...u, types: _anom[u.id] } : u
     );
     this._enemyUnits    = _applyAnom(data.enemyUnits ?? []);
+    // Les ennemis affrontés comptent comme rencontrés (Pokédex + succès)
+    this._enemyUnits.forEach(u => { if (u?.id != null) addSeenPokemon(this._registry, u.id); });
     this._slots         = {};
     this._hpState       = {};
     this._statusTracker = {};

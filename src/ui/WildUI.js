@@ -224,6 +224,7 @@ export const WildUI = {
     container.innerHTML = '';
 
     this._offered.forEach(pokemon => {
+      addSeenPokemon(this._registry, pokemon.id);   // tous les sauvages proposés = rencontrés
       const card = this._createCard(pokemon);
       container.appendChild(card);
     });
