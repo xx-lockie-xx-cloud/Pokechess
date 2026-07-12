@@ -470,24 +470,37 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   _startMapScene(data) {
     MapUI.init(data, this.registry, (nodeData) => {
-      // Collecte visited/available depuis les nœuds mutés
-      const visited   = [];
-      const available = [];
+      // ── Persistance PRÉ-combat ────────────────────────────────────────────
+      // On sauvegarde l'état d'AVANT le nœud cliqué : le nœud courant reste
+      // "disponible" dans la save. Ainsi, actualiser pendant la préparation ou
+      // le combat fait reprendre AVANT le combat (à refaire), au lieu de le
+      // sauter — et surtout, un boss interrompu ne soft-lock plus la run.
+      // La progression POST-combat n'est commitée qu'à la victoire (CombatUI).
+      const curId   = nodeData.nodeId ?? null;
+      const visited = [];
       if (nodeData.startNode?.visited) visited.push('start');
       (nodeData.mapNodes ?? []).forEach(col =>
-        col.forEach(n => {
-          if (n.visited)   visited.push(n.id);
-          if (n.available) available.push(n.id);
-        })
+        col.forEach(n => { if (n.visited && n.id !== curId) visited.push(n.id); })
       );
-      // Colonne du nœud sélectionné
-      const colStr = nodeData.nodeId ? nodeData.nodeId.split('_')[0] : '0';
-      const col    = isNaN(parseInt(colStr, 10)) ? 0 : parseInt(colStr, 10);
+      // available pré-clic = connexions des nœuds visités, moins les visités
+      // (le nœud courant, connexion d'un visité, redevient donc disponible)
+      const visitedSet = new Set(visited);
+      const availSet   = new Set();
+      const addConn = (n) => (n?.connections ?? []).forEach(id => {
+        if (!visitedSet.has(id)) availSet.add(id);
+      });
+      if (nodeData.startNode?.visited) addConn(nodeData.startNode);
+      (nodeData.mapNodes ?? []).forEach(col =>
+        col.forEach(n => { if (visitedSet.has(n.id)) addConn(n); })
+      );
+      // Colonne du dernier nœud réellement terminé (celle d'avant le clic)
+      const colStr = curId ? String(curId).split('_')[0] : '0';
+      const colNum = isNaN(parseInt(colStr, 10)) ? 0 : parseInt(colStr, 10);
+      const col    = Math.max(0, colNum - 1);
 
-      // Sauve seed + progression dans runState (auto-persisté par game.js)
       const seed = MapUI._seed;
       if (seed != null) {
-        saveMapProgress(this.registry, seed, visited, available, col);
+        saveMapProgress(this.registry, seed, visited, [...availSet], col);
       }
 
       this.onNodeSelected(nodeData);
@@ -815,9 +828,15 @@ class UIManagerClass {
         if (n.available) availableSet.add(n.id);
       }));
       // Re-sauvegarde explicite de la progression mise à jour (nœuds atteints)
+      // lastNodeCol = colonne max réellement atteinte (recalculée des visités)
+      let maxCol = 0;
+      visitedSet.forEach(id => {
+        const c = parseInt(String(id).split('_')[0], 10);
+        if (!isNaN(c) && c > maxCol) maxCol = c;
+      });
       saveMapProgress(
         this.registry, progress.seed,
-        [...visitedSet], [...availableSet], progress.col ?? 0
+        [...visitedSet], [...availableSet], maxCol
       );
       this._startMapScene({
         mapIndex:       data.mapIndex,

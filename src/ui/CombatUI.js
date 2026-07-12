@@ -6,7 +6,7 @@ import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { TYPE_COLORS } from '../data/pokemons.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
-import { addCoins, getEnemyMultiplier, getRunState, addSeenPokemon } from '../data/runState.js';
+import { addCoins, getEnemyMultiplier, getRunState, addSeenPokemon, saveMapProgress } from '../data/runState.js';
 import { RelicEngine }                                 from '../combat/RelicEngine.js';
 import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
@@ -612,7 +612,29 @@ export const CombatUI = {
       // Quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
       this._registry?.sealRun?.();   // bloque tout autosave ultérieur
       SaveManager.deleteSave?.();    // efface la sauvegarde de run existante
-    } else if (this._data?.nodeType === 'boss' && this._registry && !this._mapAdvanced) {
+    } else if (this._registry) {
+      // ── Commit de la progression POST-combat dès la victoire calculée ──────
+      // (la save au clic est PRÉ-combat ; actualiser pendant la lecture d'une
+      // victoire reprend donc bien APRÈS le combat, nœud validé)
+      if (this._data?.mapNodes) {
+        const visited = [];
+        const availArr = [];
+        let maxCol = 0;
+        if (this._data.startNode?.visited) visited.push('start');
+        this._data.mapNodes.forEach(col => col.forEach(n => {
+          if (n.visited) {
+            visited.push(n.id);
+            const c = parseInt(String(n.id).split('_')[0], 10);
+            if (!isNaN(c) && c > maxCol) maxCol = c;
+          }
+          if (n.available) availArr.push(n.id);
+        }));
+        const mapSeed = getRunState(this._registry)?.mapSeed ?? null;
+        if (mapSeed != null) {
+          saveMapProgress(this._registry, mapSeed, visited, availArr, maxCol);
+        }
+      }
+      if (this._data?.nodeType === 'boss' && !this._mapAdvanced) {
       // Victoire de BOSS : on avance la map DÈS le calcul (avant la lecture),
       // pour que quitter pendant la lecture reprenne bien sur la map suivante.
       this._mapAdvanced = true;
@@ -626,6 +648,7 @@ export const CombatUI = {
         mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
         infiniteMode: isLeague ? true : rs.infiniteMode,
       });
+      }
     }
 
     this._animateLog(log, 0, () => this._onCombatEnd(winner, log));
