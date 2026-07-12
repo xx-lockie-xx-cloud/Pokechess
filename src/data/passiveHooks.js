@@ -753,8 +753,8 @@ export const POKEMON_PASSIVES = {
 
   // ── Kicklee/Tygnon ────────────────────────────────────────────────────────
   106: {
-    35: { id:'coud_pied', name:'Coud\'Pied', desc:'Frappe bonus à 50% puissance',
-      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.50 }] } },
+    35: { id:'coud_pied', name:'Coud\'Pied', desc:'25% : frappe bonus à 50% puissance',
+      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.50, chance:0.25 }] } },
     70: { id:'contre', name:'Contre', desc:'Riposte 60% dégâts physiques',
       hooks:{ ON_RECEIVE: [{ type:'counter', rate:0.60 }] } },
   },
