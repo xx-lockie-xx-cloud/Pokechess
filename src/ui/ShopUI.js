@@ -77,6 +77,8 @@ export const ShopUI = {
 
     removeCoins(this._registry, item.price);
     addToInventory(this._registry, item.id);
+    // Succès immédiats liés à l'inventaire (ex. Collectionneur : 5 objets différents)
+    window.UIManager?.notifyAchievements?.(this._registry);
 
     const info = document.getElementById('shop-info');
     if (info) {

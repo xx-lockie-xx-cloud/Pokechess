@@ -319,6 +319,36 @@ class UIManagerClass {
     // Cette méthode est conservée comme no-op pour compatibilité.
   }
 
+  // Vérifie les succès HORS combat (capture, achat…) et affiche un toast immédiat
+  // pour chaque succès nouvellement débloqué.
+  notifyAchievements(registry) {
+    const reg      = registry ?? this.registry;
+    const runState = reg?.get?.('runState') ?? {};
+    const newAch   = window.SaveManager?.checkAchievements?.(runState) ?? [];
+    newAch.forEach((id, i) => setTimeout(() => this._showAchievementToast(id), i * 600));
+    return newAch;
+  }
+
+  _showAchievementToast(id) {
+    const ach = window.__ACHIEVEMENTS__?.[id];
+    if (!ach) return;
+    const toast = document.createElement('div');
+    toast.className = 'achievement-toast';
+    toast.innerHTML = `
+      <span class="ach-toast-icon">🏅</span>
+      <div>
+        <div class="ach-toast-title">Achievement débloqué !</div>
+        <div class="ach-toast-label">${ach.label}</div>
+        <div class="ach-toast-desc">${ach.desc}</div>
+      </div>`;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('visible'));
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      setTimeout(() => toast.remove(), 400);
+    }, 3500);
+  }
+
   show(screenName, data = {}) {
     this._updateRelicBanner();
     this.currentScreen = screenName;

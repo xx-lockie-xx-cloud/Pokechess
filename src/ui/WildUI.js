@@ -228,6 +228,8 @@ export const WildUI = {
       const card = this._createCard(pokemon);
       container.appendChild(card);
     });
+    // Succès de rencontre immédiats (Curieux ≥50, Encyclopédie 151)
+    window.UIManager?.notifyAchievements?.(this._registry);
 
     // Info text
     const info = document.getElementById('wild-info');
@@ -464,6 +466,9 @@ export const WildUI = {
 
     // Statistiques : enregistre la (les) capture(s)
     window.SaveManager?.recordCapture?.(isDoppel ? 2 : 1);
+    // Succès immédiats liés à la capture (Coup de chance : légendaire) et aux
+    // rencontres (Curieux/Encyclopédie)
+    window.UIManager?.notifyAchievements?.(this._registry);
 
     const capturedName = this._selected.name;
     const info         = document.getElementById('wild-info');
