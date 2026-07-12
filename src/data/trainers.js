@@ -2,6 +2,12 @@
 // La difficulté est calculée dynamiquement via la somme des stats (budget)
 
 import { assignCorners } from './synergies.js';
+import { POKEMONS } from './pokemons.js';
+
+// Stats canoniques (6 stats) par id — certains pools de dresseurs n'avaient que
+// 4 stats, ce qui sous-estimait leur budget et les rendait trop forts tôt.
+const POKE_BY_ID = new Map(POKEMONS.map(p => [p.id, p]));
+const canonStats = (p) => POKE_BY_ID.get(p.id)?.stats ?? p.stats;
 
 export const TRAINER_ARCHETYPES = [
   {
@@ -325,9 +331,9 @@ export function teamBudget(units) {
 // Génère une équipe ennemie pour un archétype donné avec un budget cible
 // On pioche des pokémons aléatoirement jusqu'à atteindre le budget
 // maxUnits : nombre max de pokémon sur le terrain (1-6)
-// BST complet (6 stats) — utilisé pour le budget et le tirage pondéré
+// BST complet (6 stats) — utilise les stats canoniques pour un budget correct
 function getBST(p) {
-  const s = p.stats;
+  const s = canonStats(p);
   return (s.hp ?? 0) + (s.atk ?? 0) + (s.spa ?? 0)
        + (s.def ?? 0) + (s.spd_def ?? 0) + (s.spd ?? 0);
 }
@@ -408,7 +414,11 @@ export function generateEnemyTeam(archetype, targetBudget, maxUnits = 6, mapInde
 
     const cell = allCells[team.length];
     spent += getBST(pick);
-    const enemyUnit = { ...pick, col: cell.col, row: cell.row, attributes: [] };
+    const canon = POKE_BY_ID.get(pick.id);
+    const enemyUnit = { ...pick,
+      stats: canon?.stats ?? pick.stats,   // stats canoniques (6 stats) pour le combat
+      types: canon?.types ?? pick.types,
+      col: cell.col, row: cell.row, attributes: [] };
     // Coins (système de synergies par placement) — tirage aléatoire pour bi-types
     enemyUnit.corners = assignCorners(enemyUnit, rng);
     team.push(enemyUnit);
