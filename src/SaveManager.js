@@ -330,14 +330,17 @@ export const SaveManager = {
       });
     }
 
-    // Collection
-    const seen = (meta.seenPokemon ?? []).length;
+    // Collection — union meta (persistant) + runState (run en cours), pour que
+    // les rencontres/captures de la run comptent immédiatement (pas seulement en fin de run).
+    const seenAll = new Set([...(meta.seenPokemon ?? []), ...(runState?.seenPokemon ?? [])]);
+    const seen = seenAll.size;
     if (seen >= 50)  unlock('curieux');
     if (seen >= 151) unlock('encyclopedie');
 
     // Vrais légendaires : Artikodin(144), Électhor(145), Sulfura(146), Mewtwo(150), Mew(151)
+    const caughtAll = new Set([...(meta.caughtPokemon ?? []), ...(runState?.caughtPokemon ?? [])]);
     const legendaryIds = [144, 145, 146, 150, 151];
-    if ((meta.caughtPokemon ?? []).some(id => legendaryIds.includes(id)))
+    if ([...caughtAll].some(id => legendaryIds.includes(id)))
       unlock('coup_de_chance');
 
     // Objets : posséder 5 objets différents simultanément
