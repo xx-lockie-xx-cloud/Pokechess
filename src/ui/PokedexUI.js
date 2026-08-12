@@ -5,6 +5,7 @@
 import { SYNERGIES, getSynergyTierData }          from '../data/synergies.js';
 import { TYPE_CHART }         from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES } from '../data/moves.js';
+import { EFFECT_DESCRIPTIONS } from '../data/statusConstants.js';
 import { getSeenPokemon }     from '../data/runState.js';
 import { POKEMONS }           from '../data/pokemons.js';
 import { ACHIEVEMENTS, getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
@@ -30,24 +31,8 @@ const STAT_EMOJIS = {
   hp:'❤️', atk:'⚔️', def:'🛡️', spa:'🔮', spd_def:'💎', spd:'👟',
 };
 
-const EFFECT_DESC = {
-  burn:'🔥 Brûlure : -10% ATK + 5% HP/tour sur les ennemis',
-  regen:'💧 Régénération : +4% HP/tour pour les unités Eau alliées (5 tours)',
-  poison:'☠️ Poison : -8% HP/tour sur les ennemis',
-  paralyze:'⚡ Paralysie : 25% de chance de skip/tour',
-  confuse:'😵 Confusion : 20% de chance de frapper un allié',
-  freeze:'❄️ Gel : 30% de chance de skip, se dissipe sur coup reçu',
-  dodge:'🦅 Esquive : 20% d\'esquive pour les unités Vol',
-  crit:'🎯 Coup Critique : +30% chances de crit (×1.5 dégâts)',
-  swarm:'🦋 Essaim : 15% qu\'un autre Insecte enchaîne (max 2/tour)',
-  quake:'🏔 Tremblement : -5% HP max sur tous les ennemis au début',
-  curse:'👻 Malédiction : l\'ennemi avec + de HP perd 10% HP/tour',
-  intimidate:'🌑 Intimidation : -15% ATK + SP.ATK ennemies au début',
-  armor:'🛡 Armure : le premier coup reçu est absorbé',
-  charm:'🧚 Charme : les ennemis ciblent toujours le + défensif',
-  rage:'🐉 Rage : +10% dégâts par allié Dragon KO',
-  iron:'⚙️ Armure Acier : -20% dégâts reçus pour les Acier',
-};
+// Descriptions générées depuis statusConstants.js (toujours synchronisées avec le moteur)
+const EFFECT_DESC = EFFECT_DESCRIPTIONS;
 
 const CAT_LABEL = { physical:'⚔️ Physique', special:'🔮 Spécial', status:'✨ Statut' };
 

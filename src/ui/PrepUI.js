@@ -30,6 +30,7 @@ import { getBSTTier, getRunState, setRunState, applyAnomalyToUnits,
 import { ITEMS }                         from '../data/items.js';
 import { getActiveSynergies, getFullStats, assignCorners, ensureCorners }  from '../data/synergies.js';
 import { getLevelBadgeHTML, getLevelBonus, getActiveTalentEffects }  from '../data/levelSystem.js';
+import { EFFECT_LABELS_SHORT }              from '../data/statusConstants.js';
 import { getPokemonPassive }                 from '../data/passiveHooks.js';
 import { getMove }                           from '../data/moves.js';
 import { canEvolve, getEvolutionId }     from '../data/evolutionData.js';
@@ -707,16 +708,8 @@ export const PrepUI = {
 
     const STAT_LABELS = { hp:'❤️ HP', atk:'⚔️ ATK', def:'🛡️ DEF',
                           spa:'🔮 SP.ATK', spd_def:'💎 SP.DEF', spd:'👟 VIT' };
-    const EFFECT_LABELS = {
-      burn:'🔥 Brûlure ennemie', regen:'💧 Régénération (Eau)',
-      poison:'☠️ Empoisonnement', paralyze:'⚡ Paralysie ennemie',
-      confuse:'😵 Confusion ennemie', freeze:'❄️ Gel ennemi',
-      dodge:'🦅 Esquive 20%', crit:'🎯 Crit +30%',
-      swarm:'🦋 Essaim (chaîne)', quake:'🏔 Tremblement',
-      curse:'👻 Malédiction', intimidate:'🌑 Intimidation',
-      armor:'🛡 Armure', charm:'🧚 Charme (ciblage)',
-      rage:'🐉 Rage (+10%/mort)', iron:'⚙️ Armure Acier -20%',
-    };
+    // Libellés générés depuis statusConstants.js (synchronisés avec le moteur)
+    const EFFECT_LABELS = EFFECT_LABELS_SHORT;
 
     synergies.slice(0, 8).forEach(syn => {
       const badge = document.createElement('span');
