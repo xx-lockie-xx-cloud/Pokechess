@@ -112,7 +112,7 @@ export const MOVES = {
     effects:[{kind:"heal",who:"random_ally",rate:0.15}] },
   coqui_lame_immo:      { name:"Coqui-Lame",       type:"Eau",      cat:"physical", bp:75,  target:"single",
     effects:[{kind:"status",status:"stun",chance:1.0,who:"primary"}] },
-  coqui_lame_drain:     { name:"Coqui-Lame",       type:"Eau",      cat:"physical", bp:75,  target:"single",    hits:2, drain:0.35 },
+  coqui_lame_drain:     { name:"Coqui-Lame",       type:"Eau",      cat:"physical", bp:50,  target:"single",    hits:2, drain:0.35 },
 
   // ── Électrik ──────────────────────────────────────────────────────────────
   tonnerre_single:      { name:"Tonnerre",         type:"Électrik", cat:"special",  bp:110, target:"single",
