@@ -249,6 +249,17 @@ export class CombatEngine {
     // Charge les passifs dans chaque unité
     [...this.playerUnits, ...this.enemyUnits].forEach(u => this._loadPassives(u));
 
+    // Objets tenus à effet de résurrection (Rappel) : réutilise le mécanisme
+    // _reviveRate consommé dans _handleFaint. L'objet n'est PAS consommé, mais
+    // la résurrection ne s'applique qu'une fois par combat (garde _revived).
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      const rate = u.heldItem?.reviveRate;
+      if (rate > 0) {
+        u._reviveRate = Math.max(u._reviveRate ?? 0, rate);
+        u._reviveItem = u.heldItem.name;
+      }
+    });
+
     // Effets de relique pré-combat
     if (this.relicId) {
       RelicEngine.applyPreCombat(this.relicId, this.playerUnits, this.enemyUnits);
@@ -1490,6 +1501,10 @@ export class CombatEngine {
       if (unit._reviveTalent) {
         this.log.push({ type:'talent_trigger', talentType:unit._reviveTalent,
           label:`Phénix — ${unit.name} ressuscite !` });
+      } else if (unit._reviveItem) {
+        this.log.push({ type:'passive_trigger', effect:'boost',
+          label:`💊 ${unit._reviveItem} — ${unit.name} est ranimé !`,
+          targetId:unit.uid, targetName:unit.name, targetSide:unit.side });
       }
       this.log.push({ type:'effect_heal', effect:'revive', label:`✨ Résurrection ! (${unit.name})`,
         targetId:unit.uid, targetName:unit.name, targetSide:unit.side,
