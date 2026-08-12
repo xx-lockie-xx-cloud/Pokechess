@@ -537,8 +537,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'flag', flag:'dmgReducPhysical', mult:0.75 }] } },
   },
   76: {
-    35: { id:'explosion_g', name:'Explosion', desc:'À la mort → AoE 50% HP',
-      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.50 }] } },
+    35: { id:'explosion_g', name:'Explosion', desc:'À la mort → AoE 20% HP',
+      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.20 }] } },
     70: { id:'geant', name:'Géant', desc:'Immunisé stun + -20% dégâts',
       hooks:{ ON_SETUP: [{ type:'status_immunity', statuses:['stun'] },
                          { type:'stat_boost', stat:'_dmgReduction', mult:0.80 }] } },
@@ -861,8 +861,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_ACTION: [{ type:'emergency_heal', rate:0.20, threshold:0.25 }] } },
   },
   121: {
-    35: { id:'rayonnement', name:'Rayonnement', desc:'Soigne 8% HP alliés / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.08 }] } },
+    35: { id:'rayonnement', name:'Rayonnement', desc:'Soigne 3% HP alliés / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.03 }] } },
     70: { id:'teleportation', name:'Téléportation', desc:'Esquive 1 attaque/combat',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'dodgeOnce' }] } },
   },
