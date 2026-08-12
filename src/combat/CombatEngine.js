@@ -5,6 +5,7 @@
 import { getTypeMultiplier }           from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES, getMove } from '../data/moves.js';
 import { TALENT_TREES }                   from '../data/levelSystem.js';
+import { STATUS_VALUES }                  from '../data/statusConstants.js';
 import { PassiveEngine }                 from './PassiveEngine.js';
 import { RelicEngine }                   from './RelicEngine.js';
 
@@ -322,7 +323,7 @@ export class CombatEngine {
     Object.keys(statusMap).forEach(eff => {
       if (!fx.has(eff)) return;
       enemies.forEach(u => {
-        if (eff === 'burn') this._applyPermStat(u, 'atk', 0.90);
+        if (eff === 'burn') this._applyPermStat(u, 'atk', STATUS_VALUES.burnAtkMult);
         this._addStatus(u, eff, synergyStatusTurns[eff] ?? -1);
       });
     });
@@ -543,10 +544,10 @@ export class CombatEngine {
       // Gel : -25% VIT, se lève après 2 actions propres du pokémon
       const freezeSt = unit.statusEffects.find(s => s.type === 'freeze');
       if (freezeSt) {
-        freezeSt._actionsLeft = (freezeSt._actionsLeft ?? 2);
+        freezeSt._actionsLeft = (freezeSt._actionsLeft ?? STATUS_VALUES.freezeActions);
         // Applique le malus VIT via tempMod si pas encore présent
         if (!unit.tempMods.some(m => m._freeze)) {
-          unit.tempMods.push({ stat:'spd', mult:0.75, turnsLeft:-1, _freeze:true });
+          unit.tempMods.push({ stat:'spd', mult:STATUS_VALUES.freezeSpdMult, turnsLeft:-1, _freeze:true });
         }
         freezeSt._actionsLeft--;
         this.log.push({ type:'passive_trigger', effect:'freeze',
@@ -561,12 +562,12 @@ export class CombatEngine {
         }
       }
     }
-    if (this._hasStatus(unit, 'paralyze') && Math.random() < 0.25) {
+    if (this._hasStatus(unit, 'paralyze') && Math.random() < STATUS_VALUES.paralyzeSkipChance) {
       this.log.push({ type:'attack_skipped', reason:'paralyze', label:'⚡ Paralysé !',
         attackerId:unit.uid, attackerSide:unit.side });
       return;
     }
-    if (this._hasStatus(unit, 'confuse') && Math.random() < 0.20) {
+    if (this._hasStatus(unit, 'confuse') && Math.random() < STATUS_VALUES.confuseHitAllyChance) {
       const allies = this._alliesOf(unit).filter(u => u.hp > 0 && u.uid !== unit.uid);
       if (allies.length > 0) {
         const victim = allies[Math.floor(Math.random() * allies.length)];
@@ -1280,7 +1281,7 @@ export class CombatEngine {
       const burnStatus = u.statusEffects.find(s => s.type === 'burn');
       if (burnStatus) {
         const burnStacks = burnStatus.stacks ?? 1;
-        const dmg = Math.max(1, Math.ceil(u.maxHp * 0.05 * burnStacks));
+        const dmg = Math.max(1, Math.ceil(u.maxHp * STATUS_VALUES.burnDmgPerStack * burnStacks));
         u.hp = Math.max(0, u.hp - dmg);
         this.log.push({ type:'effect_damage', effect:'burn',
           label: burnStacks > 1 ? `🔥×${burnStacks}` : '🔥',
@@ -1292,7 +1293,7 @@ export class CombatEngine {
       const poisonStatus = u.statusEffects.find(s => s.type === 'poison');
       if (poisonStatus) {
         const stacks = poisonStatus.stacks ?? 1;
-        const dmg    = Math.max(1, Math.ceil(u.maxHp * 0.04 * stacks));
+        const dmg    = Math.max(1, Math.ceil(u.maxHp * STATUS_VALUES.poisonDmgPerStack * stacks));
         u.hp = Math.max(0, u.hp - dmg);
         this.log.push({ type:'effect_damage', effect:'poison',
           label: stacks > 1 ? `☠️×${stacks}` : '☠️',
