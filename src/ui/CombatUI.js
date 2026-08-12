@@ -11,6 +11,10 @@ import { RelicEngine }                                 from '../combat/RelicEngi
 import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
 import { getActiveSynergies, getFullStats } from '../data/synergies.js';
+
+// Multiplicateur de stats ennemies par difficulté (source unique — voir aussi
+// DIFF_BUDGETS dans MapGenerator.js : les deux se composent, cf. réglage √ratio)
+const DIFF_STAT_MULTS = { easy: 0.8, normal: 1.0, hard: 1.118, expert: 1.225 };
 import { getArenaForMap }                   from '../data/arenas.js';
 
 const DELAY_TURN_START = 100;
@@ -52,12 +56,14 @@ export const CombatUI = {
     this._slots         = {};
     this._hpState       = {};
     this._statusTracker = {};
-    this._speed         = 1;
+    this._speed         = window.SaveManager?.getCombatSpeed?.() ?? 1;
     this._combatLog     = [];
     this._atbDisplay    = {};
     this._atbSpeed      = {};
     this._mapAdvanced   = false;
     this._statsRecorded = false;
+    this._pendingLevelUps = [];
+    this._grantedCoins    = 0;
     if (this._atbRaf) { cancelAnimationFrame(this._atbRaf); this._atbRaf = null; }
 
     // Lit toujours depuis le registre (priorité sur data.playerUnits)
@@ -204,15 +210,28 @@ export const CombatUI = {
     btn.textContent = '⚔ Lancer le combat';
     btnRow.appendChild(btn);
 
+    // Vitesse de lecture — paliers débloqués en terminant la ligue
+    // (Facile ×2 · Normal ×2.5 · Difficile ×3 · Expert ×4). Persistée entre combats.
+    const speeds = window.SaveManager?.getUnlockedCombatSpeeds?.() ?? [1];
+    const fmt    = (v) => (v === 1 ? '▶ ×1' : `▶▶ ×${String(v).replace('.', ',')}`);
+
     const btnSpeed = document.createElement('button');
     btnSpeed.className   = 'btn-speed';
     btnSpeed.id          = 'btn-combat-speed';
-    btnSpeed.textContent = '▶▶ ×2';
-    btnSpeed.title       = 'Accélérer le combat';
+    btnSpeed.textContent = fmt(this._speed);
+    btnSpeed.classList.toggle('active', this._speed > 1);
+    btnSpeed.title = speeds.length > 1
+      ? `Vitesse de lecture (débloquées : ${speeds.map(s => '×' + s).join(', ')})`
+      : 'Termine la ligue pour débloquer des vitesses supérieures';
+    if (speeds.length === 1) btnSpeed.classList.add('locked');
+
     btnSpeed.addEventListener('click', () => {
-      this._speed = this._speed === 1 ? 2 : 1;
-      btnSpeed.textContent = this._speed === 2 ? '▶ ×1' : '▶▶ ×2';
-      btnSpeed.classList.toggle('active', this._speed === 2);
+      const list = window.SaveManager?.getUnlockedCombatSpeeds?.() ?? [1];
+      const idx  = list.indexOf(this._speed);
+      this._speed = list[(idx + 1) % list.length] ?? 1;   // cycle sur les paliers
+      btnSpeed.textContent = fmt(this._speed);
+      btnSpeed.classList.toggle('active', this._speed > 1);
+      window.SaveManager?.setCombatSpeed?.(this._speed);  // persiste le choix
     });
     btnRow.appendChild(btnSpeed);
     wrapper.appendChild(btnRow);
@@ -275,10 +294,8 @@ export const CombatUI = {
     const mapKey = `${side}_${uid}`;
     this._slots[mapKey] = slot;
 
-    this._hpState[mapKey] = {
-      current: unit.stats?.hp ?? unit.hp ?? 100,
-      max:     unit.stats?.hp ?? unit.hp ?? 100,
-    };
+    const effMaxHp = this._effectiveMaxHp(unit, side);
+    this._hpState[mapKey] = { current: effMaxHp, max: effMaxHp };
 
     const hpId = `hp-${mapKey.replace(/_/g, '-')}`;
 
@@ -298,8 +315,8 @@ export const CombatUI = {
     hpBar.appendChild(hpFill);
     hpWrapper.appendChild(hpBar);
 
-    // Label HP numérique sous la barre
-    const maxHp = unit.stats?.hp ?? unit.hp ?? 100;
+    // Label HP numérique sous la barre (PV effectifs, bonus inclus)
+    const maxHp = effMaxHp;
     const hpLabel = document.createElement('div');
     hpLabel.className = 'combat-hp-label';
     hpLabel.id        = `hplabel-${mapKey.replace(/_/g, '-')}`;
@@ -514,8 +531,7 @@ export const CombatUI = {
     const baseMult    = getEnemyMultiplier(mapIndex, loopCount);
     // Multiplicateur de difficulté (persistant via meta save)
     const diffId      = SaveManager.getDifficulty() ?? 'normal';
-    const diffMults   = { easy: 0.8, normal: 1.0, hard: 1.118, expert: 1.225 };
-    const diffMult    = diffMults[diffId] ?? 1.0;
+    const diffMult    = DIFF_STAT_MULTS[diffId] ?? 1.0;
     const mult        = baseMult * diffMult;
 
     // ── Relique active ───────────────────────────────────────────────────
@@ -606,13 +622,51 @@ export const CombatUI = {
     this._livePlayerUnits = engine.playerUnits;
     this._liveEnemyUnits  = engine.enemyUnits;
 
+    // Resynchronise les barres/labels avec les PV EXACTS du moteur (inclut les
+    // passifs ON_SETUP), pour qu'aucune valeur ne "saute" au premier dégât.
+    [...engine.playerUnits, ...engine.enemyUnits].forEach(u => {
+      const mapKey = `${u.side}_${u.uid}`;
+      if (!this._slots[mapKey]) return;
+      this._hpState[mapKey] = { current: u.maxHp, max: u.maxHp };
+      const fill  = document.getElementById(`hp-${mapKey.replace(/_/g, '-')}`)
+        ?.querySelector('.combat-hp-fill');
+      if (fill) fill.style.width = '100%';
+      const label = document.getElementById(`hplabel-${mapKey.replace(/_/g, '-')}`);
+      if (label) label.textContent = `${u.maxHp}/${u.maxHp}`;
+    });
+
     // ── Issue connue dès le calcul (combat pré-simulé) ────────────────────────
+    // Statistiques : enregistrées dès le calcul (un F5 pendant la lecture compte quand même)
+    if (!this._statsRecorded) {
+      this._statsRecorded = true;
+      SaveManager.recordCombatResult?.(this._registry?.get?.('runState') ?? {}, {
+        winner,
+        nodeType: this._data?.nodeType ?? 'combat',
+        mapIndex: this._data?.mapIndex ?? 0,
+      });
+    }
+
     if (winner !== 'player') {
       // Anti-exploit : défaite SCELLÉE immédiatement.
       // Quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
       this._registry?.sealRun?.();   // bloque tout autosave ultérieur
       SaveManager.deleteSave?.();    // efface la sauvegarde de run existante
     } else if (this._registry) {
+      // ── Récompenses ATOMIQUES avec le commit de progression ────────────────
+      // Exp et pièces sont accordées DÈS la victoire calculée : un F5 pendant la
+      // lecture valide le nœud AVEC ses gains. L'animation ne fait qu'afficher.
+      const playerUnits = this._registry.get('playerUnits') ?? [];
+      playerUnits.forEach(u => {
+        if (!u.id) return;
+        const result = SaveManager.gainPokemonLevel(u.id);
+        if (result.gained) {
+          this._pendingLevelUps.push({ name: u.name, level: result.newLevel, id: u.id });
+        }
+      });
+      const bonusCoins = RelicEngine.winCoins(getRunState(this._registry)?.relic?.id);
+      this._grantedCoins = 3 + (bonusCoins > 0 ? bonusCoins : 0);
+      addCoins(this._registry, this._grantedCoins);
+
       // ── Commit de la progression POST-combat dès la victoire calculée ──────
       // (la save au clic est PRÉ-combat ; actualiser pendant la lecture d'une
       // victoire reprend donc bien APRÈS le combat, nœud validé)
@@ -913,6 +967,37 @@ export const CombatUI = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // PV maximum EFFECTIFS pour l'affichage : inclut objets, synergies, talents,
+  // relique (joueur) et le multiplicateur de difficulté (ennemi). Sans ça, la
+  // barre afficherait les PV de base puis "sauterait" au premier dégât.
+  _effectiveMaxHp(unit, side) {
+    const baseHp = unit.stats?.hp ?? unit.hp ?? 100;
+    try {
+      const relicId = this._registry?.get?.('runState')?.relic?.id ?? null;
+      if (side === 'player') {
+        const meta    = window.SaveManager?.loadMeta?.() ?? null;
+        const talents = window.SaveManager
+          ? (this._getActiveTalentEffects?.(meta, this._playerUnits) ?? [])
+          : [];
+        const full = getFullStats(unit, this._playerUnits, meta, relicId, talents);
+        let hp = full.withTalent?.hp ?? full.withSynergy?.hp ?? baseHp;
+        // Modificateur de relique (Pacte de Sang, Bénédiction, Contrat Maudit…)
+        const probe = { ...unit, stats: { ...(unit.stats ?? {}), hp } };
+        if (relicId) RelicEngine.applyStatModifier(relicId, probe);
+        return Math.max(1, Math.round(probe.stats?.hp ?? hp));
+      }
+      // Ennemi : multiplicateur de difficulté (appliqué en hard/expert seulement)
+      const diffId = window.SaveManager?.getDifficulty?.() ?? 'normal';
+      if (diffId !== 'hard' && diffId !== 'expert') return baseHp;
+      const rs   = this._registry?.get?.('runState') ?? {};
+      const mult = getEnemyMultiplier(rs.currentMap ?? 0, rs.loopCount ?? 0)
+                 * (DIFF_STAT_MULTS[diffId] ?? 1.0);
+      return Math.max(1, Math.round(baseHp * mult));
+    } catch {
+      return baseHp;
+    }
+  },
+
   _buildKey(side, pokemonId) {
     const units = side === 'player' ? this._playerUnits : this._enemyUnits;
     // pokemonId peut être un uid complet (effet de tour) ou un id simple (attaque)
@@ -1363,7 +1448,7 @@ export const CombatUI = {
     const phase = document.getElementById('combat-phase-text');
     if (phase) phase.textContent = isWin ? '🏆 Victoire !' : '💀 Défaite...';
 
-    // ── Statistiques : enregistre l'issue du combat UNE seule fois ────────────
+    // ── Statistiques : déjà enregistrées dès le calcul (voir _startCombat) ────
     if (!this._statsRecorded) {
       this._statsRecorded = true;
       const rsStats = this._registry?.get?.('runState') ?? {};
@@ -1374,32 +1459,17 @@ export const CombatUI = {
       });
     }
 
-    // Note : l'avancement de la map (victoire de boss) et le scellement (défaite)
-    // se font désormais DÈS le calcul du combat (voir _startCombat, après resolve()),
-    // pour que quitter pendant la lecture reprenne sur le bon état.
-
-    // Gain de niveau pour les pokémons survivants après une victoire
-    if (isWin && SaveManager) {
-      const playerUnits = this._registry.get('playerUnits') ?? [];
-      const levelUps    = [];
-      playerUnits.forEach(u => {
-        if (!u.id) return;
-        const result = SaveManager.gainPokemonLevel(u.id);
-        if (result.gained) {
-          levelUps.push({ name: u.name, level: result.newLevel, id: u.id });
-        }
-      });
-      if (levelUps.length > 0) {
-        this._showLevelUps(levelUps);
-      }
-    }
-
+    // Note : l'avancement de la map (victoire de boss), le scellement (défaite),
+    // l'exp et les pièces se font désormais DÈS le calcul du combat (_startCombat,
+    // après resolve()), pour qu'un F5 pendant la lecture conserve gains ET progression.
+    // Ici on ne fait qu'AFFICHER les récompenses déjà accordées.
     if (isWin) {
-      addCoins(this._registry, 3);
-      // Bourse Dorée (et toute relique avec ECON_WIN_COINS) : pièces bonus
-      const bonusCoins = RelicEngine.winCoins(getRunState(this._registry)?.relic?.id);
-      if (bonusCoins > 0) addCoins(this._registry, bonusCoins);
-      this._showRewardAnimation(`+${3 + bonusCoins} 💰`);
+      if (this._pendingLevelUps?.length > 0) {
+        this._showLevelUps(this._pendingLevelUps);
+      }
+      if (this._grantedCoins > 0) {
+        this._showRewardAnimation(`+${this._grantedCoins} 💰`);
+      }
     }
 
     const screen = document.getElementById('overlay-combat');

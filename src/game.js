@@ -11,6 +11,50 @@ import { SaveManager } from './SaveManager.js';
 window.UIManager   = UIManager;
 window.SaveManager = SaveManager;
 
+// ── Debug : prévisualiser l'écran de victoire de ligue sans faire une run ────
+//   window.previewLeagueVictory()            → écran normal (difficulté courante)
+//   window.previewLeagueVictory('expert')    → force l'écran d'honneur Expert
+//   window.previewLeagueVictory('expert', true) → rejoue l'écran Expert (reset du flag)
+window.previewLeagueVictory = (difficulty = null, replay = true) => {
+  const registry = window.__registry;
+  if (!registry) { console.warn('Registre indisponible — lance le jeu d\'abord.'); return; }
+
+  // IMPORTANT : getDifficulty() ne renvoie une difficulté que si elle est
+  // DÉBLOQUÉE. Pour la prévisualisation on pose donc aussi les succès requis,
+  // sinon 'expert' retomberait silencieusement sur une difficulté inférieure.
+  const meta = SaveManager.loadMeta();
+  const next = { ...meta };
+  if (difficulty) {
+    next.difficulty = difficulty;
+    const REQ = { normal: 'ligue_easy', hard: 'ligue_normal', expert: 'ligue_hard_relic' };
+    const need = REQ[difficulty];
+    if (need) {
+      next.achievements = { ...(next.achievements ?? {}) };
+      if (!next.achievements[need]) {
+        next.achievements[need] = { unlockedAt: Date.now() };
+        console.info(`[preview] succès "${need}" débloqué pour permettre la difficulté ${difficulty}`);
+      }
+    }
+  }
+  if (replay) next.expertLeagueDone = false;
+  SaveManager.saveMeta(next);   // une seule écriture → plus d'écrasement
+
+  // Équipe factice si aucune n'est en cours
+  const team = (registry.get('playerUnits') ?? []).filter(Boolean);
+  const fake = team.length ? team : [6, 9, 3, 25, 143, 149].map(id => ({
+    id, name: `#${id}`,
+    spriteUrl: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`,
+  }));
+
+  console.info('[preview] difficulté effective :', SaveManager.getDifficulty());
+  UIManager.show('arenaVictory', {
+    mapIndex: 8,
+    trainerName: 'Peter',
+    leagueSprite: null,
+    fieldTeam: fake,
+  });
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[game.js] DOMContentLoaded');
 
@@ -58,5 +102,26 @@ document.addEventListener('DOMContentLoaded', () => {
   window.gameRegistry = registry;
 
   console.log('[game.js] appel UIManager.init');
+  window.__registry = registry;   // exposé pour les helpers de debug
+
+  // ── Temps de jeu cumulé ────────────────────────────────────────────────────
+  // Accumulé par tranches de 30s, uniquement quand l'onglet est visible.
+  // (Non rétroactif : ne comptabilise que le temps joué à partir de maintenant.)
+  (() => {
+    const TICK_MS = 30000;
+    let lastTick  = Date.now();
+    const flush = () => {
+      const now = Date.now();
+      const dt  = now - lastTick;
+      lastTick  = now;
+      if (dt > 0 && dt < 5 * 60 * 1000 && document.visibilityState === 'visible') {
+        SaveManager.bumpStat?.('playtimeMs', dt);
+      }
+    };
+    setInterval(flush, TICK_MS);
+    document.addEventListener('visibilitychange', flush);
+    window.addEventListener('pagehide', flush);
+  })();
+
   UIManager.init(registry);
 });

@@ -497,9 +497,39 @@ export const WildUI = {
       btnCapture.textContent = 'Capturer';
     }
 
-    // Si banque pleine → proceed automatiquement après 1.2s
-    if ((state.playerBank ?? []).length >= BANK_MAX_SIZE) {
-      setTimeout(() => this._proceed(), 1200);
+    // Banque pleine : on NE ferme PAS la fenêtre. Le joueur peut vendre des
+    // pokémons puis revenir capturer, ou continuer à consulter/rerouler.
+    // On rafraîchit seulement l'état (sans reconstruire les cartes, sinon le
+    // pokémon déjà capturé réapparaîtrait et serait capturable une 2e fois).
+    this._refreshBankState();
+  },
+
+  // Met à jour l'avertissement "banque pleine" et l'état du bouton Capturer,
+  // sans toucher aux cartes affichées.
+  _refreshBankState() {
+    const state    = getRunState(this._registry);
+    const bankFull = (state.playerBank ?? []).length >= BANK_MAX_SIZE;
+
+    const btnCapture = document.getElementById('btn-capture');
+    if (btnCapture && bankFull) {
+      btnCapture.disabled    = true;
+      btnCapture.textContent = 'Banque pleine';
+    }
+
+    const warnId = 'wild-bank-warn';
+    const host   = document.getElementById('wild-info')?.parentElement
+                ?? document.getElementById('wild-info');
+    let warn = document.getElementById(warnId);
+    if (bankFull) {
+      if (!warn && host) {
+        warn = document.createElement('p');
+        warn.id        = warnId;
+        warn.className = 'wild-warn';
+        warn.textContent = '⚠ Banque pleine — vends un pokémon pour en capturer d\'autres';
+        host.appendChild(warn);
+      }
+    } else if (warn) {
+      warn.remove();
     }
   },
 

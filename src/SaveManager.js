@@ -221,6 +221,42 @@ export const SaveManager = {
     this.saveMeta(meta);
   },
 
+  // ── Vitesse de combat (récompense de fin de ligue) ──────────────────────────
+  // Terminer la ligue débloque un palier de vitesse, cumulatif :
+  //   Facile → ×2 · Normal → ×2.5 · Difficile → ×3 · Expert → ×4
+  getUnlockedCombatSpeeds(meta = null) {
+    const m     = meta ?? this.loadMeta();
+    const ach   = m.achievements ?? {};
+    const byDif = this.getRunStats(m).leaguesByDiff ?? {};
+    const speeds = [1];
+    const done = {
+      easy:   !!ach.ligue_easy        || (byDif.easy   ?? 0) > 0,
+      normal: !!ach.ligue_normal      || (byDif.normal ?? 0) > 0,
+      hard:   !!ach.ligue_hard_relic  || (byDif.hard   ?? 0) > 0,
+      expert: !!m.expertLeagueDone    || (byDif.expert ?? 0) > 0,
+    };
+    // Cumulatif : finir une difficulté élevée débloque aussi les paliers inférieurs
+    if (done.easy || done.normal || done.hard || done.expert) speeds.push(2);
+    if (done.normal || done.hard || done.expert)              speeds.push(2.5);
+    if (done.hard || done.expert)                             speeds.push(3);
+    if (done.expert)                                          speeds.push(4);
+    return speeds;
+  },
+
+  getCombatSpeed() {
+    const meta    = this.loadMeta();
+    const allowed = this.getUnlockedCombatSpeeds(meta);
+    const stored  = meta.combatSpeed ?? 1;
+    // Si la vitesse mémorisée n'est plus/pas débloquée, on retombe sur ×1
+    return allowed.includes(stored) ? stored : 1;
+  },
+
+  setCombatSpeed(v) {
+    const meta = this.loadMeta();
+    meta.combatSpeed = v;
+    this.saveMeta(meta);
+  },
+
   // ── Achievements ────────────────────────────────────────────────────────────
   // ── Tracking des runs ─────────────────────────────────────────────────────
   getRunStats(meta) {

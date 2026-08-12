@@ -1620,6 +1620,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 .btn-speed:hover { background: rgba(255,255,255,0.13); color: var(--text-primary); }
+.btn-speed.locked { opacity: 0.55; cursor: default; }
+.btn-speed.locked:hover { background: rgba(255,255,255,0.07); color: var(--text-secondary); }
 .btn-speed.active {
   background: rgba(255,215,0,0.15);
   border-color: var(--color-gold);
@@ -4504,6 +4506,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   gap: 14px;
   padding: 8px 4px;
   width: 100%;
+  max-width: 560px;   /* évite l'étirement sur grand écran */
+  margin: 0 auto;
 }
 
 /* Bannière dorée lumineuse */
@@ -4551,13 +4555,121 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 /* Rangée des 8 badges (apparition échelonnée) */
+/* Badges sur 2 lignes uniformes (4 + 4) */
+.lv-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
 .lv-badges-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
-  gap: 8px;
-  max-width: 320px;
+  gap: 10px;
 }
+
+/* Pastille de difficulté de la run */
+.lv-difficulty {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 4px 14px;
+  border: 1.5px solid;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.25);
+}
+
+/* ── Première victoire en EXPERT : sceau d'honneur ────────────────────────── */
+.lv-expert-seal {
+  margin: 6px auto 2px;
+  width: 100%;
+  max-width: min(420px, 92vw);
+  box-sizing: border-box;
+  padding: clamp(12px, 3.5vw, 20px);
+  border: 2px solid var(--color-gold);
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(255,215,0,0.14), rgba(255,215,0,0.03));
+  box-shadow: 0 0 26px rgba(255,215,0,0.35), inset 0 0 20px rgba(255,215,0,0.08);
+  text-align: center;
+  /* will-change évite le reflow saccadé pendant l'animation d'entrée */
+  will-change: transform, opacity;
+  animation: lv-expert-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 0.5s both;
+}
+.lv-expert-crown {
+  font-size: clamp(32px, 9vw, 44px);
+  line-height: 1;
+  animation: lv-crown-float 2.6s ease-in-out infinite;
+}
+.lv-expert-title {
+  font-size: clamp(15px, 4.4vw, 19px);
+  font-weight: 900;
+  letter-spacing: 0.10em;
+  color: var(--color-gold);
+  margin-top: 6px;
+  text-shadow: 0 0 14px rgba(255,215,0,0.6);
+}
+.lv-expert-sub {
+  font-size: clamp(10px, 2.8vw, 12px);
+  color: var(--text-secondary);
+  margin-top: 2px;
+  margin-bottom: 10px;
+}
+.lv-expert-note {
+  font-size: clamp(11px, 3vw, 13px);
+  line-height: 1.6;
+  color: var(--text-primary);
+  text-align: left;
+  border-top: 1px solid rgba(255,215,0,0.25);
+  padding-top: 10px;
+}
+.lv-expert-note p { margin: 0 0 7px; }
+.lv-expert-stats {
+  list-style: none;
+  margin: 4px 0 10px;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.22);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lv-expert-stats li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: clamp(10.5px, 2.9vw, 12.5px);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.lv-expert-stats li > .lv-stat-ico { flex-shrink: 0; line-height: 1.45; }
+.lv-expert-stats li .lv-stat-body { flex: 1; min-width: 0; }
+.lv-expert-stats li .lv-stat-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.92em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.lv-expert-stats strong { white-space: nowrap; }
+.lv-expert-stats strong { color: var(--color-gold); font-weight: 800; }
+.lv-expert-stats em { color: var(--text-primary); font-style: italic; }
+.lv-expert-sign {
+  text-align: right;
+  font-weight: 800;
+  color: var(--color-gold);
+  font-style: italic;
+}
+@keyframes lv-expert-in {
+  from { opacity: 0; transform: scale(0.85) translateY(14px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes lv-crown-float {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50%      { transform: translateY(-6px) rotate(4deg); }
+}
+
 .lv-badge, .lv-badge-fallback {
   width: 34px;
   height: 34px;
@@ -4650,3 +4762,66 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 .seed-input::placeholder { color: #718096; }
 .seed-input:focus { border-color: #ffd700; }
+
+/* ── Fenêtre de confirmation (remplace confirm() natif) ───────────────────── */
+.ui-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(6, 10, 24, 0.72);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.ui-confirm-overlay.visible { opacity: 1; }
+
+.ui-confirm-box {
+  width: 100%;
+  max-width: min(340px, 90vw);
+  box-sizing: border-box;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 20px 20px 16px;
+  text-align: center;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  transform: scale(0.92) translateY(10px);
+  transition: transform 0.22s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+.ui-confirm-overlay.visible .ui-confirm-box { transform: scale(1) translateY(0); }
+
+.ui-confirm-icon  { font-size: 34px; line-height: 1; margin-bottom: 6px; }
+.ui-confirm-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.ui-confirm-msg {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+.ui-confirm-msg strong { color: var(--color-gold); white-space: nowrap; }
+
+.ui-confirm-actions { display: flex; gap: 10px; }
+.ui-confirm-actions button {
+  flex: 1;
+  padding: 11px 10px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+.ui-confirm-actions button:hover  { filter: brightness(1.12); }
+.ui-confirm-actions button:active { transform: translateY(1px); }
+.ui-confirm-yes { background: linear-gradient(160deg, #2ecc71, #21a25a); }
+.ui-confirm-no  { background: linear-gradient(160deg, #e74c3c, #c0392b); }

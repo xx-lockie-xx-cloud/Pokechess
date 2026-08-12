@@ -349,6 +349,43 @@ class UIManagerClass {
     }, 3500);
   }
 
+  // Fenêtre de confirmation aux couleurs du jeu (remplace confirm() natif).
+  // Retourne une Promise<boolean>. Usage : if (await UIManager.confirm({...}))
+  confirm({ title = 'Confirmer', message = '', icon = '❓',
+            yesLabel = 'Oui', noLabel = 'Non' } = {}) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'ui-confirm-overlay';
+      overlay.innerHTML = `
+        <div class="ui-confirm-box" role="dialog" aria-modal="true">
+          <div class="ui-confirm-icon">${icon}</div>
+          <div class="ui-confirm-title">${title}</div>
+          ${message ? `<div class="ui-confirm-msg">${message}</div>` : ''}
+          <div class="ui-confirm-actions">
+            <button class="ui-confirm-no">${noLabel}</button>
+            <button class="ui-confirm-yes">${yesLabel}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      requestAnimationFrame(() => overlay.classList.add('visible'));
+
+      const close = (val) => {
+        overlay.classList.remove('visible');
+        setTimeout(() => overlay.remove(), 180);
+        document.removeEventListener('keydown', onKey);
+        resolve(val);
+      };
+      const onKey = (e) => {
+        if (e.key === 'Escape') close(false);
+        if (e.key === 'Enter')  close(true);
+      };
+      overlay.querySelector('.ui-confirm-yes').addEventListener('click', () => close(true));
+      overlay.querySelector('.ui-confirm-no').addEventListener('click',  () => close(false));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+      document.addEventListener('keydown', onKey);
+    });
+  }
+
   show(screenName, data = {}) {
     this._updateRelicBanner();
     this.currentScreen = screenName;
