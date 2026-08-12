@@ -28,8 +28,9 @@ import { getBSTTier, getRunState, setRunState, applyAnomalyToUnits,
          removeFromInventory, getInventory,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
 import { ITEMS }                         from '../data/items.js';
-import { getActiveSynergies, getFullStats }  from '../data/synergies.js';
-import { getLevelBadgeHTML, getLevelBonus }  from '../data/levelSystem.js';
+import { getActiveSynergies, getFullStats, assignCorners, ensureCorners }  from '../data/synergies.js';
+import { getLevelBadgeHTML, getLevelBonus, getActiveTalentEffects }  from '../data/levelSystem.js';
+import { EFFECT_LABELS_SHORT }              from '../data/statusConstants.js';
 import { getPokemonPassive }                 from '../data/passiveHooks.js';
 import { getMove }                           from '../data/moves.js';
 import { canEvolve, getEvolutionId }     from '../data/evolutionData.js';
@@ -227,11 +228,12 @@ export const PrepUI = {
     slot.setAttribute('draggable', 'false');  // drag géré par Pointer Events
 
     if (unit) {
-      // Coins de type — avec anomalie si active
-      const _anomTypes = getRunState(this._registry)?.anomalyTypes;
-      const displayTypes = (_anomTypes?.[unit.id]) ?? unit.types;
-      const c1 = hexToCSS(TC[displayTypes[0]] ?? 0x888888);
-      const c2 = hexToCSS(TC[displayTypes[1]] ?? TC[displayTypes[0]] ?? 0x888888);
+      // Coins de type — attribution aléatoire stockée sur l'unité [TL,TR,BR,BL]
+      // On utilise TOUJOURS les coins stockés pour que l'affichage corresponde
+      // exactement au calcul de synergie (getActiveSynergies lit aussi unit.corners).
+      let corners = ensureCorners(unit);
+      const cc = (i) => hexToCSS(TC[corners[i]] ?? 0x888888);
+      const cTL = cc(0), cTR = cc(1), cBR = cc(2), cBL = cc(3);
 
       // Objet équipé
       const itemHtml = unit.heldItem
@@ -241,10 +243,10 @@ export const PrepUI = {
       const unitLevel = meta?.pokemonLevels?.[unit.id] ?? 1;
 
       slot.innerHTML = `
-        <span class="type-corner tl" style="border-color:${c1} transparent transparent transparent"></span>
-        <span class="type-corner tr" style="border-color:transparent ${c2} transparent transparent"></span>
-        <span class="type-corner bl" style="border-color:transparent transparent transparent ${c1}"></span>
-        <span class="type-corner br" style="border-color:transparent transparent ${c2} transparent"></span>
+        <span class="type-corner tl" style="border-color:${cTL} transparent transparent transparent"></span>
+        <span class="type-corner tr" style="border-color:transparent ${cTR} transparent transparent"></span>
+        <span class="type-corner bl" style="border-color:transparent transparent transparent ${cBL}"></span>
+        <span class="type-corner br" style="border-color:transparent transparent ${cBR} transparent"></span>
         <img src="${unit.spriteUrl}" alt="${unit.name}"
              onerror="this.src='assets/placeholder.png'" />
         <span class="slot-name">${unit.name}</span>
@@ -706,16 +708,8 @@ export const PrepUI = {
 
     const STAT_LABELS = { hp:'❤️ HP', atk:'⚔️ ATK', def:'🛡️ DEF',
                           spa:'🔮 SP.ATK', spd_def:'💎 SP.DEF', spd:'👟 VIT' };
-    const EFFECT_LABELS = {
-      burn:'🔥 Brûlure ennemie', regen:'💧 Régénération (Eau)',
-      poison:'☠️ Empoisonnement', paralyze:'⚡ Paralysie ennemie',
-      confuse:'😵 Confusion ennemie', freeze:'❄️ Gel ennemi',
-      dodge:'🦅 Esquive 20%', crit:'🎯 Crit +30%',
-      swarm:'🦋 Essaim (chaîne)', quake:'🏔 Tremblement',
-      curse:'👻 Malédiction', intimidate:'🌑 Intimidation',
-      armor:'🛡 Armure', charm:'🧚 Charme (ciblage)',
-      rage:'🐉 Rage (+10%/mort)', iron:'⚙️ Armure Acier -20%',
-    };
+    // Libellés générés depuis statusConstants.js (synchronisés avec le moteur)
+    const EFFECT_LABELS = EFFECT_LABELS_SHORT;
 
     synergies.slice(0, 8).forEach(syn => {
       const badge = document.createElement('span');
@@ -737,9 +731,10 @@ export const PrepUI = {
         ? `<span style="color:#ffd700">${EFFECT_LABELS[syn.effect] ?? syn.effect}</span>`
         : '';
 
+      const tierLabel = syn.tier === 3 ? '3★' : syn.tier === 2 ? '2★' : '1★';
       const tooltipHtml = `
-        <div class="pop-title">${syn.icon} ${syn.type} — ${syn.tier === 3 ? '3★' : '2★'}</div>
-        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px">${syn.count} pokémons</div>
+        <div class="pop-title">${syn.icon} ${syn.type} — ${tierLabel}</div>
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:4px">${syn.count} coins réunis</div>
         ${bonusLines}
         ${effectLine ? `<br>${effectLine}` : ''}
       `;
@@ -934,8 +929,9 @@ export const PrepUI = {
     // Trois niveaux de stats
     const metaLvl = window.SaveManager?.loadMeta() ?? null;
     const relicId = getRunState(this._registry)?.relic?.id ?? null;
-    const full    = getFullStats(pokemon, fieldUnits, metaLvl, relicId);
-    const { base, withItem, withSynergy, itemBoosted, synergyBoosted, synColor } = full;
+    const talentEffects = getActiveTalentEffects(metaLvl);
+    const full    = getFullStats(pokemon, fieldUnits, metaLvl, relicId, talentEffects);
+    const { base, withItem, withSynergy, withTalent, itemBoosted, synergyBoosted, talentBoosted, synColor } = full;
 
     const hasSynColor    = !!synColor;
     const hasItemBoost   = itemBoosted.size > 0;
@@ -946,16 +942,16 @@ export const PrepUI = {
     const pLevelSvg       = metaLvl?.pokemonLevels?.[pokemon.id] ?? 1;
 
     const axes = [
-      { emoji: '❤️',  key: 'hp',      baseV: base.hp,              itemV: withItem.hp,              synV: withSynergy.hp,              max: 250, angle: -90  },
-      { emoji: '🔮',  key: 'spa',     baseV: base.spa  ?? base.atk, itemV: withItem.spa  ?? withItem.atk, synV: withSynergy.spa  ?? withSynergy.atk, max: 154, angle: -30  },
-      { emoji: '💎',  key: 'spd_def', baseV: base.spd_def ?? base.def, itemV: withItem.spd_def ?? withItem.def, synV: withSynergy.spd_def ?? withSynergy.def, max: 130, angle: 30  },
-      { emoji: '👟',  key: 'spd',     baseV: base.spd,              itemV: withItem.spd,             synV: withSynergy.spd,             max: 150, angle:  90  },
-      { emoji: '🛡️',  key: 'def',     baseV: base.def,              itemV: withItem.def,             synV: withSynergy.def,             max: 180, angle: 150 },
-      { emoji: '⚔️',  key: 'atk',     baseV: base.atk,              itemV: withItem.atk,             synV: withSynergy.atk,             max: 134, angle: 210 },
+      { emoji: '❤️',  key: 'hp',      baseV: base.hp,              itemV: withItem.hp,              synV: withSynergy.hp,              talV: withTalent.hp,              max: 250, angle: -90  },
+      { emoji: '🔮',  key: 'spa',     baseV: base.spa  ?? base.atk, itemV: withItem.spa  ?? withItem.atk, synV: withSynergy.spa  ?? withSynergy.atk, talV: withTalent.spa  ?? withTalent.atk, max: 154, angle: -30  },
+      { emoji: '💎',  key: 'spd_def', baseV: base.spd_def ?? base.def, itemV: withItem.spd_def ?? withItem.def, synV: withSynergy.spd_def ?? withSynergy.def, talV: withTalent.spd_def ?? withTalent.def, max: 130, angle: 30  },
+      { emoji: '👟',  key: 'spd',     baseV: base.spd,              itemV: withItem.spd,             synV: withSynergy.spd,             talV: withTalent.spd,             max: 150, angle:  90  },
+      { emoji: '🛡️',  key: 'def',     baseV: base.def,              itemV: withItem.def,             synV: withSynergy.def,             talV: withTalent.def,             max: 180, angle: 150 },
+      { emoji: '⚔️',  key: 'atk',     baseV: base.atk,              itemV: withItem.atk,             synV: withSynergy.atk,             talV: withTalent.atk,             max: 134, angle: 210 },
     ];
 
-    // Rétrocompatibilité : ax.value = stat finale, ax.base = stat de base
-    axes.forEach(ax => { ax.value = ax.synV; ax.base = ax.baseV; });
+    // Rétrocompatibilité : ax.value = stat finale (talents inclus), ax.base = stat de base
+    axes.forEach(ax => { ax.value = ax.talV ?? ax.synV; ax.base = ax.baseV; });
 
     // ── Décomposition détaillée par stat (pour le popover au clic) ────────────
     // base → +niveau → +objet → +synergies
@@ -972,6 +968,21 @@ export const PrepUI = {
       });
       return origins;
     };
+    // Talents qui boostent une stat donnée pour les types de ce pokémon
+    const talentOriginFor = (statKey) => {
+      const names = [];
+      (talentEffects ?? []).forEach(e => {
+        if (!e || !(pokemon.types ?? []).includes(e.type)) return;
+        const hits =
+          (e.kind === 'type_stat' && e.stat === statKey) ||
+          (e.kind === 'type_dual_stat' && (e.stats ?? []).includes(statKey)) ||
+          (e.kind === 'type_boost_highest') ||
+          (e.kind === 'type_stack_per_type') ||
+          (e.kind === 'type_stack_per_ally');
+        if (hits) names.push(e._name ?? e.type);
+      });
+      return names.length ? names.join(', ') : '';
+    };
     this._statBreakdowns = {};
     const STAT_NAMES = { hp:'❤️ PV', atk:'⚔️ Attaque', spa:'🔮 Atq. Spé.',
       def:'🛡️ Défense', spd_def:'💎 Déf. Spé.', spd:'👟 Vitesse' };
@@ -980,6 +991,7 @@ export const PrepUI = {
       const levelDelta = afterLevel - ax.baseV;
       const itemDelta  = ax.itemV - afterLevel;
       const synDelta   = ax.synV - ax.itemV;
+      const talDelta   = (ax.talV ?? ax.synV) - ax.synV;
       const rows = [`<div class="pop-row"><span>Base</span><span>${ax.baseV}</span></div>`];
       if (levelDelta !== 0)
         rows.push(`<div class="pop-row"><span>+${levelDelta} <span class="pop-origin">(Niv. ${pLevelSvg})</span></span></div>`);
@@ -992,7 +1004,11 @@ export const PrepUI = {
         const label   = origins.length ? origins.join(', ') : 'synergie';
         rows.push(`<div class="pop-row"><span>+${synDelta} <span class="pop-origin">(${label})</span></span></div>`);
       }
-      rows.push(`<div class="pop-row pop-total"><span>Total</span><span>${ax.synV}</span></div>`);
+      if (talDelta !== 0) {
+        const tl = talentOriginFor(ax.key);
+        rows.push(`<div class="pop-row"><span>+${talDelta} <span class="pop-origin" style="color:#a29bfe">(talent ${tl})</span></span></div>`);
+      }
+      rows.push(`<div class="pop-row pop-total"><span>Total</span><span>${ax.talV ?? ax.synV}</span></div>`);
       this._statBreakdowns[ax.key] =
         `<div class="pop-title">${STAT_NAMES[ax.key] ?? ax.key}</div>${rows.join('')}`;
     });
@@ -1008,8 +1024,8 @@ export const PrepUI = {
       y: cy + R * Math.min(ax.itemV / ax.max, 1) * Math.sin(toRad(ax.angle)),
     }));
     const pts = axes.map(ax => ({
-      x: cx + R * Math.min(ax.synV / ax.max, 1) * Math.cos(toRad(ax.angle)),
-      y: cy + R * Math.min(ax.synV / ax.max, 1) * Math.sin(toRad(ax.angle)),
+      x: cx + R * Math.min(ax.value / ax.max, 1) * Math.cos(toRad(ax.angle)),
+      y: cy + R * Math.min(ax.value / ax.max, 1) * Math.sin(toRad(ax.angle)),
     }));
 
     // Aliases pour la suite
@@ -1072,7 +1088,7 @@ export const PrepUI = {
       const valColor = isMain ? '#ffd700' : isSynBoost ? finalColor : isItmBoost ? '#55efc4' : '#a0aec0';
 
       // Affiche UNIQUEMENT le total final (le détail est dans le popover au clic)
-      const valueStr = `${ax.synV}`;
+      const valueStr = `${ax.value}`;
 
       const bgColor  = isMain ? '#ffd700' : isSynBoost ? finalColor : '#55efc4';
       const bgOpFill = isMain ? '0.12' : isSynBoost ? '0.12' : '0.08';
@@ -1196,6 +1212,12 @@ export const PrepUI = {
   },
 
   _proposeEvolution(baseId) {
+    // Évoli (133) : choix entre Aquali / Voltali / Pyroli
+    if (baseId === 133) {
+      this._proposeEeveeEvolution();
+      return;
+    }
+
     const evoId   = getEvolutionId(baseId);
     const evoPok  = POKEMONS.find(p => p.id === evoId);
     const basePok = POKEMONS.find(p => p.id === baseId);
@@ -1236,6 +1258,63 @@ export const PrepUI = {
     });
   },
 
+  // ── Évolution d'Évoli : choix entre Aquali / Voltali / Pyroli ──────────────
+  _proposeEeveeEvolution() {
+    const CHOICES = [
+      { id: 134, name: 'Aquali',  type: 'Eau',      icon: '💧', color: '#3498db' },
+      { id: 135, name: 'Voltali', type: 'Électrik', icon: '⚡', color: '#f1c40f' },
+      { id: 136, name: 'Pyroli',  type: 'Feu',      icon: '🔥', color: '#e74c3c' },
+    ];
+
+    const popup = document.createElement('div');
+    popup.style.cssText = `
+      position:fixed;inset:0;background:rgba(0,0,0,0.75);
+      display:flex;align-items:center;justify-content:center;z-index:500;padding:16px
+    `;
+
+    const cardsHtml = CHOICES.map(c => {
+      const pok = POKEMONS.find(p => p.id === c.id);
+      return `
+        <button class="evo-choice-card" data-evo="${c.id}"
+          style="background:var(--bg-card,#0f3460);border:2px solid ${c.color};
+                 border-radius:12px;padding:12px 8px;cursor:pointer;display:flex;
+                 flex-direction:column;align-items:center;gap:4px;min-width:90px;
+                 transition:transform 0.12s,box-shadow 0.12s">
+          <img src="${pok?.spriteUrl ?? ''}" alt="${c.name}"
+               style="width:64px;height:64px;image-rendering:pixelated;pointer-events:none"
+               onerror="this.style.display='none'" />
+          <span style="font-weight:700;color:#e2e8f0;font-size:13px;pointer-events:none">${c.name}</span>
+          <span style="font-size:11px;color:${c.color};pointer-events:none">${c.icon} ${c.type}</span>
+        </button>`;
+    }).join('');
+
+    popup.innerHTML = `
+      <div style="background:var(--bg-base,#1a1a2e);border:2px solid var(--color-gold,#ffd700);
+                  border-radius:14px;padding:24px 20px;text-align:center;max-width:360px;width:100%">
+        <p style="font-size:18px;color:var(--color-gold,#ffd700);font-weight:700;margin:0 0 4px">
+          ✨ Évolution d'Évoli
+        </p>
+        <p style="font-size:12px;color:var(--text-muted,#a0aec0);margin:0 0 18px">
+          Choisis la forme d'évolution (les 2 Évoli fusionnent).
+        </p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          ${cardsHtml}
+        </div>
+        <button id="evo-cancel" class="btn-ghost" style="margin-top:18px">✕ Annuler</button>
+      </div>
+    `;
+    document.body.appendChild(popup);
+
+    popup.querySelectorAll('.evo-choice-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const evoId = parseInt(btn.dataset.evo);
+        popup.remove();
+        this._evolve(133, evoId);
+      });
+    });
+    document.getElementById('evo-cancel').addEventListener('click', () => popup.remove());
+  },
+
   _evolve(baseId, evoId) {
     const evoPok = POKEMONS.find(p => p.id === evoId);
     if (!evoPok) return;
@@ -1248,12 +1327,15 @@ export const PrepUI = {
           if (!replaced) {
             const anomalyTypes = getRunState(this._registry)?.anomalyTypes;
           const evoTypes = anomalyTypes?.[evoId] ?? evoPok.types;
-          this._field[c][r] = {
+          const evolved = {
               ...evoPok, col: c, row: r,
               uid: u.uid, heldItem: u.heldItem ?? null,
               isInTeam: true, attributes: [],
               types: evoTypes,
             };
+            // Re-tirage des coins à l'évolution (selon les nouveaux types)
+            evolved.corners = assignCorners(evolved);
+            this._field[c][r] = evolved;
             replaced = true;
           } else {
             // Remet l'objet du 2e exemplaire dans l'inventaire

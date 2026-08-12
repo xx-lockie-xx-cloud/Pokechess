@@ -2,9 +2,10 @@
 // PokedexUI.js — Encyclopédie in-game (Synergies · Types · Capacités · Succès)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { SYNERGIES }          from '../data/synergies.js';
+import { SYNERGIES, getSynergyTierData }          from '../data/synergies.js';
 import { TYPE_CHART }         from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES } from '../data/moves.js';
+import { EFFECT_DESCRIPTIONS } from '../data/statusConstants.js';
 import { getSeenPokemon }     from '../data/runState.js';
 import { POKEMONS }           from '../data/pokemons.js';
 import { ACHIEVEMENTS, getLevelBadgeHTML, getLevelBonus, MAX_LEVEL } from '../data/levelSystem.js';
@@ -30,24 +31,8 @@ const STAT_EMOJIS = {
   hp:'❤️', atk:'⚔️', def:'🛡️', spa:'🔮', spd_def:'💎', spd:'👟',
 };
 
-const EFFECT_DESC = {
-  burn:'🔥 Brûlure : -10% ATK + 5% HP/tour sur les ennemis',
-  regen:'💧 Régénération : +4% HP/tour pour les unités Eau alliées (5 tours)',
-  poison:'☠️ Poison : -8% HP/tour sur les ennemis',
-  paralyze:'⚡ Paralysie : 25% de chance de skip/tour',
-  confuse:'😵 Confusion : 20% de chance de frapper un allié',
-  freeze:'❄️ Gel : 30% de chance de skip, se dissipe sur coup reçu',
-  dodge:'🦅 Esquive : 20% d\'esquive pour les unités Vol',
-  crit:'🎯 Coup Critique : +30% chances de crit (×1.5 dégâts)',
-  swarm:'🦋 Essaim : 15% qu\'un autre Insecte enchaîne (max 2/tour)',
-  quake:'🏔 Tremblement : -5% HP max sur tous les ennemis au début',
-  curse:'👻 Malédiction : l\'ennemi avec + de HP perd 10% HP/tour',
-  intimidate:'🌑 Intimidation : -15% ATK + SP.ATK ennemies au début',
-  armor:'🛡 Armure : le premier coup reçu est absorbé',
-  charm:'🧚 Charme : les ennemis ciblent toujours le + défensif',
-  rage:'🐉 Rage : +10% dégâts par allié Dragon KO',
-  iron:'⚙️ Armure Acier : -20% dégâts reçus pour les Acier',
-};
+// Descriptions générées depuis statusConstants.js (toujours synchronisées avec le moteur)
+const EFFECT_DESC = EFFECT_DESCRIPTIONS;
 
 const CAT_LABEL = { physical:'⚔️ Physique', special:'🔮 Spécial', status:'✨ Statut' };
 
@@ -65,7 +50,7 @@ const TARGET_LABEL = {
 export const PokedexUI = {
   _registry: null,
   _overlay:  null,
-  _tab:      'synergies',
+  _tab:      'moves',
 
   // ── Initialisation ────────────────────────────────────────────────────────
   init(registry) {
@@ -97,11 +82,11 @@ export const PokedexUI = {
   _render() {
     const content = document.getElementById('pokedex-content');
     if (!content) return;
-    const tabs = ['synergies', 'types', 'moves', 'reliques', 'achievements', 'tutorial'];
+    const tabs = ['moves', 'synergies', 'types', 'reliques', 'achievements', 'tutorial'];
     const tabLabels = {
+      moves:        '📕 Pokédex',
       synergies:    '🔗 Synergies',
       types:        '⚔️ Types',
-      moves:        '⚡ Capacités',
       reliques:     '💎 Reliques',
       achievements: '🏅 Succès',
       tutorial:     '📖 Guide',
@@ -154,8 +139,8 @@ export const PokedexUI = {
     if (this._tab === 'types')        this._renderTypes(body);
     if (this._tab === 'moves')        this._renderMoves(body);
     if (this._tab === 'reliques')     this._renderReliques(body);
-    if (this._tab === 'achievements') { AchievementsUI.open(); this._tab = 'synergies'; this._render(); return; }
-    if (this._tab === 'tutorial') { TutorialUI.open('intro'); this._tab = 'synergies'; this._render(); }
+    if (this._tab === 'achievements') { AchievementsUI.open(); this._tab = 'moves'; this._render(); return; }
+    if (this._tab === 'tutorial') { TutorialUI.open('intro'); this._tab = 'moves'; this._render(); }
   },
 
   // ── Onglet Reliques ────────────────────────────────────────────────────────
@@ -216,9 +201,22 @@ export const PokedexUI = {
 
   // ── Onglet Synergies ──────────────────────────────────────────────────────
   _renderSynergies(body) {
-    body.innerHTML = Object.entries(SYNERGIES).map(([type, syn]) => {
+    const intro = `
+      <div class="pdx-syn-intro">
+        Les synergies dépendent du <b>placement</b> : chaque carte a 4 coins colorés
+        par type. Un <b>contact</b> = un couple de coins du même type qui se touchent
+        (côte à côte ou en diagonale). Les contacts s'accumulent sur tout le terrain.
+        <div class="pdx-syn-thresholds">
+          <span><b style="color:#4fc3f7">1★</b> 1 contact</span>
+          <span><b style="color:#74b9ff">2★</b> 2 contacts</span>
+          <span><b style="color:#ffd700">3★</b> 4 contacts</span>
+        </div>
+      </div>`;
+
+    const cards = Object.entries(SYNERGIES).map(([type, syn]) => {
       const color = TYPE_COLORS[type] ?? '#888';
-      const renderTier = (tier, data) => {
+      const renderTier = (tier) => {
+        const data = getSynergyTierData(type, tier) ?? { statBonus:{}, effect:null };
         const bonuses = Object.entries(data.statBonus ?? {}).map(([stat, mult]) => {
           const pct = Math.round((mult - 1) * 100);
           return `<span class="pdx-stat-bonus">${STAT_EMOJIS[stat] ?? stat} +${pct}%</span>`;
@@ -230,7 +228,7 @@ export const PokedexUI = {
           <div class="pdx-syn-tier">
             <div class="pdx-tier-header">
               <span class="pdx-stars">${'★'.repeat(tier)}</span>
-              <span class="pdx-tier-bonuses">${bonuses}</span>
+              <span class="pdx-tier-bonuses">${bonuses || '—'}</span>
             </div>
             ${effect}
           </div>`;
@@ -240,10 +238,13 @@ export const PokedexUI = {
           <div class="pdx-syn-title">
             <span class="pdx-type-badge" style="background:${color}">${syn.icon} ${type}</span>
           </div>
-          ${renderTier(2, syn.seuil2)}
-          ${renderTier(3, syn.seuil3)}
+          ${renderTier(1)}
+          ${renderTier(2)}
+          ${renderTier(3)}
         </div>`;
     }).join('');
+
+    body.innerHTML = intro + cards;
   },
 
   // ── Onglet Types ──────────────────────────────────────────────────────────
@@ -316,7 +317,7 @@ export const PokedexUI = {
       return;
     }
 
-    body.innerHTML = entries.map(pokemon => {
+    const listHtml = entries.map(pokemon => {
       const moveKey = POKEMON_MOVES[pokemon.id];
       if (!moveKey) return '';
       const move = MOVES[moveKey];
@@ -357,52 +358,91 @@ export const PokedexUI = {
         move.recoil ? `💥 Recul ${Math.round(move.recoil*100)}%` : null,
       ].filter(Boolean);
 
+      const passivesHtml = (() => {
+        const allPassives = POKEMON_PASSIVES[pokemon.id];
+        if (!allPassives) return '';
+        const lines = [35, 70].map(threshold => {
+          const p = allPassives[threshold];
+          if (!p) return '';
+          const unlocked = pLevel >= threshold;
+          return `
+            <div class="pdx-passive-row ${unlocked ? 'unlocked' : 'locked'}">
+              <span class="pdx-passive-lvl" style="opacity:${unlocked ? 1 : 0.4}">
+                ${unlocked ? '✨' : '🔒'} Nv.${threshold}
+              </span>
+              ${unlocked
+                ? `<div>
+                    <span class="pdx-passive-name">${p.name}</span>
+                    <span class="pdx-passive-desc">${p.desc}</span>
+                   </div>`
+                : `<span class="pdx-passive-hint">Passif masqué — atteindre le niveau ${threshold}</span>`
+              }
+            </div>`;
+        }).join('');
+        return lines
+          ? `<div class="pdx-mon-sec">
+               <div class="pdx-sec-label">🧬 Passifs</div>
+               <div class="pdx-passives">${lines}</div>
+             </div>`
+          : '';
+      })();
+
       return `
-        <div class="pdx-move-entry">
-          <div class="pdx-move-pokemon">
+        <div class="pdx-mon-card" data-search="${pokemon.id} ${pokemon.name.toLowerCase()}">
+          <div class="pdx-mon-head">
             <img src="${pokemon.spriteUrl}" alt="${pokemon.name}"
                  onerror="this.src='assets/placeholder.png'"
-                 class="pdx-pokemon-sprite ${isCaught ? 'pdx-caught' : ''}" />
-            <span class="pdx-pokemon-name">#${pokemon.id} ${pokemon.name}</span>
-            ${getLevelBadgeHTML(pLevel)}
-            <div class="pdx-level-bar-wrap">
-              <div class="pdx-level-bar" style="width:${pct}%"></div>
+                 class="pdx-mon-sprite ${isCaught ? 'pdx-caught' : ''}" />
+            <div class="pdx-mon-ident">
+              <div class="pdx-mon-nameline">
+                <span class="pdx-mon-name">#${pokemon.id} ${pokemon.name}</span>
+                ${getLevelBadgeHTML(pLevel)}
+              </div>
+              <div class="pdx-mon-lvlline">
+                <div class="pdx-level-bar-wrap">
+                  <div class="pdx-level-bar" style="width:${pct}%"></div>
+                </div>
+                ${pBonus > 0 ? `<span class="pdx-level-bonus">+${pBonus}% stats</span>` : ''}
+              </div>
             </div>
-            ${pBonus > 0 ? `<span class="pdx-level-bonus">+${pBonus}% stats</span>` : ''}
           </div>
-          <div class="pdx-move-info" style="border-left-color:${color}">
-            <div class="pdx-move-header">
-              <span class="pdx-move-name-big" style="color:${color}">⚡ ${move.name}</span>
-              <span class="pdx-type-badge-sm" style="background:${color}">${move.type}</span>
+
+          <div class="pdx-mon-sec">
+            <div class="pdx-sec-label" style="color:${color}">⚡ Ultime</div>
+            <div class="pdx-mon-move" style="border-left-color:${color}">
+              <div class="pdx-move-header">
+                <span class="pdx-move-name-big" style="color:${color}">${move.name}</span>
+                <span class="pdx-type-badge-sm" style="background:${color}">${move.type}</span>
+              </div>
+              <div class="pdx-move-tags">${tags.map(t => `<span class="pdx-tag">${t}</span>`).join('')}</div>
+              ${effects ? `<div class="pdx-move-fx">${effects}</div>` : ''}
             </div>
-            <div class="pdx-move-tags">${tags.map(t => `<span class="pdx-tag">${t}</span>`).join('')}</div>
-            ${effects ? `<div class="pdx-move-fx">${effects}</div>` : ''}
           </div>
-          ${(() => {
-            const allPassives = POKEMON_PASSIVES[pokemon.id];
-            if (!allPassives) return '';
-            const lines = [35, 70].map(threshold => {
-              const p = allPassives[threshold];
-              if (!p) return '';
-              const unlocked = pLevel >= threshold;
-              return `
-                <div class="pdx-passive-row ${unlocked ? 'unlocked' : 'locked'}">
-                  <span class="pdx-passive-lvl" style="opacity:${unlocked?1:0.4}">
-                    ${unlocked ? '✨' : '🔒'} Nv.${threshold}
-                  </span>
-                  ${unlocked
-                    ? `<div>
-                        <span class="pdx-passive-name">${p.name}</span>
-                        <span class="pdx-passive-desc">${p.desc}</span>
-                       </div>`
-                    : `<span class="pdx-passive-hint">Passif masqué — atteindre le niveau ${threshold}</span>`
-                  }
-                </div>`;
-            }).join('');
-            return lines ? `<div class="pdx-passives">${lines}</div>` : '';
-          })()}
+
+          ${passivesHtml}
         </div>`;
     }).join('');
+
+    body.innerHTML = `
+      <div class="pdx-search-wrap">
+        <span class="pdx-search-icon">🔎</span>
+        <input type="text" class="pdx-search" id="pdx-search"
+               placeholder="Rechercher un Pokémon…" autocomplete="off" />
+      </div>
+      <div class="pdx-mon-list" id="pdx-mon-list">${listHtml}</div>`;
+
+    // Filtrage en direct (par nom ou numéro), sans re-render pour garder le focus
+    const input = body.querySelector('#pdx-search');
+    const list  = body.querySelector('#pdx-mon-list');
+    if (input && list) {
+      input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        list.querySelectorAll('.pdx-mon-card').forEach(card => {
+          const hay = card.dataset.search ?? '';
+          card.style.display = (!q || hay.includes(q)) ? '' : 'none';
+        });
+      });
+    }
   },
 
   // ── Onglet Achievements ───────────────────────────────────────────────────
