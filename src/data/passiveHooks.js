@@ -731,8 +731,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'aoe_status', status:'sleep', turns:2, row:'all', chance:0.30 }] } },
   },
   103: {
-    35: { id:'melodie_n', name:'Mélodie', desc:'Soigne 10% HP alliés / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.10 }] } },
+    35: { id:'melodie_n', name:'Mélodie', desc:'Soigne 4% HP alliés / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.04 }] } },
     70: { id:'hypnose_fl', name:'Hypnose Florale', desc:'Endort 1 ennemi aléatoire au début',
       hooks:{ ON_SETUP: [{ type:'aoe_status', status:'sleep', turns:2, row:'random1', chance:1.0 }] } },
   },
