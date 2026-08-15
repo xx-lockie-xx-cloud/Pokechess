@@ -156,10 +156,19 @@ export class CombatEngine {
   resolve() {
     this._setupPreCombat();
 
+    // Instantané des PV max APRÈS le setup (synergies, talents, passifs ON_SETUP,
+    // reliques) mais AVANT le combat. L'UI s'en sert pour afficher les barres de
+    // départ : lire maxHp après resolve() donnerait la valeur finale, déjà rongée
+    // par l'érosion.
+    this.initialMaxHp = {};
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      this.initialMaxHp[`${u.side}_${u.uid}`] = u.maxHp;
+    });
+
     let actionCount   = 0;    // nombre total d'actions (pour les effets périodiques)
     let globalActions = 0;    // sécurité anti-boucle infinie
     let winner        = null; // gagnant (peut être fixé par le Sablier)
-    const MAX_ACTIONS = 500;
+    const MAX_ACTIONS = 1000;
 
     // Taille du tick : chaque tick avance les barres de (speed/10) points
     // → barres moins saturées, différences de vitesse plus lisibles
@@ -505,6 +514,10 @@ export class CombatEngine {
     // Adaptabilité (talent Normal) : immunisé aux malus de stats
     if (mult < 1 && unit._noStatMalus) return;
     unit[stat] = Math.round(unit[stat] * mult);
+    // hp et maxHp sont deux champs distincts : sans cette synchro, un talent
+    // qui booste les PV augmenterait les PV courants sans lever le plafond
+    // (barre incohérente et bonus en partie perdu).
+    if (stat === 'hp') unit.maxHp = unit.hp;
   }
 
   // _resolveTurn() supprimé — remplacé par le moteur ATB dans resolve()

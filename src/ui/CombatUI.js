@@ -11,6 +11,7 @@ import { RelicEngine }                                 from '../combat/RelicEngi
 import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
 import { getActiveSynergies, getFullStats } from '../data/synergies.js';
+import { getActiveTalentEffects }           from '../data/levelSystem.js';
 
 // Multiplicateur de stats ennemies par difficulté (source unique — voir aussi
 // DIFF_BUDGETS dans MapGenerator.js : les deux se composent, cf. réglage √ratio)
@@ -622,17 +623,20 @@ export const CombatUI = {
     this._livePlayerUnits = engine.playerUnits;
     this._liveEnemyUnits  = engine.enemyUnits;
 
-    // Resynchronise les barres/labels avec les PV EXACTS du moteur (inclut les
-    // passifs ON_SETUP), pour qu'aucune valeur ne "saute" au premier dégât.
+    // Resynchronise les barres/labels avec les PV EXACTS de DÉPART du moteur
+    // (instantané pris après le setup : inclut talents et passifs ON_SETUP, sans
+    // l'érosion du combat). Sans ça, on afficherait les PV de fin de combat.
+    const initMax = engine.initialMaxHp ?? {};
     [...engine.playerUnits, ...engine.enemyUnits].forEach(u => {
       const mapKey = `${u.side}_${u.uid}`;
       if (!this._slots[mapKey]) return;
-      this._hpState[mapKey] = { current: u.maxHp, max: u.maxHp };
+      const maxHp = initMax[mapKey] ?? u.maxHp;
+      this._hpState[mapKey] = { current: maxHp, max: maxHp };
       const fill  = document.getElementById(`hp-${mapKey.replace(/_/g, '-')}`)
         ?.querySelector('.combat-hp-fill');
       if (fill) fill.style.width = '100%';
       const label = document.getElementById(`hplabel-${mapKey.replace(/_/g, '-')}`);
-      if (label) label.textContent = `${u.maxHp}/${u.maxHp}`;
+      if (label) label.textContent = `${maxHp}/${maxHp}`;
     });
 
     // ── Issue connue dès le calcul (combat pré-simulé) ────────────────────────
@@ -975,11 +979,12 @@ export const CombatUI = {
     try {
       const relicId = this._registry?.get?.('runState')?.relic?.id ?? null;
       if (side === 'player') {
+        // Chaîne IDENTIQUE à PrepUI (toile d'araignée), pour un affichage cohérent :
+        //   getActiveTalentEffects(meta) → getFullStats(...) → withTalent
         const meta    = window.SaveManager?.loadMeta?.() ?? null;
-        const talents = window.SaveManager
-          ? (this._getActiveTalentEffects?.(meta, this._playerUnits) ?? [])
-          : [];
-        const full = getFullStats(unit, this._playerUnits, meta, relicId, talents);
+        const talents = getActiveTalentEffects(meta);
+        const field   = (this._playerUnits ?? []).filter(Boolean);
+        const full    = getFullStats(unit, field, meta, relicId, talents);
         let hp = full.withTalent?.hp ?? full.withSynergy?.hp ?? baseHp;
         // Modificateur de relique (Pacte de Sang, Bénédiction, Contrat Maudit…)
         const probe = { ...unit, stats: { ...(unit.stats ?? {}), hp } };
@@ -1270,19 +1275,11 @@ export const CombatUI = {
 
   // Calcule les effets de talents actifs selon la meta et l'équipe
   _getActiveTalentEffects(meta, playerUnits) {
-    if (!meta?.talentTree) return [];
-    const effects = [];
-    // Importe dynamiquement (synchrone ici car déjà chargé)
-    const TALENT_TREES = window.__TALENT_TREES__;
-    if (!TALENT_TREES) return [];  // fallback si pas encore chargé
-    Object.entries(meta.talentTree).forEach(([type, unlockedArr]) => {
-      const tree = TALENT_TREES[type];
-      if (!tree) return;
-      tree.forEach((node, i) => {
-        if (unlockedArr[i]) effects.push({ ...node.effect, _name: node.name });
-      });
-    });
-    return effects;
+    // Source unique : le helper de levelSystem.js (même chaîne que PrepUI).
+    // L'ancienne version dépendait de window.__TALENT_TREES__, défini uniquement
+    // après ouverture de l'écran des talents : les talents étaient donc ignorés
+    // tant que le joueur n'y était pas passé.
+    return getActiveTalentEffects(meta);
   },
 
   // Met à jour la barre ATB — dorée si c'est le prochain à jouer, mauve sinon
