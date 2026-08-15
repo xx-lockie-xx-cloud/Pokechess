@@ -14,6 +14,7 @@ import { POKEMONS }                    from '../data/pokemons.js';
 import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
 import { initRun, applyAnomalyToUnits, getBSTTier } from '../data/runState.js';
+import { assignCorners }               from '../data/synergies.js';
 import { TYPE_COLORS as TC }           from '../data/pokemons.js';
 
 // IDs des starters proposés
@@ -100,6 +101,10 @@ export const StarterUI = {
     const starters    = applyAnomalyToUnits(rawStarters, this._registry);
 
     starters.forEach(pokemon => {
+      // Attribue les coins dès la présentation (fixés pour ce choix de starter)
+      if (!Array.isArray(pokemon.corners) || pokemon.corners.length !== 4) {
+        pokemon.corners = assignCorners(pokemon);
+      }
       const card = this._createCard(pokemon);
       container.appendChild(card);
     });
@@ -114,15 +119,16 @@ export const StarterUI = {
     card.className = `poke-card card-tier-${tier}`;
     card.dataset.id = pokemon.id;
 
-    const c1 = hexToCSS(TC[pokemon.types[0]] ?? 0x888888);
-    const c2 = hexToCSS(TC[pokemon.types[1]] ?? TC[pokemon.types[0]] ?? 0x888888);
+    const cn = pokemon.corners ?? assignCorners(pokemon);
+    const cc = (i) => hexToCSS(TC[cn[i]] ?? 0x888888);
+    const cTL = cc(0), cTR = cc(1), cBR = cc(2), cBL = cc(3);
 
     card.innerHTML = `
       ${buildCardFrame(tier)}
-      <span class="type-corner tl" style="border-color: ${c1} transparent transparent transparent"></span>
-      <span class="type-corner tr" style="border-color: transparent ${c2} transparent transparent"></span>
-      <span class="type-corner bl" style="border-color: transparent transparent transparent ${c1}"></span>
-      <span class="type-corner br" style="border-color: transparent transparent ${c2} transparent"></span>
+      <span class="type-corner tl" style="border-color: ${cTL} transparent transparent transparent"></span>
+      <span class="type-corner tr" style="border-color: transparent ${cTR} transparent transparent"></span>
+      <span class="type-corner bl" style="border-color: transparent transparent transparent ${cBL}"></span>
+      <span class="type-corner br" style="border-color: transparent transparent ${cBR} transparent"></span>
       <img src="${pokemon.spriteUrl}" alt="${pokemon.name}"
            onerror="this.src='assets/placeholder.png'" />
       <span class="card-name">${pokemon.name}</span>
@@ -261,6 +267,11 @@ export const StarterUI = {
 
     newBtn.addEventListener('click', () => {
       if (!this._selected) return;
+      // Les coins ont déjà été attribués à la présentation de la carte ; on s'assure
+      // juste qu'ils existent (rétro-compat) sans re-tirer.
+      if (!Array.isArray(this._selected.corners) || this._selected.corners.length !== 4) {
+        this._selected.corners = assignCorners(this._selected);
+      }
       console.log('Starter confirmé :', this._selected.name);
       initRun(this._registry, this._selected);
       console.log('playerUnits après initRun :', this._registry.get('playerUnits'));
@@ -271,6 +282,7 @@ export const StarterUI = {
         const units = this._registry.get('playerUnits') ?? [];
         const clone = { ...this._selected,
           uid: this._selected.id + '_clone_' + Date.now(),
+          corners: assignCorners(this._selected),
           col: 1, row: 0, isInTeam: true };
         this._registry.set('playerUnits', [...units, clone]);
       }

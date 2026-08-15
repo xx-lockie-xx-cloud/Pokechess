@@ -165,7 +165,7 @@ export const RELICS = {
     id: 'doppelganger', name: 'Doppelgänger', icon: '👥',
     desc: 'Chaque pokémon capturé ou acheté arrive en double, mais coûte le double en pièces.',
     category: 'progression',
-    unlockAchievement: 'reptincel_100',
+    unlockAchievement: 'lv100_plante_1',
     apply: { kind: 'double_capture' },
     hooks: { ECON_CAPTURE: 2 },
   },

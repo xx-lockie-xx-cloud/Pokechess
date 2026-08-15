@@ -9,6 +9,7 @@
   /* Couleurs principales */
   --bg-base:       #1a1a2e;
   --bg-panel:      #16213e;
+  --bg-elevated:   #243150;
   --bg-card:       #0f3460;
   --bg-card-hover: #1a2e4a;
   --bg-overlay:    rgba(0, 0, 0, 0.82);
@@ -371,6 +372,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 .btn-secondary:hover:not(:disabled) { background: rgba(255,215,0,0.12); }
 
+/* Image sur le bouton Pokédex — ajustée au bouton */
+.btn-pokedex-img {
+  height: 20px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  vertical-align: middle;
+  display: inline-block;
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--text-muted);
@@ -389,6 +400,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .btn-gold:hover:not(:disabled) { filter: brightness(1.1); }
 
 .btn-large { padding: 14px 36px; font-size: 16px; }
+.btn-combat-launch { padding: 11px 30px; font-size: 15px; }
 
 .btn-close {
   background: transparent;
@@ -1469,8 +1481,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 /* ── Slots de combat ──────────────────────────────────────────────────────── */
 .combat-slot {
-  width:  var(--slot-size);
-  height: var(--slot-size);
+  width:  var(--combat-slot-size, var(--slot-size));
+  height: var(--combat-slot-size, var(--slot-size));
   background: var(--bg-panel);
   border: 1.5px solid var(--border-default);
   border-radius: var(--radius-sm);
@@ -1538,9 +1550,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 .combat-sprite {
-  width:  var(--sprite-size) !important;
-  height: var(--sprite-size) !important;
-  object-fit: none;
+  width:  var(--combat-sprite-size, var(--sprite-size)) !important;
+  height: var(--combat-sprite-size, var(--sprite-size)) !important;
+  object-fit: none;        /* sprite 96px natif → net, sans redimensionnement */
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
@@ -1608,6 +1620,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 .btn-speed:hover { background: rgba(255,255,255,0.13); color: var(--text-primary); }
+.btn-speed.locked { opacity: 0.55; cursor: default; }
+.btn-speed.locked:hover { background: rgba(255,255,255,0.07); color: var(--text-secondary); }
 .btn-speed.active {
   background: rgba(255,215,0,0.15);
   border-color: var(--color-gold);
@@ -2175,8 +2189,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 .pokedex-panel {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
+  background: #16213e;   /* solide (var --bg-elevated n'était pas défini → transparent) */
+  border: 1px solid #2d3a5c;
   border-radius: var(--radius-lg);
   width: min(900px, 100%);
   max-height: 88vh;
@@ -2212,8 +2226,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 /* ── Tabs ────────────────────────────────────────────────────────────────── */
 .pdx-tabs {
   display: flex;
-  gap: 2px;
-  padding: 10px 12px 0;
+  gap: 3px;
+  padding: 8px 10px 0;
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
   overflow-x: auto;        /* scroll horizontal des onglets */
@@ -2223,27 +2237,31 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .pdx-tabs::-webkit-scrollbar { display: none; }
 
 .pdx-tab {
-  flex-shrink: 0;          /* empêche les onglets de se comprimer */
-}
-
-.pdx-tab {
-  padding: 6px 16px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
+  flex-shrink: 0;                 /* empêche les onglets de se comprimer */
+  position: relative;
+  padding: 7px 15px 8px;
+  background: #0f1830;            /* onglet inactif : en retrait */
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
+  border: 1px solid var(--border-default);
+  border-bottom: none;
+  border-radius: 9px 9px 0 0;     /* coins supérieurs arrondis (style Chrome) */
+  margin-bottom: -1px;            /* chevauche la bordure du corps */
+  white-space: nowrap;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .pdx-tab.active {
+  background: var(--bg-panel);                  /* même fond que le corps → "soudé" */
   color: var(--color-gold);
-  border-bottom-color: var(--color-gold);
+  border-bottom: 1px solid var(--bg-panel);     /* masque la bordure sous l'onglet actif */
+  z-index: 2;
 }
 
 .pdx-tab:hover:not(.active) {
+  background: #1a2747;
   color: var(--text-secondary);
 }
 
@@ -2260,6 +2278,23 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 /* ── Synergies ───────────────────────────────────────────────────────────── */
+.pdx-syn-intro {
+  font-size: 11px;
+  color: #b8c0d0;
+  line-height: 1.5;
+  background: #16213e;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.pdx-syn-thresholds {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #e2e8f0;
+}
 .pdx-syn-card {
   background: var(--bg-base);
   border-left: 3px solid;
@@ -2382,7 +2417,67 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   font-weight: 700;
 }
 
-/* ── Capacités ───────────────────────────────────────────────────────────── */
+/* ── Pokédex : recherche + fiche structurée (layout A) ──────────────────────── */
+.pdx-search-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-panel);
+  padding: 2px 0 8px;
+  margin-bottom: 2px;
+}
+.pdx-search-icon { font-size: 13px; opacity: 0.7; }
+.pdx-search {
+  flex: 1;
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 8px 12px;
+  outline: none;
+}
+.pdx-search:focus { border-color: var(--color-gold); }
+.pdx-search::placeholder { color: var(--text-muted); }
+
+.pdx-mon-list { display: flex; flex-direction: column; gap: 10px; }
+
+.pdx-mon-card {
+  background: var(--bg-base);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pdx-mon-head { display: flex; align-items: center; gap: 10px; }
+.pdx-mon-sprite {
+  width: 52px;
+  height: 52px;
+  image-rendering: pixelated;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.pdx-mon-ident { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.pdx-mon-nameline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pdx-mon-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.pdx-mon-lvlline { display: flex; align-items: center; gap: 8px; }
+
+.pdx-mon-sec { display: flex; flex-direction: column; gap: 5px; }
+.pdx-sec-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.pdx-mon-move { border-left: 3px solid; padding-left: 10px; }
+
+/* ── Capacités (anciens styles, conservés pour compat) ──────────────────────── */
 .pdx-move-entry {
   display: flex;
   gap: 10px;
@@ -2602,6 +2697,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
 
+  /* ── 0. Combat : frames AGRANDIES (slot ~108px / sprite natif ~96px) ──────
+     Variables dédiées au combat UNIQUEMENT (la prép garde --slot-size petit).
+     min(..., vw) : se réduit sur les très petits écrans pour rester à l'écran. */
+  :root {
+    --combat-slot-size:   min(108px, 28vw);
+    --combat-sprite-size: calc(var(--combat-slot-size) - 12px);
+  }
+
   /* ── 1. Header : icônes uniquement, pas de texte ─────────────────────────
      On masque le texte des boutons et on réduit leur taille
      pour éviter la congestion sur petits écrans               */
@@ -2609,6 +2712,13 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .btn-team-text,
   .btn-pokedex-text {
     display: none;
+  }
+
+  /* L'image Pokédex remplit le bouton carré 36px (petite marge) */
+  #btn-pokedex .btn-pokedex-img {
+    height: 28px;
+    width: 28px;
+    object-fit: contain;
   }
 
   #btn-menu-home,
@@ -2646,9 +2756,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   }
 
   .combat-sprite {
-    /* Sprite réduit et contenu dans le slot */
-    width:  calc(var(--slot-size) - 14px) !important;
-    height: calc(var(--slot-size) - 14px) !important;
+    /* Suit la taille combat dédiée (≈96px au plafond → quasi natif et net) */
+    width:  var(--combat-sprite-size) !important;
+    height: var(--combat-sprite-size) !important;
     object-fit: contain !important;
     max-width:  100%;
     max-height: 100%;
@@ -3715,6 +3825,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 /* Log passif */
 .log-passive { color: #a29bfe; font-style: italic; }
+.log-talent  { color: #c4a3ff; font-weight: 700; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ACHIEVEMENT TOAST
@@ -4163,16 +4274,19 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 /* ── Info relique avant combat ─────────────────────────────────────────────── */
 .combat-relic-info {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #a29bfe;
   text-align: center;
-  padding: 6px 12px;
+  padding: 4px 12px;
   background: rgba(162,155,254,0.1);
   border: 1px solid rgba(162,155,254,0.3);
   border-radius: 8px;
-  margin-bottom: 6px;
-  width: 100%;
+  margin: 0 auto 6px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Badges reliques dans PrepUI ──────────────────────────────────────────── */
@@ -4299,9 +4413,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .menu-grid-2col { margin: 8px auto 6px; }
 }
 
-  50%       { box-shadow: 0 0 24px rgba(255, 215, 0, 1); }
-}
-
 /* ── Popover partagé (stats détaillées, synergies) — viewport-safe ────────── */
 .shared-popover {
   background: #2a3a5c !important;   /* solide, plus clair que le fond PrepUI */
@@ -4395,6 +4506,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   gap: 14px;
   padding: 8px 4px;
   width: 100%;
+  max-width: 560px;   /* évite l'étirement sur grand écran */
+  margin: 0 auto;
 }
 
 /* Bannière dorée lumineuse */
@@ -4442,13 +4555,121 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 /* Rangée des 8 badges (apparition échelonnée) */
+/* Badges sur 2 lignes uniformes (4 + 4) */
+.lv-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
 .lv-badges-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
-  gap: 8px;
-  max-width: 320px;
+  gap: 10px;
 }
+
+/* Pastille de difficulté de la run */
+.lv-difficulty {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 4px 14px;
+  border: 1.5px solid;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.25);
+}
+
+/* ── Première victoire en EXPERT : sceau d'honneur ────────────────────────── */
+.lv-expert-seal {
+  margin: 6px auto 2px;
+  width: 100%;
+  max-width: min(420px, 92vw);
+  box-sizing: border-box;
+  padding: clamp(12px, 3.5vw, 20px);
+  border: 2px solid var(--color-gold);
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(255,215,0,0.14), rgba(255,215,0,0.03));
+  box-shadow: 0 0 26px rgba(255,215,0,0.35), inset 0 0 20px rgba(255,215,0,0.08);
+  text-align: center;
+  /* will-change évite le reflow saccadé pendant l'animation d'entrée */
+  will-change: transform, opacity;
+  animation: lv-expert-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) 0.5s both;
+}
+.lv-expert-crown {
+  font-size: clamp(32px, 9vw, 44px);
+  line-height: 1;
+  animation: lv-crown-float 2.6s ease-in-out infinite;
+}
+.lv-expert-title {
+  font-size: clamp(15px, 4.4vw, 19px);
+  font-weight: 900;
+  letter-spacing: 0.10em;
+  color: var(--color-gold);
+  margin-top: 6px;
+  text-shadow: 0 0 14px rgba(255,215,0,0.6);
+}
+.lv-expert-sub {
+  font-size: clamp(10px, 2.8vw, 12px);
+  color: var(--text-secondary);
+  margin-top: 2px;
+  margin-bottom: 10px;
+}
+.lv-expert-note {
+  font-size: clamp(11px, 3vw, 13px);
+  line-height: 1.6;
+  color: var(--text-primary);
+  text-align: left;
+  border-top: 1px solid rgba(255,215,0,0.25);
+  padding-top: 10px;
+}
+.lv-expert-note p { margin: 0 0 7px; }
+.lv-expert-stats {
+  list-style: none;
+  margin: 4px 0 10px;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.22);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lv-expert-stats li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: clamp(10.5px, 2.9vw, 12.5px);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.lv-expert-stats li > .lv-stat-ico { flex-shrink: 0; line-height: 1.45; }
+.lv-expert-stats li .lv-stat-body { flex: 1; min-width: 0; }
+.lv-expert-stats li .lv-stat-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.92em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.lv-expert-stats strong { white-space: nowrap; }
+.lv-expert-stats strong { color: var(--color-gold); font-weight: 800; }
+.lv-expert-stats em { color: var(--text-primary); font-style: italic; }
+.lv-expert-sign {
+  text-align: right;
+  font-weight: 800;
+  color: var(--color-gold);
+  font-style: italic;
+}
+@keyframes lv-expert-in {
+  from { opacity: 0; transform: scale(0.85) translateY(14px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes lv-crown-float {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50%      { transform: translateY(-6px) rotate(4deg); }
+}
+
 .lv-badge, .lv-badge-fallback {
   width: 34px;
   height: 34px;
@@ -4503,3 +4724,104 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   0%   { transform: scale(0.8); opacity: 0; }
   100% { transform: scale(1);   opacity: 1; }
 }
+
+/* ── Choix de seed (menu nouvelle partie) ─────────────────────────────────── */
+.seed-chooser {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.seed-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a0aec0;
+  cursor: pointer;
+  user-select: none;
+}
+.seed-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: #ffd700;
+  cursor: pointer;
+}
+.seed-input {
+  width: 100%;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #4a5a7c;
+  background: #2a3a5c;
+  color: #e2e8f0;
+  font-size: 13px;
+  text-align: center;
+  outline: none;
+}
+.seed-input::placeholder { color: #718096; }
+.seed-input:focus { border-color: #ffd700; }
+
+/* ── Fenêtre de confirmation (remplace confirm() natif) ───────────────────── */
+.ui-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(6, 10, 24, 0.72);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.ui-confirm-overlay.visible { opacity: 1; }
+
+.ui-confirm-box {
+  width: 100%;
+  max-width: min(340px, 90vw);
+  box-sizing: border-box;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 20px 20px 16px;
+  text-align: center;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  transform: scale(0.92) translateY(10px);
+  transition: transform 0.22s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+.ui-confirm-overlay.visible .ui-confirm-box { transform: scale(1) translateY(0); }
+
+.ui-confirm-icon  { font-size: 34px; line-height: 1; margin-bottom: 6px; }
+.ui-confirm-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.ui-confirm-msg {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+.ui-confirm-msg strong { color: var(--color-gold); white-space: nowrap; }
+
+.ui-confirm-actions { display: flex; gap: 10px; }
+.ui-confirm-actions button {
+  flex: 1;
+  padding: 11px 10px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+.ui-confirm-actions button:hover  { filter: brightness(1.12); }
+.ui-confirm-actions button:active { transform: translateY(1px); }
+.ui-confirm-yes { background: linear-gradient(160deg, #2ecc71, #21a25a); }
+.ui-confirm-no  { background: linear-gradient(160deg, #e74c3c, #c0392b); }

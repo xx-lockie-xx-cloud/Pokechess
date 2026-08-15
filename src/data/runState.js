@@ -41,7 +41,8 @@ export function initRun(registry, starterPokemon) {
     inventory:     [],
     playerBank:    [],
     unlockedSlots: 3,
-    seenPokemon:   [],
+    seenPokemon:   [starterPokemon.id],
+    caughtPokemon: [starterPokemon.id],
     loopCount:     0,
     difficulty:    prev.difficulty   ?? 'easy',
     seed:          prev.seed         ?? String(Date.now()),
@@ -117,7 +118,12 @@ export function addToBank(registry, pokemon) {
   if (bank.length >= BANK_MAX_SIZE) return false;
   const uid = `${pokemon.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   bank.push({ ...pokemon, uid, isInTeam: true });
-  setRunState(registry, { playerBank: bank });
+  // Enregistre l'espèce comme capturée (et vue) — sert au Pokédex et aux succès
+  const caught = state.caughtPokemon ?? [];
+  const seen   = state.seenPokemon   ?? [];
+  if (!caught.includes(pokemon.id)) caught.push(pokemon.id);
+  if (!seen.includes(pokemon.id))   seen.push(pokemon.id);
+  setRunState(registry, { playerBank: bank, caughtPokemon: caught, seenPokemon: seen });
   return true;
 }
 export function removeFromBank(registry, pokemonId) {

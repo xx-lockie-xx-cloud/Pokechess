@@ -62,6 +62,7 @@ export const EVOLUTION_CHAIN = {
   100: 101,  // Voltorbe → Électrode
   102: 103,  // Nœunœuf → Noadkoko
   104: 105,  // Osselait → Ossatueur
+  109: 110,  // Smogo → Smogogo
   111: 112,  // Rhinocorne → Rhinoféros
   116: 117,  // Hypotrempe → Hypocéan
   118: 119,  // Poisson-Rouge → Poissoroy

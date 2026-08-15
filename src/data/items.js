@@ -42,6 +42,7 @@ export const ITEMS = {
     id: 'rappel', name: 'Rappel', emoji: '💊', price: 5,
     type: 'consumable',
     description: 'Ranime un Pokémon K.O. avec 50% HP.',
+    reviveRate: 0.50 
   },
   super_bonbon: {
     id: 'super_bonbon', name: 'Super Bonbon', emoji: '🍬', price: 6,

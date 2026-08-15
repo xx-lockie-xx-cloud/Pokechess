@@ -38,10 +38,10 @@ export const NODE_TYPES = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 const DIFF_BUDGETS = {
-  easy:   { exp: 0.8, min: 400, max: 1800 },
-  normal: { exp: 1.0, min: 480, max: 2400 },
-  hard:   { exp: 1.3, min: 560, max: 3200 },
-  expert: { exp: 1.7, min: 640, max: 4200 },
+  easy:   { exp: 0.8,  min: 400, max: 1800 },
+  normal: { exp: 1.0,  min: 480, max: 2400 },
+  hard:   { exp: 1.15, min: 537, max: 2683 },  // budget ×√1.25 (combiné avec diffMult → ~1.25×)
+  expert: { exp: 1.3,  min: 588, max: 2939 },  // budget ×√1.5  (combiné avec diffMult → ~1.5×)
 };
 
 function budgetForStep(mapIndex, col, totalCols, difficulty = 'normal') {
@@ -92,6 +92,25 @@ export class MapGenerator {
   // ── Génère un seed aléatoire (à stocker dans la save) ─────────────────────
   static generateSeed() {
     return Math.floor(Math.random() * 2147483647);
+  }
+
+  // Normalise une seed saisie par le joueur (nombre OU texte) en entier valide.
+  // Retourne null si vide (→ seed aléatoire). Le texte est hashé en nombre.
+  static normalizeSeed(input) {
+    if (input == null) return null;
+    const s = String(input).trim();
+    if (s === '') return null;
+    // Purement numérique → entier direct
+    if (/^\d+$/.test(s)) {
+      const n = parseInt(s, 10);
+      return (n % 2147483647) >>> 0;
+    }
+    // Sinon : hash de chaîne (déterministe) → nombre
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;  // djb2
+    }
+    return (h % 2147483647) >>> 0;
   }
 
   // ── Génère la map depuis un seed ──────────────────────────────────────────

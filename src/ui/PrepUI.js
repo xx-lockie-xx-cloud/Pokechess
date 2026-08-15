@@ -658,14 +658,20 @@ export const PrepUI = {
   },
 
   // Vend l'objet tenu par le pokémon sélectionné (moitié du prix d'achat)
-  _sellItem() {
+  async _sellItem() {
     if (!this._selectedCard) return;
     const { pokemon, source, col, row, idx } = this._selectedCard;
     if (!pokemon?.heldItem) return;
     const item      = pokemon.heldItem;
     const sellMult  = RelicEngine.sellMult(getRunState(this._registry)?.relic?.id);
     const sellPrice = Math.max(0, Math.floor((item.price ?? 4) * sellMult));
-    const ok = confirm(`Vendre ${item.emoji} ${item.name} pour ${sellPrice} 💰 ?`);
+    const ok = await (window.UIManager?.confirm?.({
+      icon:    item.emoji ?? '💰',
+      title:   `Vendre ${item.name} ?`,
+      message: `Tu récupéreras <strong>${sellPrice} 💰</strong>.`,
+      yesLabel: 'Vendre',
+      noLabel:  'Annuler',
+    }) ?? Promise.resolve(confirm(`Vendre ${item.name} pour ${sellPrice} 💰 ?`)));
     if (!ok) return;
     addCoins(this._registry, sellPrice);
 

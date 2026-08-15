@@ -5,6 +5,7 @@
 import { getTypeMultiplier }           from '../data/typeChart.js';
 import { MOVES, POKEMON_MOVES, getMove } from '../data/moves.js';
 import { TALENT_TREES }                   from '../data/levelSystem.js';
+import { STATUS_VALUES }                  from '../data/statusConstants.js';
 import { PassiveEngine }                 from './PassiveEngine.js';
 import { RelicEngine }                   from './RelicEngine.js';
 
@@ -96,6 +97,9 @@ export class CombatEngine {
     return unit.statusEffects.some(s => s.type === type);
   }
   _addStatus(unit, type, turns = -1) {
+    // L'empoisonnement dure 2× plus longtemps (favorise l'accumulation de stacks).
+    // Le poison permanent (turns = -1) reste permanent.
+    if (type === 'poison' && turns > 0) turns *= 2;
     // Immunité aux statuts (posée par ON_SETUP status_immunity)
     if (unit._statusImmuneList?.includes(type)) return;
     if (unit._statusImmune) return;
@@ -131,6 +135,10 @@ export class CombatEngine {
     unit.tempMods.filter(m => m.stat === stat).forEach(m => { val *= m.mult; });
     if (unit.rageStack?.stat === stat && unit.rageStack.count > 0) {
       val *= Math.pow(unit.rageStack.mult, unit.rageStack.count);
+    }
+    // Adaptabilité (talent Normal) : bonus tous-stats cumulé par coup reçu
+    if (unit._allStatRage?.acc > 0) {
+      val *= (1 + unit._allStatRage.acc);
     }
     return Math.max(1, Math.round(val));
   }
@@ -242,6 +250,17 @@ export class CombatEngine {
     // Charge les passifs dans chaque unité
     [...this.playerUnits, ...this.enemyUnits].forEach(u => this._loadPassives(u));
 
+    // Objets tenus à effet de résurrection (Rappel) : réutilise le mécanisme
+    // _reviveRate consommé dans _handleFaint. L'objet n'est PAS consommé, mais
+    // la résurrection ne s'applique qu'une fois par combat (garde _revived).
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      const rate = u.heldItem?.reviveRate;
+      if (rate > 0) {
+        u._reviveRate = Math.max(u._reviveRate ?? 0, rate);
+        u._reviveItem = u.heldItem.name;
+      }
+    });
+
     // Effets de relique pré-combat
     if (this.relicId) {
       RelicEngine.applyPreCombat(this.relicId, this.playerUnits, this.enemyUnits);
@@ -256,6 +275,14 @@ export class CombatEngine {
     // Talents
     this._applyTalents('player', this.playerUnits, this.enemyUnits);
     this._applyTalents('enemy',  this.enemyUnits,  this.playerUnits);
+
+    // Résumé des talents actifs au début du combat (affichage groupé)
+    const talentList = (this._playerTalents ?? [])
+      .map(e => `${e.type ?? ''} — ${e._name ?? ''}`.trim())
+      .filter(Boolean);
+    if (talentList.length) {
+      this.log.push({ type:'talent_summary', talents: talentList });
+    }
     this._applyPreEffects('player', this.playerFx, this.enemyUnits, this.playerUnits);
     this._applyPreEffects('enemy',  this.enemyFx,  this.playerUnits, this.enemyUnits);
     // Armure Roche
@@ -296,7 +323,7 @@ export class CombatEngine {
     Object.keys(statusMap).forEach(eff => {
       if (!fx.has(eff)) return;
       enemies.forEach(u => {
-        if (eff === 'burn') this._applyPermStat(u, 'atk', 0.90);
+        if (eff === 'burn') this._applyPermStat(u, 'atk', STATUS_VALUES.burnAtkMult);
         this._addStatus(u, eff, synergyStatusTurns[eff] ?? -1);
       });
     });
@@ -355,7 +382,10 @@ export class CombatEngine {
           break;
         case 'type_revive':
           allies.filter(u => u.types.includes(e.type))
-            .forEach(u => { u._reviveRate = Math.max(u._reviveRate ?? 0, e.rate); });
+            .forEach(u => {
+              u._reviveRate = Math.max(u._reviveRate ?? 0, e.rate);
+              u._reviveTalent = e.type;   // origine talent (pour le log)
+            });
           break;
         case 'type_proc':
           // stocké dans _talentProcs, vérifié dans _checkPassiveTriggers
@@ -400,6 +430,48 @@ export class CombatEngine {
             this._applyPermStat(u, best, e.mult);
           });
           break;
+        case 'type_stack_per_type': {
+          // +per_type par type distinct dans l'équipe, sur toutes les stats
+          const distinct = new Set(allies.flatMap(u => u.types ?? [])).size;
+          const m = 1 + (e.per_type ?? 0) * distinct;
+          allies.filter(u => u.types.includes(e.type)).forEach(u =>
+            ['hp','atk','spa','def','spd_def','spd'].forEach(s => this._applyPermStat(u, s, m)));
+          break;
+        }
+        case 'type_stack_per_ally': {
+          const cnt = allies.filter(u => u.types.includes(e.type)).length;
+          const m = 1 + (e.per ?? e.per_ally ?? 0) * cnt;
+          allies.filter(u => u.types.includes(e.type)).forEach(u =>
+            ['hp','atk','spa','def','spd_def','spd'].forEach(s => this._applyPermStat(u, s, m)));
+          break;
+        }
+        case 'type_resilience':
+          // Adaptabilité (Normal) : immunité aux malus + rage tous-stats par coup reçu
+          allies.filter(u => u.types.includes(e.type)).forEach(u => {
+            u._noStatMalus  = true;
+            u._allStatRage  = { rate: e.ragePerHit ?? 0.02, max: e.max ?? 0.40, acc: 0 };
+          });
+          break;
+        case 'type_conditional_stat':
+          // Boost conditionnel (ex : si PV < seuil) — vérifié dynamiquement
+          allies.filter(u => u.types.includes(e.type)).forEach(u => {
+            u._conditionalStats = [...(u._conditionalStats ?? []), e];
+          });
+          break;
+        case 'type_once_push_front':
+          // Place les alliés du type sur la rangée avant au début du combat
+          allies.filter(u => u.types.includes(e.type)).forEach(u => { u.row = 0; });
+          break;
+        case 'type_once_untargetable':
+          // Intouchable au premier ciblage (consommé par la logique de ciblage)
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._onceUntargetable = true; });
+          break;
+        case 'type_swarm_on_ko':
+          // Boost des alliés du type quand l'un d'eux tombe (consommé dans _handleFaint)
+          allies.filter(u => u.types.includes(e.type))
+            .forEach(u => { u._swarmOnKo = { stat: e.stat ?? 'atk', mult: e.mult ?? 1.15 }; });
+          break;
         case 'type_regen_all':
           // stocké dans _talentRegens, déclenché dans _resolveEndOfTurn
           this._talentRegens = this._talentRegens ?? [];
@@ -430,6 +502,8 @@ export class CombatEngine {
   // Passifs à la mort d'une unité
 
   _applyPermStat(unit, stat, mult) {
+    // Adaptabilité (talent Normal) : immunisé aux malus de stats
+    if (mult < 1 && unit._noStatMalus) return;
     unit[stat] = Math.round(unit[stat] * mult);
   }
 
@@ -470,10 +544,10 @@ export class CombatEngine {
       // Gel : -25% VIT, se lève après 2 actions propres du pokémon
       const freezeSt = unit.statusEffects.find(s => s.type === 'freeze');
       if (freezeSt) {
-        freezeSt._actionsLeft = (freezeSt._actionsLeft ?? 2);
+        freezeSt._actionsLeft = (freezeSt._actionsLeft ?? STATUS_VALUES.freezeActions);
         // Applique le malus VIT via tempMod si pas encore présent
         if (!unit.tempMods.some(m => m._freeze)) {
-          unit.tempMods.push({ stat:'spd', mult:0.75, turnsLeft:-1, _freeze:true });
+          unit.tempMods.push({ stat:'spd', mult:STATUS_VALUES.freezeSpdMult, turnsLeft:-1, _freeze:true });
         }
         freezeSt._actionsLeft--;
         this.log.push({ type:'passive_trigger', effect:'freeze',
@@ -488,12 +562,12 @@ export class CombatEngine {
         }
       }
     }
-    if (this._hasStatus(unit, 'paralyze') && Math.random() < 0.25) {
+    if (this._hasStatus(unit, 'paralyze') && Math.random() < STATUS_VALUES.paralyzeSkipChance) {
       this.log.push({ type:'attack_skipped', reason:'paralyze', label:'⚡ Paralysé !',
         attackerId:unit.uid, attackerSide:unit.side });
       return;
     }
-    if (this._hasStatus(unit, 'confuse') && Math.random() < 0.20) {
+    if (this._hasStatus(unit, 'confuse') && Math.random() < STATUS_VALUES.confuseHitAllyChance) {
       const allies = this._alliesOf(unit).filter(u => u.hp > 0 && u.uid !== unit.uid);
       if (allies.length > 0) {
         const victim = allies[Math.floor(Math.random() * allies.length)];
@@ -549,7 +623,19 @@ export class CombatEngine {
   // Ciblage (attaque normale)
   // ─────────────────────────────────────────────────────────────────────────
   _getTargets(unit) {
-    const enemies = this._enemiesOf(unit).filter(u => u.hp > 0 && u.untargetable === 0);
+    let pool = this._enemiesOf(unit).filter(u => u.hp > 0 && u.untargetable === 0);
+    // Talent "Intouchable une fois" : les protégés esquivent le 1er ciblage (puis consommé)
+    const protectedOnce = pool.filter(u => u._onceUntargetable);
+    if (protectedOnce.length) {
+      const available = pool.filter(u => !u._onceUntargetable);
+      protectedOnce.forEach(u => {
+        u._onceUntargetable = false;   // esquive consommée
+        this.log.push({ type:'talent_trigger', talentType:(u.types?.[0] ?? ''),
+          label:`${u.name} esquive (Intouchable) !` });
+      });
+      if (available.length) pool = available;  // sinon ils redeviennent ciblables
+    }
+    const enemies = pool;
     if (!enemies.length) return [];
 
     const hasPortee  = unit.attributes.includes('portée');
@@ -1075,6 +1161,8 @@ export class CombatEngine {
       targetId:     target.uid,   targetName:   target.name,   targetSide:   target.side,
       damage, multiplier: mult, typeMult, isSwarm,
       isMove:       !!move, moveName: move?.name ?? null,
+      // Catégorie : capacité → move.cat ; attaque de base → physique si ATK≥SP.ATK
+      category:     move?.cat ?? (((attacker.atk ?? 0) >= (attacker.spa ?? 0)) ? 'physical' : 'special'),
       // Type de l'attaque : type du move, sinon dernier type utilisé par l'attaquant
       attackType:   move?.type ?? attacker._lastAttackType ?? attacker.types?.[0] ?? 'Normal',
       targetHpLeft: target.hp, targetMaxHp: target.maxHp,
@@ -1086,6 +1174,12 @@ export class CombatEngine {
     // Passifs post-attaque
     this._runHook('ON_ATTACK',  attacker, { target, damage, enemies:this.enemyUnits,  allies:this.playerUnits });
     this._runHook('ON_RECEIVE', target,   { attacker, damage, enemies:this.playerUnits, allies:this.enemyUnits });
+
+    // Adaptabilité (talent Normal) : +X% tous-stats par coup reçu (plafonné)
+    if (target._allStatRage && target.hp > 0 && damage > 0) {
+      const r = target._allStatRage;
+      r.acc = Math.min((r.acc ?? 0) + r.rate, r.max);
+    }
 
     if (target.hp <= 0) this._handleFaint(target);
   }
@@ -1187,7 +1281,7 @@ export class CombatEngine {
       const burnStatus = u.statusEffects.find(s => s.type === 'burn');
       if (burnStatus) {
         const burnStacks = burnStatus.stacks ?? 1;
-        const dmg = Math.max(1, Math.ceil(u.maxHp * 0.05 * burnStacks));
+        const dmg = Math.max(1, Math.ceil(u.maxHp * STATUS_VALUES.burnDmgPerStack * burnStacks));
         u.hp = Math.max(0, u.hp - dmg);
         this.log.push({ type:'effect_damage', effect:'burn',
           label: burnStacks > 1 ? `🔥×${burnStacks}` : '🔥',
@@ -1199,7 +1293,7 @@ export class CombatEngine {
       const poisonStatus = u.statusEffects.find(s => s.type === 'poison');
       if (poisonStatus) {
         const stacks = poisonStatus.stacks ?? 1;
-        const dmg    = Math.max(1, Math.ceil(u.maxHp * 0.03 * stacks));
+        const dmg    = Math.max(1, Math.ceil(u.maxHp * STATUS_VALUES.poisonDmgPerStack * stacks));
         u.hp = Math.max(0, u.hp - dmg);
         this.log.push({ type:'effect_damage', effect:'poison',
           label: stacks > 1 ? `☠️×${stacks}` : '☠️',
@@ -1405,6 +1499,14 @@ export class CombatEngine {
     if (unit._reviveRate > 0 && !unit._revived) {
       unit._revived = true;
       unit.hp = Math.max(1, Math.ceil(unit.maxHp * unit._reviveRate));
+      if (unit._reviveTalent) {
+        this.log.push({ type:'talent_trigger', talentType:unit._reviveTalent,
+          label:`Phénix — ${unit.name} ressuscite !` });
+      } else if (unit._reviveItem) {
+        this.log.push({ type:'passive_trigger', effect:'boost',
+          label:`💊 ${unit._reviveItem} — ${unit.name} est ranimé !`,
+          targetId:unit.uid, targetName:unit.name, targetSide:unit.side });
+      }
       this.log.push({ type:'effect_heal', effect:'revive', label:`✨ Résurrection ! (${unit.name})`,
         targetId:unit.uid, targetName:unit.name, targetSide:unit.side,
         heal:unit.hp, targetHpLeft:unit.hp, targetMaxHp:unit.maxHp });
@@ -1434,6 +1536,17 @@ export class CombatEngine {
       if (sf) ally.spd = Math.round(ally.spd * (1 + sf.boost));
       const af = ally._flags?.atkOnAllyKo;
       if (af) ally.atk = Math.round(ally.atk * (1 + af.boost));
+    });
+
+    // Talent "Essaim vengeur" (type_swarm_on_ko) : à la mort d'une unité d'un type,
+    // les alliés du MÊME type encore en vie reçoivent un boost de stat.
+    fAllies.filter(a => a.hp > 0 && a._swarmOnKo).forEach(ally => {
+      if (ally.types.some(t => unit.types.includes(t))) {
+        const { stat, mult } = ally._swarmOnKo;
+        ally[stat] = Math.round((ally[stat] ?? 0) * mult);
+        this.log.push({ type:'talent_trigger', talentType:(ally.types?.[0] ?? ''),
+          label:`${ally.name} enrage (Essaim) !` });
+      }
     });
 
     // Boost attaquant sur K.O. ennemi (atkOnEnemyKo)

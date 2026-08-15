@@ -91,10 +91,10 @@ export const AchievementsUI = {
                   <span class="ach-item-icon">${isUnlocked ? (a.label.split(' ')[0] ?? '✅') : '🔒'}</span>
                   <div class="ach-item-info">
                     <div class="ach-item-label" title="${a.label}">
-                      ${isUnlocked ? a.label : '???'}
+                      ${a.label}
                     </div>
                     <div class="ach-item-desc">
-                      ${isUnlocked ? a.desc : 'Non débloqué'}
+                      ${isUnlocked ? a.desc : '🔒 Condition à découvrir…'}
                     </div>
                     ${date ? `<div class="ach-item-date">✓ ${date}</div>` : ''}
                   </div>

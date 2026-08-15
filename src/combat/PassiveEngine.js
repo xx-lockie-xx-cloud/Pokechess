@@ -375,8 +375,11 @@ export const PassiveEngine = {
       }
 
       case 'bonus_hit': {
-        // Une frappe bonus à puissance réduite — géré en aval dans _takeTurn
+        // Frappe bonus à puissance réduite. Le proc s'applique aussi à la frappe
+        // bonus elle-même (récursif) : la chaîne décroît géométriquement, donc
+        // dépasser ~5 frappes est extrêmement rare (0.25^5 ≈ 0.1%).
         if (!target) break;
+        if (Math.random() >= (action.chance ?? 1.0)) break;     // proc (Coud'Pied : 25%)
         const bonusDmg = Math.max(1, Math.ceil(damage * (action.mult ?? 0.50)));
         this._dealDamage(unit, target, bonusDmg, 1.0, false);
         this._hookLog(passive, unit, `🥊 ${passive.name} — frappe bonus`);

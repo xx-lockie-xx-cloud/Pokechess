@@ -20,6 +20,7 @@ import {
   weightedWildDraw, BANK_MAX_SIZE,
   addSeenPokemon, applyAnomalyToUnits
 } from '../data/runState.js';
+import { assignCorners } from '../data/synergies.js';
 import { RelicEngine } from '../combat/RelicEngine.js';
 
 function hexToCSS(hex) {
@@ -223,9 +224,12 @@ export const WildUI = {
     container.innerHTML = '';
 
     this._offered.forEach(pokemon => {
+      addSeenPokemon(this._registry, pokemon.id);   // tous les sauvages proposés = rencontrés
       const card = this._createCard(pokemon);
       container.appendChild(card);
     });
+    // Succès de rencontre immédiats (Curieux ≥50, Encyclopédie 151)
+    window.UIManager?.notifyAchievements?.(this._registry);
 
     // Info text
     const info = document.getElementById('wild-info');
@@ -256,8 +260,13 @@ export const WildUI = {
     card.className = `poke-card card-tier-${tier}`;
     card.dataset.id = pokemon.id;
 
-    const c1 = hexToCSS(TC[pokemon.types[0]] ?? 0x888888);
-    const c2 = hexToCSS(TC[pokemon.types[1]] ?? TC[pokemon.types[0]] ?? 0x888888);
+    // Attribue les coins dès la présentation (fixés pour cette rencontre)
+    if (!Array.isArray(pokemon.corners) || pokemon.corners.length !== 4) {
+      pokemon.corners = assignCorners(pokemon);
+    }
+    const cn  = pokemon.corners;
+    const cc  = (i) => hexToCSS(TC[cn[i]] ?? 0x888888);
+    const cTL = cc(0), cTR = cc(1), cBR = cc(2), cBL = cc(3);
 
     const price = CAPTURE_PRICE[tier] ?? 3;
 
@@ -266,10 +275,10 @@ export const WildUI = {
 
     card.innerHTML = `
       ${buildCardFrame(tier)}
-      <span class="type-corner tl" style="border-color: ${c1} transparent transparent transparent"></span>
-      <span class="type-corner tr" style="border-color: transparent ${c2} transparent transparent"></span>
-      <span class="type-corner bl" style="border-color: transparent transparent transparent ${c1}"></span>
-      <span class="type-corner br" style="border-color: transparent transparent ${c2} transparent"></span>
+      <span class="type-corner tl" style="border-color: ${cTL} transparent transparent transparent"></span>
+      <span class="type-corner tr" style="border-color: transparent ${cTR} transparent transparent"></span>
+      <span class="type-corner bl" style="border-color: transparent transparent transparent ${cBL}"></span>
+      <span class="type-corner br" style="border-color: transparent transparent ${cBR} transparent"></span>
       ${isPochette
         ? `<span class="card-mystery">?</span>`
         : `<img src="${pokemon.spriteUrl}" alt="${pokemon.name}"
@@ -438,19 +447,28 @@ export const WildUI = {
       return;
     }
     removeCoins(this._registry, finalPrice);
+    // Les coins ont déjà été fixés à la rencontre ; on s'assure juste qu'ils existent
+    if (!Array.isArray(this._selected.corners) || this._selected.corners.length !== 4) {
+      this._selected.corners = assignCorners(this._selected);
+    }
     const added = addToBank(this._registry, this._selected);
     if (!added) {
       addCoins(this._registry, finalPrice);
       return;
     }
-    // Doppelgänger : ajoute un clone
+    // Doppelgänger : ajoute un clone (avec ses propres coins distincts)
     if (isDoppel) {
-      const clone = { ...this._selected, uid: this._selected.id + '_clone_' + Date.now() };
+      const clone = { ...this._selected,
+        uid: this._selected.id + '_clone_' + Date.now(),
+        corners: assignCorners(this._selected) };
       addToBank(this._registry, clone);
     }
 
     // Statistiques : enregistre la (les) capture(s)
     window.SaveManager?.recordCapture?.(isDoppel ? 2 : 1);
+    // Succès immédiats liés à la capture (Coup de chance : légendaire) et aux
+    // rencontres (Curieux/Encyclopédie)
+    window.UIManager?.notifyAchievements?.(this._registry);
 
     const capturedName = this._selected.name;
     const info         = document.getElementById('wild-info');
@@ -479,9 +497,39 @@ export const WildUI = {
       btnCapture.textContent = 'Capturer';
     }
 
-    // Si banque pleine → proceed automatiquement après 1.2s
-    if ((state.playerBank ?? []).length >= BANK_MAX_SIZE) {
-      setTimeout(() => this._proceed(), 1200);
+    // Banque pleine : on NE ferme PAS la fenêtre. Le joueur peut vendre des
+    // pokémons puis revenir capturer, ou continuer à consulter/rerouler.
+    // On rafraîchit seulement l'état (sans reconstruire les cartes, sinon le
+    // pokémon déjà capturé réapparaîtrait et serait capturable une 2e fois).
+    this._refreshBankState();
+  },
+
+  // Met à jour l'avertissement "banque pleine" et l'état du bouton Capturer,
+  // sans toucher aux cartes affichées.
+  _refreshBankState() {
+    const state    = getRunState(this._registry);
+    const bankFull = (state.playerBank ?? []).length >= BANK_MAX_SIZE;
+
+    const btnCapture = document.getElementById('btn-capture');
+    if (btnCapture && bankFull) {
+      btnCapture.disabled    = true;
+      btnCapture.textContent = 'Banque pleine';
+    }
+
+    const warnId = 'wild-bank-warn';
+    const host   = document.getElementById('wild-info')?.parentElement
+                ?? document.getElementById('wild-info');
+    let warn = document.getElementById(warnId);
+    if (bankFull) {
+      if (!warn && host) {
+        warn = document.createElement('p');
+        warn.id        = warnId;
+        warn.className = 'wild-warn';
+        warn.textContent = '⚠ Banque pleine — vends un pokémon pour en capturer d\'autres';
+        host.appendChild(warn);
+      }
+    } else if (warn) {
+      warn.remove();
     }
   },
 

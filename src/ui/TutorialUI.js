@@ -508,49 +508,93 @@ export const TutorialUI = {
   _sectionSynergies() {
     const syns = [
       { t:'Feu',    icon:'🔥', c:'#e74c3c',
-        t1:'2 Pokémon : +20% ATK, Brûlure 3 tours sur les ennemis',
-        t2:'4 Pokémon : +35% ATK + SP.ATK, Brûlure renforcée' },
+        d:'ATK + SP.ATK croissants ; Brûlure des ennemis au 3★' },
       { t:'Eau',    icon:'💧', c:'#3498db',
-        t1:'2 Pokémon : +20% DEF + SP.DEF',
-        t2:'4 Pokémon : +30% DEF/SP.DEF + Régén. 4%/8 actions sur tous les alliés' },
+        d:'DEF + SP.DEF croissants ; Régénération des alliés au 3★' },
       { t:'Plante', icon:'🌿', c:'#2ecc71',
-        t1:'2 Pokémon : +20% HP',
-        t2:'4 Pokémon : +35% HP + Poison 3 tours sur les ennemis' },
+        d:'PV croissants ; Poison des ennemis au 3★' },
       { t:'Dragon', icon:'🐉', c:'#1a5276',
-        t1:'2 Pokémon : +20% ATK + SP.ATK + VIT',
-        t2:'4 Pokémon : +35% tout + Rage (+10% dégâts par allié Dragon KO)' },
+        d:'ATK + SP.ATK + VIT croissants ; effet puissant au 3★' },
     ];
+
+    // Visuel : 4 Pokémon (2×2). Coins colorés par type ; les contacts du même
+    // type (couples de coins qui se touchent) sont entourés en or.
+    const dot = (x, y, c) =>
+      `<circle cx="${x}" cy="${y}" r="4" fill="${c}"/>`;
+    const ring = (x, y) =>
+      `<circle cx="${x}" cy="${y}" r="11" fill="none" stroke="#ffd700" stroke-width="2" stroke-dasharray="3 2"/>`;
+    const RED = '#e74c3c', GRN = '#2ecc71';
+    const synSvg = `
+      <svg viewBox="0 0 132 132" width="150" height="150" style="display:block;margin:6px auto">
+        <rect x="10" y="10" width="56" height="56" rx="6" fill="#0f3460"/>
+        <rect x="66" y="10" width="56" height="56" rx="6" fill="#0f3460"/>
+        <rect x="10" y="66" width="56" height="56" rx="6" fill="#0f3460"/>
+        <rect x="66" y="66" width="56" height="56" rx="6" fill="#0f3460"/>
+        <text x="38"  y="44" font-size="22" text-anchor="middle">🔥</text>
+        <text x="94"  y="44" font-size="22" text-anchor="middle">🔥</text>
+        <text x="38"  y="100" font-size="22" text-anchor="middle">🌿</text>
+        <text x="94"  y="100" font-size="22" text-anchor="middle">🌿</text>
+        ${dot(17,17,RED)}${dot(59,17,RED)}${dot(59,59,RED)}${dot(17,59,RED)}
+        ${dot(73,17,RED)}${dot(115,17,RED)}${dot(115,59,RED)}${dot(73,59,RED)}
+        ${dot(17,73,GRN)}${dot(59,73,GRN)}${dot(59,115,GRN)}${dot(17,115,GRN)}
+        ${dot(73,73,GRN)}${dot(115,73,GRN)}${dot(115,115,GRN)}${dot(73,115,GRN)}
+        ${ring(66,17)}${ring(66,59)}
+        ${ring(66,73)}${ring(66,115)}
+      </svg>`;
+
     return `
       ${this._card(`
-        ${this._title('🔗 Principe')}
+        ${this._title('🔗 Synergies par placement')}
         <p style="color:#718096;font-size:11px;margin:0 0 8px">
-          Aligner des Pokémon du même type active des bonus pour <b style="color:#e2e8f0">toute la composition</b>.
+          Place tes Pokémon pour activer des synergies. Chaque carte a
+          <b style="color:#ffd700">4 coins colorés</b> selon ses types. Quand deux coins
+          du <b style="color:#e2e8f0">même type se touchent</b> (côte à côte ou en
+          diagonale), ça forme un <b style="color:#e2e8f0">contact</b>. Plus tu accumules
+          de contacts d'un type, plus la synergie monte.
         </p>
-        <div class="tut-grid-2" style="margin-bottom:8px">
-          ${[['★★ 2 Pokémon','Seuil 1','#4fc3f7'],['★★★ 4 Pokémon','Seuil 2','#ffd700']].map(
-            ([label, sub, c]) => this._card(`
-              <div style="color:${c};font-size:16px;font-weight:900">${label.split(' ')[0]}</div>
-              <div style="color:#e2e8f0;font-size:11px;font-weight:600">${label.split(' ').slice(1).join(' ')}</div>
-              <div style="color:#718096;font-size:10px">${sub}</div>
-            `)
-          ).join('')}
+        ${synSvg}
+        <div style="text-align:center;font-size:10px;color:#718096;line-height:1.5">
+          Les deux 🔥 en haut partagent <b style="color:#ffd700">2 contacts</b> → Feu 2★.<br>
+          Les deux 🌿 en bas aussi → Plante 2★. Les coins de types différents
+          qui se touchent ne comptent pas.
         </div>
-        ${this._tip('Les légendaires (T5) comptent pour 2 dans les synergies !')}
       `)}
-      ${syns.map(({ t, icon, c, t1, t2 }) => this._card(`
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+
+      ${this._card(`
+        ${this._title('🎨 Les coins', '#a29bfe')}
+        <div style="font-size:11px;color:#e2e8f0;margin-bottom:5px">
+          <b style="color:#ffd700">Monotype</b> : les 4 coins sont de sa couleur
+        </div>
+        <div style="font-size:11px;color:#e2e8f0;margin-bottom:8px">
+          <b style="color:#ffd700">Bi-type</b> : 2 coins de chaque couleur, répartis
+          <b>aléatoirement</b>
+        </div>
+        ${this._tip('Les coins des bi-types sont retirés au hasard à chaque rencontre, évolution ou choix de starter.')}
+      `)}
+
+      ${this._card(`
+        ${this._title('⭐ Paliers (nombre de contacts)', '#ffd700')}
+        ${[['1 contact','1★','#4fc3f7'],['2 contacts','2★','#74b9ff'],['4 contacts','3★','#ffd700']].map(
+          ([n, star, c]) => `
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px">
+            <span style="color:${c};font-size:15px;font-weight:900;min-width:42px">${star}</span>
+            <span style="color:#e2e8f0;font-size:11px">${n} du même type</span>
+          </div>
+        `).join('')}
+        ${this._tip('Plus tes Pokémon du même type sont collés (en rangée, en bloc, en diagonale), plus tu accumules de contacts : un bloc 2×2 monotype atteint facilement le 3★.')}
+      `)}
+
+      ${syns.map(({ t, icon, c, d }) => this._card(`
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <span style="font-size:18px">${icon}</span>
           ${this._badge(c, t)}
         </div>
-        <div style="font-size:11px;margin-bottom:3px">
-          <span style="color:#4fc3f7;font-weight:700">★★ </span>
-          <span style="color:#e2e8f0">${t1}</span>
-        </div>
-        <div style="font-size:11px">
-          <span style="color:#ffd700;font-weight:700">★★★ </span>
-          <span style="color:#e2e8f0">${t2}</span>
-        </div>
+        <div style="font-size:11px;color:#e2e8f0">${d}</div>
       `, `tut-syn-card`)).join('')}
+
+      ${this._card(`
+        ${this._tip('La relique Catalyseur abaisse le seuil 3★ : 3 contacts suffisent au lieu de 4.')}
+      `)}
     `;
   },
 

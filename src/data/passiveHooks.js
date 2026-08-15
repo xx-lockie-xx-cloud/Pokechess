@@ -537,8 +537,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'flag', flag:'dmgReducPhysical', mult:0.75 }] } },
   },
   76: {
-    35: { id:'explosion_g', name:'Explosion', desc:'À la mort → AoE 80% HP',
-      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.80 }] } },
+    35: { id:'explosion_g', name:'Explosion', desc:'À la mort → AoE 20% HP',
+      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.20 }] } },
     70: { id:'geant', name:'Géant', desc:'Immunisé stun + -20% dégâts',
       hooks:{ ON_SETUP: [{ type:'status_immunity', statuses:['stun'] },
                          { type:'stat_boost', stat:'_dmgReduction', mult:0.80 }] } },
@@ -713,8 +713,8 @@ export const POKEMON_PASSIVES = {
   100: {
     35: { id:'explosion_im', name:'Explosion Imminente', desc:'Si PV<30% → +50% ATK',
       hooks:{ ON_ACTION: [{ type:'conditional_stat', stat:'atk', mult:1.50, condition:'hp_below', threshold:0.30 }] } },
-    70: { id:'autodestruct', name:'Autodestruction', desc:'À la mort → AoE 80% HP',
-      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.80 }] } },
+    70: { id:'autodestruct', name:'Autodestruction', desc:'À la mort → AoE 50% HP',
+      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.50 }] } },
   },
   101: {
     35: { id:'ultrarapide', name:'Ultrarapide', desc:'+25% VIT',
@@ -731,8 +731,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'aoe_status', status:'sleep', turns:2, row:'all', chance:0.30 }] } },
   },
   103: {
-    35: { id:'melodie_n', name:'Mélodie', desc:'Soigne 10% HP alliés / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.10 }] } },
+    35: { id:'melodie_n', name:'Mélodie', desc:'Soigne 4% HP alliés / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.04 }] } },
     70: { id:'hypnose_fl', name:'Hypnose Florale', desc:'Endort 1 ennemi aléatoire au début',
       hooks:{ ON_SETUP: [{ type:'aoe_status', status:'sleep', turns:2, row:'random1', chance:1.0 }] } },
   },
@@ -753,8 +753,8 @@ export const POKEMON_PASSIVES = {
 
   // ── Kicklee/Tygnon ────────────────────────────────────────────────────────
   106: {
-    35: { id:'coud_pied', name:'Coud\'Pied', desc:'Frappe bonus à 50% puissance',
-      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.50 }] } },
+    35: { id:'coud_pied', name:'Coud\'Pied', desc:'25% : frappe bonus à 50% puissance',
+      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.50, chance:0.25 }] } },
     70: { id:'contre', name:'Contre', desc:'Riposte 60% dégâts physiques',
       hooks:{ ON_RECEIVE: [{ type:'counter', rate:0.60 }] } },
   },
@@ -795,8 +795,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'flag', flag:'firstHitBoost', mult:2.0 }] } },
   },
   112: {
-    35: { id:'furie_r2', name:'Furie', desc:'+5% ATK par coup reçu',
-      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.05, max:0.50 }] } },
+    35: { id:'furie_r2', name:'Furie', desc:'+2% ATK par coup reçu',
+      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.02, max:0.50 }] } },
     70: { id:'foulee_lourde', name:'Foulée Lourde', desc:'+25% ATK',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'atk', mult:1.25 }] } },
   },
@@ -861,8 +861,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_ACTION: [{ type:'emergency_heal', rate:0.20, threshold:0.25 }] } },
   },
   121: {
-    35: { id:'rayonnement', name:'Rayonnement', desc:'Soigne 8% HP alliés / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.08 }] } },
+    35: { id:'rayonnement', name:'Rayonnement', desc:'Soigne 3% HP alliés / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.03 }] } },
     70: { id:'teleportation', name:'Téléportation', desc:'Esquive 1 attaque/combat',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'dodgeOnce' }] } },
   },

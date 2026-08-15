@@ -6,11 +6,15 @@ import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { TYPE_COLORS } from '../data/pokemons.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
-import { addCoins, getEnemyMultiplier, getRunState } from '../data/runState.js';
+import { addCoins, getEnemyMultiplier, getRunState, addSeenPokemon, saveMapProgress } from '../data/runState.js';
 import { RelicEngine }                                 from '../combat/RelicEngine.js';
 import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
 import { getActiveSynergies, getFullStats } from '../data/synergies.js';
+
+// Multiplicateur de stats ennemies par difficulté (source unique — voir aussi
+// DIFF_BUDGETS dans MapGenerator.js : les deux se composent, cf. réglage √ratio)
+const DIFF_STAT_MULTS = { easy: 0.8, normal: 1.0, hard: 1.118, expert: 1.225 };
 import { getArenaForMap }                   from '../data/arenas.js';
 
 const DELAY_TURN_START = 100;
@@ -47,15 +51,19 @@ export const CombatUI = {
       _anom[u.id] ? { ...u, types: _anom[u.id] } : u
     );
     this._enemyUnits    = _applyAnom(data.enemyUnits ?? []);
+    // Les ennemis affrontés comptent comme rencontrés (Pokédex + succès)
+    this._enemyUnits.forEach(u => { if (u?.id != null) addSeenPokemon(this._registry, u.id); });
     this._slots         = {};
     this._hpState       = {};
     this._statusTracker = {};
-    this._speed         = 1;
+    this._speed         = window.SaveManager?.getCombatSpeed?.() ?? 1;
     this._combatLog     = [];
     this._atbDisplay    = {};
     this._atbSpeed      = {};
     this._mapAdvanced   = false;
     this._statsRecorded = false;
+    this._pendingLevelUps = [];
+    this._grantedCoins    = 0;
     if (this._atbRaf) { cancelAnimationFrame(this._atbRaf); this._atbRaf = null; }
 
     // Lit toujours depuis le registre (priorité sur data.playerUnits)
@@ -165,51 +173,65 @@ export const CombatUI = {
     hint.textContent = '💡 Modifiez votre équipe via ⚔ Équipe avant de lancer';
     wrapper.appendChild(hint);
 
-    // Phase text
+    // Phase text (affiché uniquement pendant le combat)
     const phase = document.createElement('div');
     phase.className   = 'combat-phase';
     phase.id          = 'combat-phase-text';
-    phase.textContent = 'Préparez-vous !';
+    phase.style.display = 'none';
     wrapper.appendChild(phase);
 
-    // Boutons lancer + vitesse
-    const btnRow = document.createElement('div');
-    btnRow.className = 'combat-btn-row';
-
-    // Bandeau info relique (Pacte de Sang, Bénédiction, Sablier, etc.)
+    // Bandeau info relique — sur sa propre ligne, AVANT les boutons (n'affecte
+    // plus la rangée des boutons, donc plus de décalage vertical selon la relique).
     const relicId = this._registry?.get?.('runState')?.relic?.id;
     const RELIC_WARNINGS = {
-      'pacte_de_sang': '💀 Pacte de Sang — HP ×0.8 / ATK ×1.3 pour tous',
-      'benediction':   '🩹 Bénédiction — HP ×1.3 / ATK ×0.75 pour tous',
-      'sablier':       '⏱ Sablier — Combat limité à 25 actions par camp',
-      'de_maudit':     '🎲 Dé Maudit — 1 unité de chaque camp démarre à 50% HP',
-      'condensateur':  '🔋 Condensateur — Toutes les unités démarrent avec 50 mana',
-      'contrat_maudit':'🩸 Contrat Maudit — HP ×0.9 pour tous',
-      'revanche':      '🔁 Revanche — Ultime déclenché à la mort si mana ≥ 50',
+      'pacte_de_sang': '💀 Pacte de Sang : HP ×0.8 · ATK ×1.3',
+      'benediction':   '🩹 Bénédiction : HP ×1.3 · ATK ×0.75',
+      'sablier':       '⏱ Sablier : combat limité à 25 actions/camp',
+      'de_maudit':     '🎲 Dé Maudit : 1 unité/camp démarre à 50% HP',
+      'condensateur':  '🔋 Condensateur : toutes les unités à 50 mana',
+      'contrat_maudit':'🩸 Contrat Maudit : HP ×0.9 pour tous',
+      'revanche':      '🔁 Revanche : ultime à la mort si mana ≥ 50',
     };
     const warning = relicId ? RELIC_WARNINGS[relicId] : null;
     if (warning) {
       const relicInfo = document.createElement('div');
       relicInfo.className   = 'combat-relic-info';
       relicInfo.textContent = warning;
-      btnRow.appendChild(relicInfo);
+      wrapper.appendChild(relicInfo);
     }
 
+    // Boutons lancer + vitesse
+    const btnRow = document.createElement('div');
+    btnRow.className = 'combat-btn-row';
+
     const btn = document.createElement('button');
-    btn.className   = 'btn-danger btn-large';
+    btn.className   = 'btn-danger btn-combat-launch';
     btn.id          = 'btn-start-combat';
     btn.textContent = '⚔ Lancer le combat';
     btnRow.appendChild(btn);
 
+    // Vitesse de lecture — paliers débloqués en terminant la ligue
+    // (Facile ×2 · Normal ×2.5 · Difficile ×3 · Expert ×4). Persistée entre combats.
+    const speeds = window.SaveManager?.getUnlockedCombatSpeeds?.() ?? [1];
+    const fmt    = (v) => (v === 1 ? '▶ ×1' : `▶▶ ×${String(v).replace('.', ',')}`);
+
     const btnSpeed = document.createElement('button');
     btnSpeed.className   = 'btn-speed';
     btnSpeed.id          = 'btn-combat-speed';
-    btnSpeed.textContent = '▶▶ ×2';
-    btnSpeed.title       = 'Accélérer le combat';
+    btnSpeed.textContent = fmt(this._speed);
+    btnSpeed.classList.toggle('active', this._speed > 1);
+    btnSpeed.title = speeds.length > 1
+      ? `Vitesse de lecture (débloquées : ${speeds.map(s => '×' + s).join(', ')})`
+      : 'Termine la ligue pour débloquer des vitesses supérieures';
+    if (speeds.length === 1) btnSpeed.classList.add('locked');
+
     btnSpeed.addEventListener('click', () => {
-      this._speed = this._speed === 1 ? 2 : 1;
-      btnSpeed.textContent = this._speed === 2 ? '▶ ×1' : '▶▶ ×2';
-      btnSpeed.classList.toggle('active', this._speed === 2);
+      const list = window.SaveManager?.getUnlockedCombatSpeeds?.() ?? [1];
+      const idx  = list.indexOf(this._speed);
+      this._speed = list[(idx + 1) % list.length] ?? 1;   // cycle sur les paliers
+      btnSpeed.textContent = fmt(this._speed);
+      btnSpeed.classList.toggle('active', this._speed > 1);
+      window.SaveManager?.setCombatSpeed?.(this._speed);  // persiste le choix
     });
     btnRow.appendChild(btnSpeed);
     wrapper.appendChild(btnRow);
@@ -272,10 +294,8 @@ export const CombatUI = {
     const mapKey = `${side}_${uid}`;
     this._slots[mapKey] = slot;
 
-    this._hpState[mapKey] = {
-      current: unit.stats?.hp ?? unit.hp ?? 100,
-      max:     unit.stats?.hp ?? unit.hp ?? 100,
-    };
+    const effMaxHp = this._effectiveMaxHp(unit, side);
+    this._hpState[mapKey] = { current: effMaxHp, max: effMaxHp };
 
     const hpId = `hp-${mapKey.replace(/_/g, '-')}`;
 
@@ -295,8 +315,8 @@ export const CombatUI = {
     hpBar.appendChild(hpFill);
     hpWrapper.appendChild(hpBar);
 
-    // Label HP numérique sous la barre
-    const maxHp = unit.stats?.hp ?? unit.hp ?? 100;
+    // Label HP numérique sous la barre (PV effectifs, bonus inclus)
+    const maxHp = effMaxHp;
     const hpLabel = document.createElement('div');
     hpLabel.className = 'combat-hp-label';
     hpLabel.id        = `hplabel-${mapKey.replace(/_/g, '-')}`;
@@ -498,7 +518,7 @@ export const CombatUI = {
       if (hint) hint.style.display = 'none';
 
       const phase = document.getElementById('combat-phase-text');
-      if (phase) phase.textContent = 'Combat en cours...';
+      if (phase) { phase.style.display = ''; phase.textContent = 'Combat en cours...'; }
 
       this._startCombat();
     });
@@ -511,8 +531,7 @@ export const CombatUI = {
     const baseMult    = getEnemyMultiplier(mapIndex, loopCount);
     // Multiplicateur de difficulté (persistant via meta save)
     const diffId      = SaveManager.getDifficulty() ?? 'normal';
-    const diffMults   = { easy: 0.8, normal: 1.0, hard: 1.3, expert: 1.7 };
-    const diffMult    = diffMults[diffId] ?? 1.0;
+    const diffMult    = DIFF_STAT_MULTS[diffId] ?? 1.0;
     const mult        = baseMult * diffMult;
 
     // ── Relique active ───────────────────────────────────────────────────
@@ -569,8 +588,16 @@ export const CombatUI = {
     });
     const enemySynergies = getActiveSynergies(enemyForEngine, relicId);
 
-    const withLevels = units => units.map(u => {
-      let unit = { ...u, _level: meta.pokemonLevels?.[u.id] ?? 1 };
+    // Niveau des passifs ennemis selon la difficulté (le STAT bonus de niveau ne
+    // s'applique pas aux ennemis ; ce niveau ne sert qu'à débloquer leurs passifs).
+    //   Facile/Normal : aucun passif · Difficile : Nv.35 (1er) · Expert : Nv.70 (les deux)
+    const ENEMY_PASSIVE_LEVEL = { easy: 1, normal: 1, hard: 35, expert: 70 };
+
+    const withLevels = (units, isEnemy = false) => units.map(u => {
+      const lvl = isEnemy
+        ? (ENEMY_PASSIVE_LEVEL[diffId] ?? 1)
+        : (meta.pokemonLevels?.[u.id] ?? 1);
+      let unit = { ...u, _level: lvl };
       // Anomalie : réassigne les types
       if (anomalyTypes) RelicEngine.applyAnomalyTypes(unit, anomalyTypes);
       // Modificateurs de stats de la relique (Pacte de Sang, Bénédiction, Contrat Maudit)
@@ -584,7 +611,7 @@ export const CombatUI = {
     const activeTalentEffects = this._getActiveTalentEffects(meta, playerForEngine);
 
     const engine = new CombatEngine(
-      withLevels(playerForEngine), withLevels(enemyForEngine),
+      withLevels(playerForEngine), withLevels(enemyForEngine, true),
       playerSynergies, enemySynergies
     );
     engine._playerTalents = activeTalentEffects;
@@ -595,13 +622,87 @@ export const CombatUI = {
     this._livePlayerUnits = engine.playerUnits;
     this._liveEnemyUnits  = engine.enemyUnits;
 
-    // ── Anti-exploit : la défaite est SCELLÉE dès le calcul du combat ──────────
-    // Le combat est pré-simulé, donc l'issue est connue avant la lecture.
-    // Si le joueur perd, on supprime la save ET on scelle la run :
-    // quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
+    // Resynchronise les barres/labels avec les PV EXACTS du moteur (inclut les
+    // passifs ON_SETUP), pour qu'aucune valeur ne "saute" au premier dégât.
+    [...engine.playerUnits, ...engine.enemyUnits].forEach(u => {
+      const mapKey = `${u.side}_${u.uid}`;
+      if (!this._slots[mapKey]) return;
+      this._hpState[mapKey] = { current: u.maxHp, max: u.maxHp };
+      const fill  = document.getElementById(`hp-${mapKey.replace(/_/g, '-')}`)
+        ?.querySelector('.combat-hp-fill');
+      if (fill) fill.style.width = '100%';
+      const label = document.getElementById(`hplabel-${mapKey.replace(/_/g, '-')}`);
+      if (label) label.textContent = `${u.maxHp}/${u.maxHp}`;
+    });
+
+    // ── Issue connue dès le calcul (combat pré-simulé) ────────────────────────
+    // Statistiques : enregistrées dès le calcul (un F5 pendant la lecture compte quand même)
+    if (!this._statsRecorded) {
+      this._statsRecorded = true;
+      SaveManager.recordCombatResult?.(this._registry?.get?.('runState') ?? {}, {
+        winner,
+        nodeType: this._data?.nodeType ?? 'combat',
+        mapIndex: this._data?.mapIndex ?? 0,
+      });
+    }
+
     if (winner !== 'player') {
+      // Anti-exploit : défaite SCELLÉE immédiatement.
+      // Quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
       this._registry?.sealRun?.();   // bloque tout autosave ultérieur
       SaveManager.deleteSave?.();    // efface la sauvegarde de run existante
+    } else if (this._registry) {
+      // ── Récompenses ATOMIQUES avec le commit de progression ────────────────
+      // Exp et pièces sont accordées DÈS la victoire calculée : un F5 pendant la
+      // lecture valide le nœud AVEC ses gains. L'animation ne fait qu'afficher.
+      const playerUnits = this._registry.get('playerUnits') ?? [];
+      playerUnits.forEach(u => {
+        if (!u.id) return;
+        const result = SaveManager.gainPokemonLevel(u.id);
+        if (result.gained) {
+          this._pendingLevelUps.push({ name: u.name, level: result.newLevel, id: u.id });
+        }
+      });
+      const bonusCoins = RelicEngine.winCoins(getRunState(this._registry)?.relic?.id);
+      this._grantedCoins = 3 + (bonusCoins > 0 ? bonusCoins : 0);
+      addCoins(this._registry, this._grantedCoins);
+
+      // ── Commit de la progression POST-combat dès la victoire calculée ──────
+      // (la save au clic est PRÉ-combat ; actualiser pendant la lecture d'une
+      // victoire reprend donc bien APRÈS le combat, nœud validé)
+      if (this._data?.mapNodes) {
+        const visited = [];
+        const availArr = [];
+        let maxCol = 0;
+        if (this._data.startNode?.visited) visited.push('start');
+        this._data.mapNodes.forEach(col => col.forEach(n => {
+          if (n.visited) {
+            visited.push(n.id);
+            const c = parseInt(String(n.id).split('_')[0], 10);
+            if (!isNaN(c) && c > maxCol) maxCol = c;
+          }
+          if (n.available) availArr.push(n.id);
+        }));
+        const mapSeed = getRunState(this._registry)?.mapSeed ?? null;
+        if (mapSeed != null) {
+          saveMapProgress(this._registry, mapSeed, visited, availArr, maxCol);
+        }
+      }
+      if (this._data?.nodeType === 'boss' && !this._mapAdvanced) {
+      // Victoire de BOSS : on avance la map DÈS le calcul (avant la lecture),
+      // pour que quitter pendant la lecture reprenne bien sur la map suivante.
+      this._mapAdvanced = true;
+      const rs        = this._registry.get('runState') ?? {};
+      const beatenIdx = this._data.mapIndex ?? rs.currentMap ?? 0;
+      const nextIdx   = beatenIdx + 1;
+      const isLeague  = beatenIdx >= 8;
+      this._registry.set('runState', {
+        ...rs,
+        currentMap:   nextIdx,
+        mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
+        infiniteMode: isLeague ? true : rs.infiniteMode,
+      });
+      }
     }
 
     this._animateLog(log, 0, () => this._onCombatEnd(winner, log));
@@ -723,16 +824,26 @@ export const CombatUI = {
         const targetKey   = this._buildKey(event.targetSide,   event.targetId);
         if (event.attackerMana !== undefined) this._updateManaBar(attackerKey, event.attackerMana);
         if (event.targetMana   !== undefined) this._updateManaBar(targetKey,   event.targetMana);
-        // Note : les barres ATB ne sont plus modifiées ici, elles sont pilotées
-        // par _fillATBUntil (option C) et gelées pendant l'animation d'attaque.
         this._flashSlot(attackerKey, 'flash-yellow');
         if (event.isMove) this._showMoveAnimation(attackerKey, event.moveName ?? '');
-        setTimeout(() => {
+
+        const isCrit = event.typeMult >= 2;
+        // Impact : flash cible + dégâts + burst d'emojis de type
+        const onImpact = () => {
           this._flashSlot(targetKey, 'flash-red');
           this._updateHpBar(targetKey, event.targetHpLeft, event.targetMaxHp);
           this._showDamageText(targetKey, event.damage, event.typeMult);
-        }, 100);
-        return event.isMove ? 350 : DELAY_ATTACK;
+          this._impactBurst(targetKey, { type: event.attackType, isCrit });
+        };
+
+        // Physique → lunge ; Spéciale → projectile coloré par type
+        if (event.category === 'physical') {
+          this._playPhysicalLunge(attackerKey, targetKey, { onImpact });
+          return event.isMove ? 480 : 560;
+        } else {
+          this._playProjectile(attackerKey, targetKey, { type: event.attackType, onImpact });
+          return event.isMove ? 430 : 520;
+        }
       }
 
       case 'ultimate_start': {
@@ -747,6 +858,10 @@ export const CombatUI = {
         this._showStatChange(key, event.label, event.color);
         // Met à jour le badge permanent
         this._addStatBadge(key, event.stat, event.mult, event.color, event.label);
+        // Aura : ↑ vertes si gain (mult>1), ↓ rouges si perte (mult<1)
+        if (event.mult != null && event.mult !== 1) {
+          this._statAura(key, event.mult > 1);
+        }
         return 90;
       }
 
@@ -803,6 +918,11 @@ export const CombatUI = {
                       event.effect === 'poison' ? '#a040a0' :
                       event.effect === 'curse'  ? '#705898' : '#ff4444';
         this._showStatusDamage(targetKey, event.damage, color, event.label);
+        // Icônes montantes selon l'effet (brûlure 🔥 / poison ☠ / autre 💥)
+        const dmgIcon = event.effect === 'burn' ? '🔥' :
+                        event.effect === 'poison' ? '☠️' :
+                        event.effect === 'recoil' ? '💥' : '💢';
+        this._floatRiseIcons(targetKey, dmgIcon, { color, count: 3 });
         if (event.targetHpLeft <= 0) this._fadeOutSlot(targetKey);
         return 120;
       }
@@ -811,6 +931,8 @@ export const CombatUI = {
         const targetKey = this._buildKey(event.targetSide, event.targetId);
         this._updateHpBar(targetKey, event.targetHpLeft, event.targetMaxHp);
         this._showHealText(targetKey, event.heal, event.label);
+        // Croix vertes montantes
+        this._floatRiseIcons(targetKey, '✚', { color: '#39d353', count: 3 });
         return 100;
       }
 
@@ -845,6 +967,37 @@ export const CombatUI = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // PV maximum EFFECTIFS pour l'affichage : inclut objets, synergies, talents,
+  // relique (joueur) et le multiplicateur de difficulté (ennemi). Sans ça, la
+  // barre afficherait les PV de base puis "sauterait" au premier dégât.
+  _effectiveMaxHp(unit, side) {
+    const baseHp = unit.stats?.hp ?? unit.hp ?? 100;
+    try {
+      const relicId = this._registry?.get?.('runState')?.relic?.id ?? null;
+      if (side === 'player') {
+        const meta    = window.SaveManager?.loadMeta?.() ?? null;
+        const talents = window.SaveManager
+          ? (this._getActiveTalentEffects?.(meta, this._playerUnits) ?? [])
+          : [];
+        const full = getFullStats(unit, this._playerUnits, meta, relicId, talents);
+        let hp = full.withTalent?.hp ?? full.withSynergy?.hp ?? baseHp;
+        // Modificateur de relique (Pacte de Sang, Bénédiction, Contrat Maudit…)
+        const probe = { ...unit, stats: { ...(unit.stats ?? {}), hp } };
+        if (relicId) RelicEngine.applyStatModifier(relicId, probe);
+        return Math.max(1, Math.round(probe.stats?.hp ?? hp));
+      }
+      // Ennemi : multiplicateur de difficulté (appliqué en hard/expert seulement)
+      const diffId = window.SaveManager?.getDifficulty?.() ?? 'normal';
+      if (diffId !== 'hard' && diffId !== 'expert') return baseHp;
+      const rs   = this._registry?.get?.('runState') ?? {};
+      const mult = getEnemyMultiplier(rs.currentMap ?? 0, rs.loopCount ?? 0)
+                 * (DIFF_STAT_MULTS[diffId] ?? 1.0);
+      return Math.max(1, Math.round(baseHp * mult));
+    } catch {
+      return baseHp;
+    }
+  },
+
   _buildKey(side, pokemonId) {
     const units = side === 'player' ? this._playerUnits : this._enemyUnits;
     // pokemonId peut être un uid complet (effet de tour) ou un id simple (attaque)
@@ -884,6 +1037,214 @@ export const CombatUI = {
     slot.appendChild(txt);
     setTimeout(() => txt.remove(), 950);
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODULE B — Socle d'animation (sprites, positions, projectiles, impacts)
+  // ═══════════════════════════════════════════════════════════════════════════
+  _spriteEl(key) {
+    const slot = this._slots[key];
+    return slot ? slot.querySelector('.combat-sprite-wrapper') : null;
+  },
+
+  // Centre d'un slot en coordonnées client (pour projectiles en position:fixed)
+  _slotCenterClient(key) {
+    const slot = this._slots[key];
+    if (!slot) return null;
+    const r = slot.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+  },
+
+  _typeEmoji(type) {
+    const M = {
+      Feu:'🔥', Eau:'💧', Plante:'🌿', Électrik:'⚡', Glace:'❄️', Combat:'👊',
+      Poison:'☠️', Sol:'🌋', Vol:'🪶', Psy:'🔮', Insecte:'🐛', Roche:'🪨',
+      Spectre:'👻', Dragon:'🐉', Ténèbres:'🌑', Acier:'⚙️', Fée:'✨', Normal:'⭐',
+    };
+    return M[type] ?? '✦';
+  },
+
+  // ── MODULE C — Attaque PHYSIQUE : lunge "Hearthstone" (armement → charge → retour)
+  // Rotation accompagnant la translation + grossissement à l'armement.
+  _playPhysicalLunge(attackerKey, targetKey, { onImpact } = {}) {
+    const el = this._spriteEl(attackerKey);
+    const slot = this._slots[attackerKey];
+    const aC = this._slotCenterClient(attackerKey);
+    const tC = this._slotCenterClient(targetKey);
+    if (!el || !aC || !tC) { if (onImpact) onImpact(); return; }
+
+    const dx = tC.x - aC.x, dy = tC.y - aC.y;
+    const goingRight = dx >= 0;
+    // Droite : armement -30° (anti-horaire) → impact +30° (horaire). Gauche : inverse.
+    const armAngle = goingRight ? -30 : 30;
+    const hitAngle = goingRight ? 30 : -30;
+    // Charge partielle (~60% de la distance) pour limiter le chevauchement
+    const moveX = dx * 0.6, moveY = dy * 0.6;
+    const recoilX = -dx * 0.10, recoilY = -dy * 0.10;  // léger recul à l'armement
+
+    // Le slot doit cesser de découper le sprite pendant le mouvement, et passer
+    // au-dessus des slots voisins.
+    if (slot) { slot.style.overflow = 'visible'; slot.style.zIndex = '60'; }
+    el.style.zIndex = '60';
+    el.style.willChange = 'transform';
+
+    // Phase 1 — Armement (~110ms) : recul + rotation de départ + grossissement 1.15
+    el.style.transition = 'transform 0.11s ease-in';
+    el.style.transform  = `translate(${recoilX}px, ${recoilY}px) rotate(${armAngle}deg) scale(1.15)`;
+
+    setTimeout(() => {
+      // Phase 2 — Charge (~150ms) : translation vers la cible + sweep de rotation + scale ~1
+      el.style.transition = 'transform 0.15s cubic-bezier(0.5,0,0.9,0.4)';
+      el.style.transform  = `translate(${moveX}px, ${moveY}px) rotate(${hitAngle}deg) scale(1.0)`;
+      setTimeout(() => {
+        if (onImpact) onImpact();   // impact au contact
+        // Phase 3 — Retour (~200ms)
+        el.style.transition = 'transform 0.2s ease-out';
+        el.style.transform  = 'translate(0,0) rotate(0deg) scale(1)';
+        setTimeout(() => {
+          el.style.transition = '';
+          el.style.transform  = '';
+          el.style.zIndex = '';
+          el.style.willChange = '';
+          if (slot) { slot.style.overflow = ''; slot.style.zIndex = ''; }
+        }, 210);
+      }, 150);
+    }, 110);
+  },
+
+  // ── MODULE D — Attaque SPÉCIALE : projectile coloré attaquant → cible
+  _playProjectile(attackerKey, targetKey, { type, onImpact } = {}) {
+    const aC = this._slotCenterClient(attackerKey);
+    const tC = this._slotCenterClient(targetKey);
+    if (!aC || !tC) { if (onImpact) onImpact(); return; }
+
+    const color = this._typeColor(type);
+    const orb = document.createElement('div');
+    orb.className = 'combat-projectile';
+    Object.assign(orb.style, {
+      position: 'fixed', left: `${aC.x}px`, top: `${aC.y}px`,
+      width: '18px', height: '18px', borderRadius: '50%',
+      background: `radial-gradient(circle at 35% 35%, #fff, ${color} 60%, ${color})`,
+      boxShadow: `0 0 12px 4px ${color}`,
+      transform: 'translate(-50%,-50%)', zIndex: '9999', pointerEvents: 'none',
+      transition: 'left 0.25s linear, top 0.25s linear',
+    });
+    document.body.appendChild(orb);
+    void orb.offsetWidth;   // force un reflow pour que la transition s'amorce
+    // Lance le projectile
+    requestAnimationFrame(() => {
+      orb.style.left = `${tC.x}px`;
+      orb.style.top  = `${tC.y}px`;
+    });
+    setTimeout(() => {
+      orb.remove();
+      if (onImpact) onImpact();
+    }, 250);
+  },
+
+  // ── Burst d'impact : flash + emojis de type qui s'écartent du point d'impact
+  _impactBurst(targetKey, { type, isCrit } = {}) {
+    const c = this._slotCenterClient(targetKey);
+    if (!c) return;
+    const emoji = this._typeEmoji(type);
+    const n = isCrit ? 6 : 4;
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.5;
+      const dist = (isCrit ? 34 : 26) + Math.random() * 8;
+      const ex = Math.cos(ang) * dist, ey = Math.sin(ang) * dist;
+      const p = document.createElement('div');
+      p.textContent = emoji;
+      Object.assign(p.style, {
+        position: 'fixed', left: `${c.x}px`, top: `${c.y}px`,
+        fontSize: isCrit ? '17px' : '14px', zIndex: '9999', pointerEvents: 'none',
+        transform: 'translate(-50%,-50%)', transition: 'transform 0.4s ease-out, opacity 0.4s ease-out',
+        opacity: '1',
+      });
+      document.body.appendChild(p);
+      void p.offsetWidth;   // reflow → la transition s'amorce
+      requestAnimationFrame(() => {
+        p.style.transform = `translate(calc(-50% + ${ex}px), calc(-50% + ${ey}px)) scale(${isCrit?1.3:1})`;
+        p.style.opacity = '0';
+      });
+      setTimeout(() => p.remove(), 450);
+    }
+  },
+
+  // ── (fin du socle d'animation) ────────────────────────────────────────────
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODULE E — Auras de stats : flèches ↑ vertes (buff) / ↓ rouges (debuff)
+  // Une seule aura par vague (coalescence des stat_change consécutifs même unité).
+  // ═══════════════════════════════════════════════════════════════════════════
+  _statAura(key, isBuff) {
+    // Coalescence : ignore si une aura de même sens a déjà été lancée très récemment
+    this._lastAura = this._lastAura ?? {};
+    const guardKey = `${key}_${isBuff ? 'up' : 'down'}`;
+    const now = performance.now();
+    if (this._lastAura[guardKey] && now - this._lastAura[guardKey] < 280) return;
+    this._lastAura[guardKey] = now;
+
+    const c = this._slotCenterClient(key);
+    if (!c) return;
+    const arrow = isBuff ? '▲' : '▼';
+    const color = isBuff ? '#39d353' : '#ff4d4d';
+    const n = 3;
+    for (let i = 0; i < n; i++) {
+      const offX = (i - 1) * 14 + (Math.random() - 0.5) * 6;
+      const a = document.createElement('div');
+      a.textContent = arrow;
+      Object.assign(a.style, {
+        position: 'fixed',
+        left: `${c.x + offX}px`,
+        top:  `${c.y + (isBuff ? c.h * 0.25 : -c.h * 0.25)}px`,
+        fontSize: '15px', fontWeight: '900', color,
+        textShadow: `0 0 6px ${color}`,
+        zIndex: '9999', pointerEvents: 'none',
+        transform: 'translate(-50%,-50%)',
+        transition: 'transform 0.6s ease-out, opacity 0.6s ease-out',
+        opacity: '0.95',
+      });
+      document.body.appendChild(a);
+      void a.offsetWidth;
+      const rise = isBuff ? -c.h * 0.7 : c.h * 0.7;   // monte (buff) ou descend (debuff)
+      // Décalage progressif des 3 flèches
+      setTimeout(() => {
+        a.style.transform = `translate(-50%, calc(-50% + ${rise}px))`;
+        a.style.opacity = '0';
+      }, i * 70);
+      setTimeout(() => a.remove(), 700 + i * 70);
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODULE F — Icônes flottantes montantes (soin ✚, poison ☠, brûlure 🔥)
+  // ═══════════════════════════════════════════════════════════════════════════
+  _floatRiseIcons(key, icon, { color = '#fff', count = 3 } = {}) {
+    const c = this._slotCenterClient(key);
+    if (!c) return;
+    for (let i = 0; i < count; i++) {
+      const offX = (i - (count - 1) / 2) * 13 + (Math.random() - 0.5) * 6;
+      const el = document.createElement('div');
+      el.textContent = icon;
+      Object.assign(el.style, {
+        position: 'fixed',
+        left: `${c.x + offX}px`, top: `${c.y}px`,
+        fontSize: '14px', zIndex: '9999', pointerEvents: 'none',
+        color, textShadow: color !== '#fff' ? `0 0 5px ${color}` : 'none',
+        transform: 'translate(-50%,-50%)',
+        transition: 'transform 0.65s ease-out, opacity 0.65s ease-out',
+        opacity: '1',
+      });
+      document.body.appendChild(el);
+      void el.offsetWidth;
+      setTimeout(() => {
+        el.style.transform = `translate(-50%, calc(-50% - ${c.h * 0.65 + Math.random() * 10}px))`;
+        el.style.opacity = '0';
+      }, i * 60);
+      setTimeout(() => el.remove(), 720 + i * 60);
+    }
+  },
+
+
 
   _fadeOutSlot(key) {
     const slot = this._slots[key];
@@ -1087,7 +1448,7 @@ export const CombatUI = {
     const phase = document.getElementById('combat-phase-text');
     if (phase) phase.textContent = isWin ? '🏆 Victoire !' : '💀 Défaite...';
 
-    // ── Statistiques : enregistre l'issue du combat UNE seule fois ────────────
+    // ── Statistiques : déjà enregistrées dès le calcul (voir _startCombat) ────
     if (!this._statsRecorded) {
       this._statsRecorded = true;
       const rsStats = this._registry?.get?.('runState') ?? {};
@@ -1098,48 +1459,17 @@ export const CombatUI = {
       });
     }
 
-    // ── Boss vaincu : on avance la map DÈS l'affichage des résultats ──────────
-    // (avant même le clic sur "Badge obtenu"), pour que quitter ici reprenne
-    // bien sur la map suivante.
-    if (isWin && this._data?.nodeType === 'boss' && this._registry) {
-      const rs        = this._registry.get('runState') ?? {};
-      // Garde-fou : n'avance qu'une seule fois (si pas déjà avancé pour ce combat)
-      if (!this._mapAdvanced) {
-        this._mapAdvanced = true;
-        const beatenIdx = this._data.mapIndex ?? rs.currentMap ?? 0;
-        const nextIdx   = beatenIdx + 1;
-        const isLeague  = beatenIdx >= 8;
-        this._registry.set('runState', {
-          ...rs,
-          currentMap:   nextIdx,
-          mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
-          infiniteMode: isLeague ? true : rs.infiniteMode,
-        });
-      }
-    }
-
-    // Gain de niveau pour les pokémons survivants après une victoire
-    if (isWin && SaveManager) {
-      const playerUnits = this._registry.get('playerUnits') ?? [];
-      const levelUps    = [];
-      playerUnits.forEach(u => {
-        if (!u.id) return;
-        const result = SaveManager.gainPokemonLevel(u.id);
-        if (result.gained) {
-          levelUps.push({ name: u.name, level: result.newLevel, id: u.id });
-        }
-      });
-      if (levelUps.length > 0) {
-        this._showLevelUps(levelUps);
-      }
-    }
-
+    // Note : l'avancement de la map (victoire de boss), le scellement (défaite),
+    // l'exp et les pièces se font désormais DÈS le calcul du combat (_startCombat,
+    // après resolve()), pour qu'un F5 pendant la lecture conserve gains ET progression.
+    // Ici on ne fait qu'AFFICHER les récompenses déjà accordées.
     if (isWin) {
-      addCoins(this._registry, 3);
-      // Bourse Dorée (et toute relique avec ECON_WIN_COINS) : pièces bonus
-      const bonusCoins = RelicEngine.winCoins(getRunState(this._registry)?.relic?.id);
-      if (bonusCoins > 0) addCoins(this._registry, bonusCoins);
-      this._showRewardAnimation(`+${3 + bonusCoins} 💰`);
+      if (this._pendingLevelUps?.length > 0) {
+        this._showLevelUps(this._pendingLevelUps);
+      }
+      if (this._grantedCoins > 0) {
+        this._showRewardAnimation(`+${this._grantedCoins} 💰`);
+      }
     }
 
     const screen = document.getElementById('overlay-combat');
@@ -1375,6 +1705,10 @@ export const CombatUI = {
           `<span class="log-attack-line">↳ <span style="color:${tc};font-weight:700">[${event.attackType}]</span> ${event.targetName} <b>-${event.damage} PV</b>${eff}${crit}</span>`
         );
       }
+    } else if (t === 'talent_summary') {
+      this._appendLog(`<span class="log-talent">🎯 Talents actifs : ${event.talents.join(' · ')}</span>`);
+    } else if (t === 'talent_trigger') {
+      this._appendLog(`<span class="log-talent">🎯 Talent ${event.talentType ?? ''} : ${event.label ?? ''}</span>`);
     } else if (t === 'status_applied') {
       const stacks = event.stacks > 1 ? ` ×${event.stacks}` : '';
       this._appendLog(`<span class="log-status">${event.label}${stacks}</span> sur ${event.targetName}`);

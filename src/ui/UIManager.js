@@ -176,7 +176,14 @@ class UIManagerClass {
     document.getElementById('btn-new-game')?.addEventListener('click', () => {
       console.log('[UIManager] btn-new-game cliqué');
       SaveManager.deleteRunSave();
-      const seed = MapGenerator.generateSeed();  // seed maître numérique de l'épopée
+      // Seed : personnalisée si la case "Choisir la seed" est cochée, sinon aléatoire
+      const seedToggle = document.getElementById('seed-toggle');
+      const seedInput  = document.getElementById('seed-input');
+      let seed = MapGenerator.generateSeed();
+      if (seedToggle?.checked) {
+        const custom = MapGenerator.normalizeSeed(seedInput?.value);
+        if (custom != null) seed = custom;
+      }
       const diff = SaveManager.getDifficulty() ?? 'easy';
       this.registry.reset();
       this.registry.set('runState', { currentMap:0, coins:5, inventory:[],
@@ -275,6 +282,14 @@ class UIManagerClass {
           </button>
         `).join('')}
       </div>
+      <div class="seed-chooser">
+        <label class="seed-checkbox">
+          <input type="checkbox" id="seed-toggle" />
+          <span>Choisir la seed</span>
+        </label>
+        <input type="text" id="seed-input" class="seed-input hidden"
+               placeholder="Entrez une seed (nombre ou texte)" maxlength="40" />
+      </div>
     `;
 
     container.querySelectorAll('.btn-difficulty:not(.locked)').forEach(btn => {
@@ -283,6 +298,16 @@ class UIManagerClass {
         this._renderDifficultySelector();
       });
     });
+
+    // Affiche/masque le champ seed selon la case
+    const toggle = container.querySelector('#seed-toggle');
+    const input  = container.querySelector('#seed-input');
+    if (toggle && input) {
+      toggle.addEventListener('change', () => {
+        input.classList.toggle('hidden', !toggle.checked);
+        if (toggle.checked) input.focus();
+      });
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -292,6 +317,73 @@ class UIManagerClass {
   _updateRelicBanner() {
     // La relique est désormais affichée dans le bouton "Détails de l'épopée" (📜)
     // Cette méthode est conservée comme no-op pour compatibilité.
+  }
+
+  // Vérifie les succès HORS combat (capture, achat…) et affiche un toast immédiat
+  // pour chaque succès nouvellement débloqué.
+  notifyAchievements(registry) {
+    const reg      = registry ?? this.registry;
+    const runState = reg?.get?.('runState') ?? {};
+    const newAch   = window.SaveManager?.checkAchievements?.(runState) ?? [];
+    newAch.forEach((id, i) => setTimeout(() => this._showAchievementToast(id), i * 600));
+    return newAch;
+  }
+
+  _showAchievementToast(id) {
+    const ach = window.__ACHIEVEMENTS__?.[id];
+    if (!ach) return;
+    const toast = document.createElement('div');
+    toast.className = 'achievement-toast';
+    toast.innerHTML = `
+      <span class="ach-toast-icon">🏅</span>
+      <div>
+        <div class="ach-toast-title">Achievement débloqué !</div>
+        <div class="ach-toast-label">${ach.label}</div>
+        <div class="ach-toast-desc">${ach.desc}</div>
+      </div>`;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('visible'));
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      setTimeout(() => toast.remove(), 400);
+    }, 3500);
+  }
+
+  // Fenêtre de confirmation aux couleurs du jeu (remplace confirm() natif).
+  // Retourne une Promise<boolean>. Usage : if (await UIManager.confirm({...}))
+  confirm({ title = 'Confirmer', message = '', icon = '❓',
+            yesLabel = 'Oui', noLabel = 'Non' } = {}) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'ui-confirm-overlay';
+      overlay.innerHTML = `
+        <div class="ui-confirm-box" role="dialog" aria-modal="true">
+          <div class="ui-confirm-icon">${icon}</div>
+          <div class="ui-confirm-title">${title}</div>
+          ${message ? `<div class="ui-confirm-msg">${message}</div>` : ''}
+          <div class="ui-confirm-actions">
+            <button class="ui-confirm-no">${noLabel}</button>
+            <button class="ui-confirm-yes">${yesLabel}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      requestAnimationFrame(() => overlay.classList.add('visible'));
+
+      const close = (val) => {
+        overlay.classList.remove('visible');
+        setTimeout(() => overlay.remove(), 180);
+        document.removeEventListener('keydown', onKey);
+        resolve(val);
+      };
+      const onKey = (e) => {
+        if (e.key === 'Escape') close(false);
+        if (e.key === 'Enter')  close(true);
+      };
+      overlay.querySelector('.ui-confirm-yes').addEventListener('click', () => close(true));
+      overlay.querySelector('.ui-confirm-no').addEventListener('click',  () => close(false));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+      document.addEventListener('keydown', onKey);
+    });
   }
 
   show(screenName, data = {}) {
@@ -415,24 +507,37 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   _startMapScene(data) {
     MapUI.init(data, this.registry, (nodeData) => {
-      // Collecte visited/available depuis les nœuds mutés
-      const visited   = [];
-      const available = [];
+      // ── Persistance PRÉ-combat ────────────────────────────────────────────
+      // On sauvegarde l'état d'AVANT le nœud cliqué : le nœud courant reste
+      // "disponible" dans la save. Ainsi, actualiser pendant la préparation ou
+      // le combat fait reprendre AVANT le combat (à refaire), au lieu de le
+      // sauter — et surtout, un boss interrompu ne soft-lock plus la run.
+      // La progression POST-combat n'est commitée qu'à la victoire (CombatUI).
+      const curId   = nodeData.nodeId ?? null;
+      const visited = [];
       if (nodeData.startNode?.visited) visited.push('start');
       (nodeData.mapNodes ?? []).forEach(col =>
-        col.forEach(n => {
-          if (n.visited)   visited.push(n.id);
-          if (n.available) available.push(n.id);
-        })
+        col.forEach(n => { if (n.visited && n.id !== curId) visited.push(n.id); })
       );
-      // Colonne du nœud sélectionné
-      const colStr = nodeData.nodeId ? nodeData.nodeId.split('_')[0] : '0';
-      const col    = isNaN(parseInt(colStr, 10)) ? 0 : parseInt(colStr, 10);
+      // available pré-clic = connexions des nœuds visités, moins les visités
+      // (le nœud courant, connexion d'un visité, redevient donc disponible)
+      const visitedSet = new Set(visited);
+      const availSet   = new Set();
+      const addConn = (n) => (n?.connections ?? []).forEach(id => {
+        if (!visitedSet.has(id)) availSet.add(id);
+      });
+      if (nodeData.startNode?.visited) addConn(nodeData.startNode);
+      (nodeData.mapNodes ?? []).forEach(col =>
+        col.forEach(n => { if (visitedSet.has(n.id)) addConn(n); })
+      );
+      // Colonne du dernier nœud réellement terminé (celle d'avant le clic)
+      const colStr = curId ? String(curId).split('_')[0] : '0';
+      const colNum = isNaN(parseInt(colStr, 10)) ? 0 : parseInt(colStr, 10);
+      const col    = Math.max(0, colNum - 1);
 
-      // Sauve seed + progression dans runState (auto-persisté par game.js)
       const seed = MapUI._seed;
       if (seed != null) {
-        saveMapProgress(this.registry, seed, visited, available, col);
+        saveMapProgress(this.registry, seed, visited, [...availSet], col);
       }
 
       this.onNodeSelected(nodeData);
@@ -712,7 +817,7 @@ class UIManagerClass {
 
     if (isWin) {
       if (result.nodeType === 'boss') {
-        // currentMap a déjà été avancé à l'affichage des résultats (_onCombatEnd).
+        // currentMap a déjà été avancé DÈS le calcul du combat (resolve()).
         // On affiche l'écran de victoire (arène vaincue = result.mapIndex).
         this.show('arenaVictory', {
           mapIndex:     result.mapIndex,
@@ -760,9 +865,15 @@ class UIManagerClass {
         if (n.available) availableSet.add(n.id);
       }));
       // Re-sauvegarde explicite de la progression mise à jour (nœuds atteints)
+      // lastNodeCol = colonne max réellement atteinte (recalculée des visités)
+      let maxCol = 0;
+      visitedSet.forEach(id => {
+        const c = parseInt(String(id).split('_')[0], 10);
+        if (!isNaN(c) && c > maxCol) maxCol = c;
+      });
       saveMapProgress(
         this.registry, progress.seed,
-        [...visitedSet], [...availableSet], progress.col ?? 0
+        [...visitedSet], [...availableSet], maxCol
       );
       this._startMapScene({
         mapIndex:       data.mapIndex,
