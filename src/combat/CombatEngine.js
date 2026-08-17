@@ -1194,7 +1194,25 @@ export class CombatEngine {
       r.acc = Math.min((r.acc ?? 0) + r.rate, r.max);
     }
 
+    // Baie de secours (Baie Sitrus) : soigne une fois en passant sous le seuil.
+    // Vérifié ici car _dealDamage est le point central de perte de PV.
+    this._checkEmergencyBerry(target);
+
     if (target.hp <= 0) this._handleFaint(target);
+  }
+
+  // Objet à effet de secours : { emergencyHeal: { threshold, rate } }
+  _checkEmergencyBerry(unit) {
+    const berry = unit?.heldItem?.emergencyHeal;
+    if (!berry || unit._berryUsed || unit.hp <= 0) return;
+    if ((unit.hp / unit.maxHp) >= (berry.threshold ?? 0.50)) return;
+    unit._berryUsed = true;
+    const heal = Math.max(1, Math.ceil(unit.maxHp * (berry.rate ?? 0.25)));
+    unit.hp = Math.min(unit.maxHp, unit.hp + heal);
+    this.log.push({ type:'effect_heal', effect:'item_berry',
+      label:`🍊 ${unit.heldItem.name}`,
+      targetId:unit.uid, targetName:unit.name, targetSide:unit.side,
+      heal, targetHpLeft:unit.hp, targetMaxHp:unit.maxHp });
   }
 
   // ─────────────────────────────────────────────────────────────────────────

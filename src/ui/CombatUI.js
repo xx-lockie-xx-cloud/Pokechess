@@ -1804,7 +1804,8 @@ export const CombatUI = {
     if (this._data.nodeType === 'boss') {
       // Ligue : sprite du Maître (archétype) ; sinon sprite du champion d'arène
       if (this._data.leagueSprite) return this._data.leagueSprite;
-      const arena = getArenaForMap(this._data.mapIndex ?? 0);
+      const regionId = window.SaveManager?.loadMeta?.()?.region ?? 'kanto';
+      const arena = getArenaForMap(this._data.mapIndex ?? 0, regionId);
       return arena?.championSpriteCombat ?? null;
     }
     if (this._data.trainerArchetypeId) {

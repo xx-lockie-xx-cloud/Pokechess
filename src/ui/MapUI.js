@@ -6,7 +6,8 @@ import { RelicUI } from './RelicUI.js';
 import { MapGenerator, NODE_TYPES } from '../map/MapGenerator.js';
 import { getRunState }              from '../data/runState.js';
 import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES }       from '../data/trainers.js';
-import { getArenaForMap, ARENAS }   from '../data/arenas.js';
+import { getArenaForMap, getDestinationName } from '../data/arenas.js';
+import { DEFAULT_REGION }           from '../data/regions.js';
 
 // ── Constantes de base (à zoom=1) ────────────────────────────────────────────
 const BASE_SPRITE = 72;
@@ -110,8 +111,8 @@ export const MapUI = {
 
     // Titre
     const title = document.createElement('div');
-    const dest  = ARENAS[this._mapIdx];
-    title.textContent = `En Route vers ${dest?.city ?? ('Route ' + (this._mapIdx + 1))}`;
+    const rid   = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+    title.textContent = `En Route vers ${getDestinationName(this._mapIdx, rid)}`;
     title.style.cssText = `
       flex-shrink: 0;
       text-align: center;
@@ -499,7 +500,10 @@ export const MapUI = {
     if (node.type === NODE_TYPES.START && node.prevArena?.championSprite)
       return node.prevArena.championSprite;
     if (node.type === NODE_TYPES.BOSS) {
-      const a = getArenaForMap(this._mapIdx);
+      // La région DOIT être passée : sans elle, getArenaForMap retombe sur
+      // Kanto et affiche Pierre à la place du champion de Johto.
+      const rid = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+      const a = getArenaForMap(this._mapIdx, rid);
       return a?.championSprite ?? null;
     }
     if (node.type === NODE_TYPES.COMBAT && node.trainer?.archetypeId) {

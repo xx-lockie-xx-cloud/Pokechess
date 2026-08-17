@@ -2,10 +2,11 @@
 // MapScene.js — Scène Phaser de la map de progression
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { MapGenerator, NODE_TYPES } from '../map/MapGenerator.js';
+import { MapGenerator, NODE_TYPES } from './MapGenerator.js';
 import { getRunState }              from '../data/runState.js';
-import { TRAINER_ARCHETYPES }       from '../data/trainers.js';
-import { getArenaForMap, ARENAS }   from '../data/arenas.js';
+import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES } from '../data/trainers.js';
+import { getArenaForMap, getDestinationName } from '../data/arenas.js';
+import { DEFAULT_REGION }           from '../data/regions.js';
 
 // ── Dimensions ───────────────────────────────────────────────────────────────
 const SPRITE_SIZE = 72;   // taille d'affichage des sprites de nœuds
@@ -67,13 +68,14 @@ export class MapScene extends Phaser.Scene {
 
   // ─────────────────────────────────────────────────────────────────────────
   preload() {
-    TRAINER_ARCHETYPES.forEach(a => {
+    ALL_TRAINER_ARCHETYPES.forEach(a => {
       const key = `trainer_map_${a.id}`;
       if (a.spriteMap && !this.textures.exists(key))
         this.load.image(key, a.spriteMap);
     });
 
-    const arena = getArenaForMap(this.mapIndex);
+    const regionId = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+    const arena = getArenaForMap(this.mapIndex, regionId);
     if (arena?.championSprite) {
       const key = `champion_map_${this.mapIndex}`;
       if (!this.textures.exists(key))
@@ -101,8 +103,8 @@ export class MapScene extends Phaser.Scene {
       .setOrigin(0).setDepth(-10).setScrollFactor(0);
 
     // Titre — "En Route vers [ville du prochain badge]", centré, scroll-fixe
-    const destArena  = ARENAS[this.mapIndex] ?? null;
-    const destCity   = destArena?.city ?? `Route ${this.mapIndex + 1}`;
+    const rid        = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+    const destCity   = getDestinationName(this.mapIndex, rid);
     const titleText  = `En Route vers ${destCity}`;
 
     this.add.text(W / 2, 10, titleText, {

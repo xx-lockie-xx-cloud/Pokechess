@@ -30,6 +30,8 @@ import { AchievementsUI }      from './AchievementsUI.js';
 import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
 import { RelicEngine }       from '../combat/RelicEngine.js';
+import { getRegionList, getRegionDifficulties, isRegionUnlocked, DEFAULT_REGION,
+         REGIONS } from '../data/regions.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
@@ -258,8 +260,23 @@ class UIManagerClass {
     const container = document.getElementById('menu-difficulty');
     if (!container) return;
     const meta       = SaveManager.loadMeta();
-    const unlocked   = getUnlockedDifficultiesWithMeta(meta);
     const current    = SaveManager.getDifficulty();
+
+    // ── Région courante (repli sur Kanto si verrouillée ou inconnue) ──────────
+    let regionId = meta.region ?? DEFAULT_REGION;
+    if (!isRegionUnlocked(regionId, meta)) regionId = DEFAULT_REGION;
+    const regions   = getRegionList(meta);
+    const regDiffs  = getRegionDifficulties(regionId, meta);
+
+    // Difficulté courante valide pour cette région ? sinon on prend la première
+    const validIds  = regDiffs.filter(d => d.unlocked).map(d => d.id);
+    const curDiff   = validIds.includes(current) ? current : (validIds[0] ?? 'normal');
+    if (curDiff !== current) SaveManager.setDifficulty(curDiff);
+
+    const DIFF_LABELS = {
+      easy:   '🌱 Facile',   normal: '⚔️ Normal',
+      hard:   '🔥 Difficile', expert: '💀 Expert',
+    };
 
     // Badge DEV si mode dev actif
     const devBadge = meta.devMode
@@ -268,19 +285,36 @@ class UIManagerClass {
 
     container.innerHTML = `
       ${devBadge}
+      <div class="difficulty-label">Région</div>
+      <div class="region-btns">
+        ${regions.map(r => `
+          <button class="btn-region ${r.id === regionId ? 'active' : ''} ${r.unlocked ? '' : 'locked'}"
+                  data-region="${r.id}" ${r.unlocked ? '' : 'disabled'}
+                  title="${r.unlocked ? r.subtitle : r.unlockHint}">
+            <span class="region-visual">
+              ${r.image
+                ? `<img src="${r.image}" alt="${r.name}" class="region-img"
+                        onerror="this.replaceWith(Object.assign(document.createElement('span'),
+                                 {className:'region-emoji',textContent:'${r.emoji}'}))" />`
+                : `<span class="region-emoji">${r.emoji}</span>`}
+              ${r.unlocked ? '' : '<span class="region-lock">🔒</span>'}
+            </span>
+            <span class="region-name">${r.name}</span>
+            <span class="region-sub">${r.unlocked ? r.subtitle : r.unlockHint}</span>
+          </button>
+        `).join('')}
+      </div>
       <div class="difficulty-label">Difficulté</div>
       <div class="difficulty-btns">
-        ${unlocked.map(d => `
-          <button class="btn-difficulty ${d.id === current ? 'active' : ''}"
-                  data-id="${d.id}" title="${d.desc}">
-            ${d.label}
-          </button>
-        `).join('')}
-        ${DIFFICULTIES.filter(d => !unlocked.includes(d)).map(d => `
-          <button class="btn-difficulty locked" disabled title="Succès requis : ${d.unlockAchievement}">
-            🔒 ${d.label.split(' ')[1]}
-          </button>
-        `).join('')}
+        ${regDiffs.map(d => d.unlocked
+          ? `<button class="btn-difficulty ${d.id === curDiff ? 'active' : ''}" data-id="${d.id}">
+               ${DIFF_LABELS[d.id] ?? d.id}
+             </button>`
+          : `<button class="btn-difficulty locked" disabled
+                     title="Terminez la Ligue en ${DIFF_LABELS[d.requires] ?? d.requires}">
+               🔒 ${(DIFF_LABELS[d.id] ?? d.id).split(' ')[1] ?? d.id}
+             </button>`
+        ).join('')}
       </div>
       <div class="seed-chooser">
         <label class="seed-checkbox">
@@ -291,6 +325,14 @@ class UIManagerClass {
                placeholder="Entrez une seed (nombre ou texte)" maxlength="40" />
       </div>
     `;
+
+    container.querySelectorAll('.btn-region:not(.locked)').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const m = SaveManager.loadMeta();
+        SaveManager.saveMeta({ ...m, region: btn.dataset.region });
+        this._renderDifficultySelector();   // re-filtre les difficultés
+      });
+    });
 
     container.querySelectorAll('.btn-difficulty:not(.locked)').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -733,6 +775,12 @@ class UIManagerClass {
         meta.pokemonLevels = meta._levelsBackup;
         delete meta._levelsBackup;
       }
+      // Restaure les ligues réellement gagnées
+      if (meta._leaguesBackup) {
+        meta.runStats = meta.runStats ?? {};
+        meta.runStats.leaguesByRegion = meta._leaguesBackup;
+        delete meta._leaguesBackup;
+      }
       SaveManager.saveMeta(meta);
       this._showToast('🔓 Mode dev désactivé — niveaux restaurés', '#e17055');
     } else {
@@ -745,13 +793,28 @@ class UIManagerClass {
           meta.achievements[id] = { unlockedAt: now, _byDev: true };
         }
       });
+
+      // Ligues marquées comme terminées dans TOUTES les régions et difficultés.
+      // On écrit réellement la donnée (plutôt que de tester devMode partout) :
+      // ainsi les régions, les difficultés et le déblocage de la gen 2 suivent
+      // le même chemin qu'en jeu normal. `_byDev` permet de tout retirer ensuite.
+      meta.runStats = meta.runStats ?? {};
+      meta._leaguesBackup = JSON.parse(JSON.stringify(meta.runStats.leaguesByRegion ?? {}));
+      const byRegion = { ...(meta.runStats.leaguesByRegion ?? {}) };
+      Object.values(REGIONS).forEach(r => {
+        byRegion[r.id] = { ...(byRegion[r.id] ?? {}) };
+        r.difficulties.forEach(d => {
+          byRegion[r.id][d] = Math.max(byRegion[r.id][d] ?? 0, 1);
+        });
+      });
+      meta.runStats.leaguesByRegion = byRegion;
       // Sauvegarde les niveaux actuels puis passe tous les Pokémon niveau 100
       meta._levelsBackup = { ...(meta.pokemonLevels ?? {}) };
       const allLevels = {};
       (window.__POKEMONS__ ?? []).forEach(p => { allLevels[p.id] = 100; });
       // Fallback : si la liste n'est pas exposée, on garde les ids 1-151
       if (Object.keys(allLevels).length === 0) {
-        for (let id = 1; id <= 151; id++) allLevels[id] = 100;
+        for (let id = 1; id <= 251; id++) allLevels[id] = 100;
       }
       meta.pokemonLevels = allLevels;
       SaveManager.saveMeta(meta);

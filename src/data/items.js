@@ -41,8 +41,8 @@ export const ITEMS = {
   rappel: {
     id: 'rappel', name: 'Rappel', emoji: '💊', price: 5,
     type: 'consumable',
-    description: 'Ranime un Pokémon K.O. avec 50% HP.',
-    reviveRate: 0.50 
+    description: 'Ranime une fois par combat le porteur K.O. avec 50% HP.',
+    reviveRate: 0.50,   // effet lu par CombatEngine (résurrection unique, objet non consommé)
   },
   super_bonbon: {
     id: 'super_bonbon', name: 'Super Bonbon', emoji: '🍬', price: 6,
@@ -105,6 +105,92 @@ export const ITEMS = {
     description: '+30% ATK et SP.ATK (type Vol).',
     statBonus: { atk: 1.30, spa: 1.30 },
   },
+  // ── Objets d'aura d'équipe (bonus à TOUS les alliés) ────────────────────
+  // Prix plus élevé que les objets typés : +10% sur 6 unités pèse plus lourd
+  // qu'un +30% sur une seule. Deux exemplaires du MÊME objet ne se cumulent
+  // pas (voir getTeamAuras), mais les trois objets différents se cumulent.
+  totem_offensif: {
+    id: 'totem_offensif', name: 'Totem de Force', emoji: '🗿', price: 7,
+    type: 'equippable',
+    description: '+10% ATK et DEF à toute l\'équipe.',
+    teamAura: { atk: 1.10, def: 1.10 },
+  },
+  totem_mental: {
+    id: 'totem_mental', name: 'Totem Mental', emoji: '🔯', price: 7,
+    type: 'equippable',
+    description: '+10% SP.ATK et SP.DEF à toute l\'équipe.',
+    teamAura: { spa: 1.10, spd_def: 1.10 },
+  },
+  totem_vital: {
+    id: 'totem_vital', name: 'Totem Vital', emoji: '🌀', price: 7,
+    type: 'equippable',
+    description: '+10% PV et VIT à toute l\'équipe.',
+    teamAura: { hp: 1.10, spd: 1.10 },
+  },
+
+  // ── Baie de secours ─────────────────────────────────────────────────────
+  baie_sitrus: {
+    id: 'baie_sitrus', name: 'Baie Sitrus', emoji: '🍊', price: 5,
+    type: 'equippable',
+    description: 'Rend 25% des PV max en passant sous 50% de PV (une fois).',
+    emergencyHeal: { threshold: 0.50, rate: 0.25 },
+  },
+
+  // ── Objets typés complémentaires (uniformisation des 18 types) ──────────
+  glacon_eternel: {
+    id: 'glacon_eternel', name: 'Glaçon Éternel', emoji: '❄️', price: 4,
+    type: 'equippable', typeFilter: 'Glace',
+    description: '+30% ATK et SP.ATK (type Glace).',
+    statBonus: { atk: 1.30, spa: 1.30 },
+  },
+  ceinture_noire: {
+    id: 'ceinture_noire', name: 'Ceinture Noire', emoji: '🥋', price: 4,
+    type: 'equippable', typeFilter: 'Combat',
+    description: '+30% ATK et SP.ATK (type Combat).',
+    statBonus: { atk: 1.30, spa: 1.30 },
+  },
+  poudre_argentee: {
+    id: 'poudre_argentee', name: 'Poudre Argentée', emoji: '🪲', price: 4,
+    type: 'equippable', typeFilter: 'Insecte',
+    description: '+30% ATK et SP.ATK (type Insecte).',
+    statBonus: { atk: 1.30, spa: 1.30 },
+  },
+  pierre_dure: {
+    id: 'pierre_dure', name: 'Pierre Dure', emoji: '🪨', price: 4,
+    type: 'equippable', typeFilter: 'Roche',
+    description: '+30% ATK et SP.ATK (type Roche).',
+    statBonus: { atk: 1.30, spa: 1.30 },
+  },
+  rune_magique: {
+    id: 'rune_magique', name: 'Rune Magique', emoji: '👻', price: 4,
+    type: 'equippable', typeFilter: 'Spectre',
+    description: '+30% ATK et SP.ATK (type Spectre).',
+    statBonus: { atk: 1.30, spa: 1.30 },
+  },
+  croc_dragon: {
+    id: 'croc_dragon', name: 'Croc Dragon', emoji: '🐉', price: 4,
+    type: 'equippable', typeFilter: 'Dragon',
+    description: '+30% ATK et SP.ATK (type Dragon).',
+    statBonus: { atk: 1.30, spa: 1.30 },
+  },
+  lunettes_noires: {
+    id: 'lunettes_noires', name: 'Lunettes Noires', emoji: '🕶️', price: 4,
+    type: 'equippable', typeFilter: 'Ténèbres',
+    description: '+30% ATK et SP.ATK (type Ténèbres).',
+    statBonus: { atk: 1.30, spa: 1.30 },
+  },
+  peau_metal: {
+    id: 'peau_metal', name: 'Peau Métal', emoji: '⚙️', price: 4,
+    type: 'equippable', typeFilter: 'Acier',
+    description: '+30% ATK et SP.ATK (type Acier).',
+    statBonus: { atk: 1.30, spa: 1.30 },
+  },
+  plume_enchantee: {
+    id: 'plume_enchantee', name: 'Plume Enchantée', emoji: '🧚', price: 4,
+    type: 'equippable', typeFilter: 'Fée',
+    description: '+30% ATK et SP.ATK (type Fée).',
+    statBonus: { atk: 1.30, spa: 1.30 },
+  },
 
   // ── Objets génériques (stat unique +30%) ────────────────────────────────────
   ceinture_choix: {
@@ -153,3 +239,73 @@ export const ITEMS = {
     statBonus: {},
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pickEquippableItems(count, playerUnits, options)
+//
+// Tirage PONDÉRÉ des objets équipables. Avec 18 objets typés (un par type),
+// un tirage uniforme proposerait le plus souvent des objets inutilisables :
+// une équipe couvre en moyenne 6 types sur 18. On favorise donc les objets
+// dont le type est représenté dans l'équipe, sans jamais exclure les autres
+// (un objet "hors type" reste utile en prévision d'une évolution ou d'un achat).
+// ─────────────────────────────────────────────────────────────────────────────
+export const ITEM_PICK_WEIGHTS = {
+  matchingType: 3.0,   // objet typé correspondant à un Pokémon de l'équipe
+  universal:    1.5,   // objet sans filtre de type (toujours utilisable)
+  offType:      0.4,   // objet typé sans correspondance dans l'équipe
+};
+
+export function pickEquippableItems(count = 3, playerUnits = [], options = {}) {
+  const { exclude = [], rng = Math.random } = options;
+
+  const teamTypes = new Set();
+  (playerUnits ?? []).forEach(u => (u?.types ?? []).forEach(t => teamTypes.add(t)));
+
+  const pool = Object.values(ITEMS).filter(i =>
+    i.type === 'equippable' && !exclude.includes(i.id));
+
+  const weightOf = (item) => {
+    if (!item.typeFilter)                return ITEM_PICK_WEIGHTS.universal;
+    if (teamTypes.has(item.typeFilter))  return ITEM_PICK_WEIGHTS.matchingType;
+    return ITEM_PICK_WEIGHTS.offType;
+  };
+
+  // Tirage sans remise, pondéré
+  const remaining = pool.map(i => ({ item: i, w: weightOf(i) }));
+  const picked    = [];
+  while (picked.length < count && remaining.length > 0) {
+    const total = remaining.reduce((a, e) => a + e.w, 0);
+    let r = rng() * total;
+    let idx = remaining.length - 1;
+    for (let i = 0; i < remaining.length; i++) {
+      r -= remaining[i].w;
+      if (r <= 0) { idx = i; break; }
+    }
+    picked.push(remaining[idx].item);
+    remaining.splice(idx, 1);
+  }
+  return picked;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getTeamAuras(fieldUnits) — multiplicateurs d'aura apportés par les objets
+// portés sur le terrain.
+//
+// Règle anti-abus : deux exemplaires du MÊME totem ne se cumulent pas (on ne
+// compte chaque objet qu'une fois). En revanche, deux totems DIFFÉRENTS se
+// cumulent, puisqu'ils touchent des statistiques distinctes.
+// ─────────────────────────────────────────────────────────────────────────────
+export function getTeamAuras(fieldUnits = []) {
+  const seen  = new Set();
+  const auras = {};
+  (fieldUnits ?? []).forEach(u => {
+    const aura = u?.heldItem?.teamAura;
+    const id   = u?.heldItem?.id;
+    if (!aura || !id || seen.has(id)) return;
+    seen.add(id);
+    Object.entries(aura).forEach(([stat, mult]) => {
+      auras[stat] = (auras[stat] ?? 1) * mult;
+    });
+  });
+  return auras;
+}

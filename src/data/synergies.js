@@ -2,7 +2,7 @@
 // synergies.js
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getEffectiveStats } from './items.js';
+import { getEffectiveStats, getTeamAuras } from './items.js';
 import { getBSTTier }       from './runState.js';
 import { GRID_COLS, GRID_ROWS } from '../board.js';
 
@@ -348,6 +348,19 @@ function _legacyCountSynergies(units, relicId = null) {
 export function getFullStats(unit, fieldUnits = [], meta = null, relicId = null, talentEffects = []) {
   const base     = { ...(unit.stats ?? {}) };
   const withItem = getEffectiveStats(unit, meta);   // base + niveau + objet
+
+  // ── Couche AURA D'OBJET (totems : bonus à toute l'équipe) ──────────────────
+  // Appliquée après l'objet personnel et avant les synergies. Les auras sont
+  // apportées par les objets portés par N'IMPORTE QUELLE unité du terrain, y
+  // compris celle-ci.
+  const teamAuras = getTeamAuras(fieldUnits.filter(Boolean));
+  const auraBoosted = new Set();
+  Object.entries(teamAuras).forEach(([stat, mult]) => {
+    if (withItem[stat] != null) {
+      withItem[stat] = Math.round(withItem[stat] * mult);
+      auraBoosted.add(stat);
+    }
+  });
 
   // Bonus de synergies applicables à cette unité
   // (relicId pour que catalyseur/cristal_pur affectent les seuils)

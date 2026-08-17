@@ -2,7 +2,8 @@
 // ArenaVictoryUI.js — Remplace ArenaVictoryScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getArenaForMap, ARENAS }   from '../data/arenas.js';
+import { getArenaForMap, getArenas } from '../data/arenas.js';
+import { DEFAULT_REGION }           from '../data/regions.js';
 import { getRunState, setRunState, tryUnlockSlot } from '../data/runState.js';
 import { RelicEngine } from '../combat/RelicEngine.js';
 import { RELICS } from '../data/relics.js';
@@ -27,7 +28,8 @@ export const ArenaVictoryUI = {
     }
 
     const mapIndex = data.mapIndex ?? 0;
-    const arena    = getArenaForMap(mapIndex);
+    const regionId = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+    const arena    = getArenaForMap(mapIndex, regionId);
 
     // mapIndex 8 = Ligue (9e map) → écran ÉPIQUE
     // mapIndex > 8 = ligues du mode endless → écran intermédiaire
@@ -75,8 +77,10 @@ export const ArenaVictoryUI = {
       };
       const diff = DIFF_INFO[diffId] ?? DIFF_INFO.normal;
 
-      // Les 8 badges des arènes, répartis UNIFORMÉMENT sur 2 lignes (4 + 4)
-      const badgeSprites = ARENAS.map(a => a.badgeSprite);
+      // Les 8 badges des arènes DE LA RÉGION jouée, sur 2 lignes (4 + 4).
+      // Le maître de ligue (Peter, Red) n'a pas de badge : il n'apparaît pas ici.
+      const regionId     = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+      const badgeSprites = getArenas(regionId).map(a => a.badgeSprite);
       const badgeImg = (src, i) => `
         <img class="lv-badge" src="${src}" alt="badge"
              style="animation-delay:${0.15 * i}s"
@@ -147,20 +151,20 @@ export const ArenaVictoryUI = {
               ${line('🏅', achLeft > 0
                   ? `${b(achDone)} succès sur ${b(achTotal)}
                      <span class="lv-stat-sub">Il t'en reste ${b(achLeft)} à décrocher</span>`
-                  : `${b(achDone)} succès sur ${b(achTotal)} — tu les as <em>tous</em> réalisés !`)}
+                  : `${b(achDone)} succès sur ${b(achTotal)}, tu les as <em>tous</em> réalisés !`)}
               ${line('💎', relicsLeft > 0
                   ? `${b(relicsUsedCount)} relique${relicsUsedCount > 1 ? 's' : ''} essayée${relicsUsedCount > 1 ? 's' : ''} sur ${b(relicTotal)}
                      <span class="lv-stat-sub">${b(relicsLeft)} autre${relicsLeft > 1 ? 's' : ''} t'attend${relicsLeft > 1 ? 'ent' : ''} pour varier les plaisirs</span>`
-                  : `Les ${b(relicTotal)} reliques ont toutes été essayées — chapeau !`)}
+                  : `Les ${b(relicTotal)} reliques ont toutes été essayées, chapeau !`)}
             </ul>
-            <p>Ce jeu a été construit pièce par pièce, comme tu l'as deviné, avec l'aide de
+            <p>Ce jeu a été construit pièce par pièce. Comme tu l'as deviné, avec l'aide de
                l'intelligence artificielle. Cependant, chaque synergie, chaque talent et chaque
                équilibrage ont été bidouillés par mes petits doigts et mon gamefeel, plus quelques
                retours d'amis. Il m'a servi de porte d'entrée dans le développement web.</p>
             <p>Voir que tu as appris à maîtriser les différents aspects de ce jeu à ce niveau,
                ça n'a pas de prix.</p>
             <p>Merci d'y avoir joué, et encore bravo. 🙏</p>
-            <p class="lv-expert-sign">— Lockie</p>
+            <p class="lv-expert-sign">Lockie</p>
           </div>
         </div>`;
       })() : '';
@@ -293,7 +297,14 @@ export const ArenaVictoryUI = {
         // Fallback emoji dans le nom
       }
       if (badgeName) {
-        badgeName.textContent = `${arena.badgeEmoji} ${arena.badgeName}`;
+        // Sprite de combat du champion devant le nom du badge, plutôt qu'un
+        // emoji. Repli sur l'emoji si l'image ne charge pas.
+        const sprite = arena.championSpriteCombat ?? arena.championSprite;
+        badgeName.innerHTML = sprite
+          ? `<img src="${sprite}" alt="${arena.champion}" class="badge-champ-icon"
+                  onerror="this.replaceWith(document.createTextNode('${arena.badgeEmoji} '))" />` +
+            `<span>${arena.badgeName}</span>`
+          : `${arena.badgeEmoji} ${arena.badgeName}`;
       }
     }
   },

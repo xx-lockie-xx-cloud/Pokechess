@@ -192,7 +192,14 @@ img {
   width: 100%;
 }
 
-.screen-content.centered { justify-content: center; }
+/* Centrage vertical SANS rognage.
+   `justify-content: center` sur un conteneur scrollable rend le début et la fin
+   du contenu inatteignables dès qu'il dépasse la hauteur disponible. La marge
+   auto sur les enfants extrêmes centre quand il y a de la place, et laisse le
+   scroll complet quand il n'y en a plus. Compatible tous navigateurs. */
+.screen-content.centered { justify-content: flex-start; }
+.screen-content.centered > *:first-child { margin-top: auto; }
+.screen-content.centered > *:last-child  { margin-bottom: auto; }
 
 /* ── Titres ───────────────────────────────────────────────────────────────── */
 h1, h2, h3 {
@@ -4825,3 +4832,94 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .ui-confirm-actions button:active { transform: translateY(1px); }
 .ui-confirm-yes { background: linear-gradient(160deg, #2ecc71, #21a25a); }
 .ui-confirm-no  { background: linear-gradient(160deg, #e74c3c, #c0392b); }
+
+/* ── Sélecteur de région (menu) ────────────────────────────────────────────── */
+.region-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.btn-region {
+  flex: 1 1 0;
+  min-width: 120px;
+  max-width: 170px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 7px 8px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.btn-region:hover:not(.locked) { background: var(--bg-elevated); transform: translateY(-1px); }
+.btn-region.active {
+  border-color: var(--color-gold);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 14px rgba(255,215,0,0.22);
+}
+.btn-region.locked { opacity: 0.5; cursor: not-allowed; }
+
+/* Visuel : image de région, repli sur l'emoji si le PNG est absent */
+.region-visual {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.region-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: filter 0.15s, transform 0.15s;
+}
+.btn-region:hover:not(.locked) .region-img { transform: scale(1.04); }
+.btn-region.locked .region-img { filter: grayscale(1) brightness(0.5); }
+.region-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+}
+.region-emoji { font-size: 26px; line-height: 1; }
+.region-name  { font-size: 14px; font-weight: 800; color: var(--text-primary); }
+.btn-region.active .region-name { color: var(--color-gold); }
+.region-sub   {
+  font-size: 9px;
+  line-height: 1.25;
+  color: var(--text-muted);
+  text-align: center;
+  /* Deux lignes maximum : évite qu'un indice long n'allonge la carte.
+     La version préfixée reste nécessaire (support historique), la version
+     standard est ajoutée pour la compatibilité future. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Icône du champion devant le nom du badge (écran de victoire d'arène) */
+.badge-champ-icon {
+  width: 28px;
+  height: 28px;
+  image-rendering: pixelated;
+  vertical-align: middle;
+  margin-right: 6px;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
+}

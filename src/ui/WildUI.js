@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { POKEMONS, TYPE_COLORS as TC } from '../data/pokemons.js';
+import { isPokemonAllowed, DEFAULT_REGION } from '../data/regions.js';
 import { getBSTTier }                  from '../data/runState.js';
 import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
@@ -186,9 +187,15 @@ export const WildUI = {
     // Aimant : 4 pokémons au lieu de 3
     const wildCount = RelicEngine.wildSlots(getRunState(this._registry)?.relic?.id);
 
+    // Pool restreint aux générations débloquées : la gen 2 n'apparaît qu'une
+    // fois Johto accessible (Ligue de Kanto terminée en Normal ou plus).
+    const meta      = window.SaveManager?.loadMeta?.() ?? {};
+    const regionId  = meta.region ?? DEFAULT_REGION;
+    const allowed   = POKEMONS.filter(p => isPokemonAllowed(p.id, regionId, meta));
+
     while (offered.length < wildCount && tries < 40) {
       tries++;
-      const p = weightedWildDraw(this._registry, POKEMONS);
+      const p = weightedWildDraw(this._registry, allowed);
       if (p && !usedIds.has(p.id)) {
         offered.push(p);
         usedIds.add(p.id);
@@ -196,7 +203,7 @@ export const WildUI = {
     }
 
     if (offered.length < wildCount) {
-      const fallback = [...POKEMONS]
+      const fallback = [...allowed]
         .filter(p => !usedIds.has(p.id))
         .sort(() => Math.random() - 0.5);
       while (offered.length < wildCount && fallback.length) {
@@ -525,7 +532,7 @@ export const WildUI = {
         warn = document.createElement('p');
         warn.id        = warnId;
         warn.className = 'wild-warn';
-        warn.textContent = '⚠ Banque pleine — vends un pokémon pour en capturer d\'autres';
+        warn.textContent = '⚠ Banque pleine : vends un pokémon pour en capturer d\'autres';
         host.appendChild(warn);
       }
     } else if (warn) {

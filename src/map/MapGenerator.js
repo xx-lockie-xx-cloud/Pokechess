@@ -5,6 +5,7 @@
 import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES, generateEnemyTeam } from '../data/trainers.js';
 import { getArenaForMap, generateArenaTeam,
          generateLeagueTeam, generateLeagueMaster } from '../data/arenas.js';
+import { DEFAULT_REGION } from '../data/regions.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRNG déterministe — Mulberry32 (rapide, bonne distribution)
@@ -177,21 +178,29 @@ export class MapGenerator {
             units:       generateEnemyTeam(archetype, budget, maxUnits, mapIndex, rng),
           };
         } else if (isBoss) {
-          const arenaData    = getArenaForMap(mapIndex);
+          // Région et méta courantes : conditionnent les champions affrontés ET
+          // les générations de Pokémon autorisées dans leurs équipes.
+          const meta         = window.SaveManager?.loadMeta?.() ?? {};
+          const regionId     = meta.region ?? DEFAULT_REGION;
+          const arenaData    = getArenaForMap(mapIndex, regionId);
           const bossMaxUnits = maxUnitsForStep(mapIndex, col, this.cols);
           const bossBudget   = budgetForStep(mapIndex, col, this.cols, difficulty);
 
           let bossTeam, bossName, bossSprite = null, bossColor = 0xffd700;
           if (mapIndex >= 8) {
             // Map 8+ = Ligue Pokémon → MAÎTRE : archétype aléatoire en version Maître
-            const master = generateLeagueMaster(mapIndex, difficulty, rng);
+            // Même budget que les champions (DIFF_BUDGETS) : le maître se
+            // distingue par MASTER_MULT, pas par un budget qui ignore la difficulté.
+            const master = generateLeagueMaster(mapIndex, difficulty, rng, regionId, meta,
+                                                bossBudget);
             bossTeam   = master.team;
             bossName   = master.name;
             bossSprite = master.spriteCombat;
             bossColor  = master.color;
           } else {
             bossTeam = arenaData
-              ? generateArenaTeam(arenaData, mapIndex, bossBudget, bossMaxUnits, rng)
+              ? generateArenaTeam(arenaData, mapIndex, bossBudget, bossMaxUnits, rng,
+                                  regionId, meta)
               : [];
             bossName = arenaData ? `Champion ${arenaData.champion}` : 'Champion';
           }
