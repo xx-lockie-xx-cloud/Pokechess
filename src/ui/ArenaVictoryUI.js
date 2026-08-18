@@ -4,7 +4,7 @@
 
 import { getArenaForMap, getArenas } from '../data/arenas.js';
 import { DEFAULT_REGION }           from '../data/regions.js';
-import { getRunState, setRunState, tryUnlockSlot } from '../data/runState.js';
+import { getRunState, setRunState, tryUnlockSlot, getRunRegion } from '../data/runState.js';
 import { RelicEngine } from '../combat/RelicEngine.js';
 import { RELICS } from '../data/relics.js';
 import { ACHIEVEMENTS } from '../data/levelSystem.js';
@@ -28,7 +28,7 @@ export const ArenaVictoryUI = {
     }
 
     const mapIndex = data.mapIndex ?? 0;
-    const regionId = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+    const regionId = getRunRegion(this._registry);
     const arena    = getArenaForMap(mapIndex, regionId);
 
     // mapIndex 8 = Ligue (9e map) → écran ÉPIQUE
@@ -79,7 +79,7 @@ export const ArenaVictoryUI = {
 
       // Les 8 badges des arènes DE LA RÉGION jouée, sur 2 lignes (4 + 4).
       // Le maître de ligue (Peter, Red) n'a pas de badge : il n'apparaît pas ici.
-      const regionId     = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+      const regionId     = getRunRegion(this._registry);
       const badgeSprites = getArenas(regionId).map(a => a.badgeSprite);
       const badgeImg = (src, i) => `
         <img class="lv-badge" src="${src}" alt="badge"
@@ -272,9 +272,10 @@ export const ArenaVictoryUI = {
 
     // Sprite champion
     const champDiv = document.getElementById('victory-champion');
-    if (champDiv && arena?.championSprite) {
+    const champSprite = arena?.championSpriteCombat ?? arena?.championSprite;
+    if (champDiv && champSprite) {
       champDiv.innerHTML = `
-        <img src="${arena.championSprite}"
+        <img src="${champSprite}"
              alt="${arena.champion}"
              style="width:120px;height:120px;image-rendering:pixelated" />
       `;
@@ -297,14 +298,8 @@ export const ArenaVictoryUI = {
         // Fallback emoji dans le nom
       }
       if (badgeName) {
-        // Sprite de combat du champion devant le nom du badge, plutôt qu'un
-        // emoji. Repli sur l'emoji si l'image ne charge pas.
-        const sprite = arena.championSpriteCombat ?? arena.championSprite;
-        badgeName.innerHTML = sprite
-          ? `<img src="${sprite}" alt="${arena.champion}" class="badge-champ-icon"
-                  onerror="this.replaceWith(document.createTextNode('${arena.badgeEmoji} '))" />` +
-            `<span>${arena.badgeName}</span>`
-          : `${arena.badgeEmoji} ${arena.badgeName}`;
+        // Uniquement le nom : le sprite du badge est déjà affiché à gauche.
+        badgeName.textContent = arena.badgeName;
       }
     }
   },

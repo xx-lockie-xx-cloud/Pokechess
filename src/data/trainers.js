@@ -12,6 +12,8 @@ const canonStats = (p) => POKE_BY_ID.get(p.id)?.stats ?? p.stats;
 export const TRAINER_ARCHETYPES = [
   {
     id:    'pecheur',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [158, 159, 160, 170, 171, 183, 184, 186, 194, 195, 211, 222, 223, 224, 226, 230],
     name:  'Pêcheur',
     types: ['Eau'],
     color:       0x0097e6,
@@ -118,6 +120,8 @@ export const TRAINER_ARCHETYPES = [
   },
   {
     id:    'telekinesiste',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [177, 178, 196, 199, 201, 202, 203, 238],
     name:  'Télékinésiste',
     types: ['Psy'],
     color:       0x9c59d1,
@@ -164,6 +168,8 @@ export const TRAINER_ARCHETYPES = [
   },
   {
     id:    'montagnard',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [185, 207, 208, 213, 220, 221, 231, 232, 246, 247],
     name:  'Montagnard',
     types: ['Roche', 'Sol'],
     color:       0x8e7348,
@@ -231,6 +237,8 @@ export const TRAINER_ARCHETYPES = [
   },
   {
     id:    'pyromaniac',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [155, 156, 157, 218, 219, 228, 229, 240],
     name:  'Pyromaniaque',
     types: ['Feu'],
     color:       0xe84118,
@@ -274,6 +282,8 @@ export const TRAINER_ARCHETYPES = [
   },
   {
     id:    'insectologue',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [165, 166, 167, 168, 193, 204, 205, 212, 214],
     name:  'Insectologue',
     types: ['Insecte'],
     color:       0x44bd32,
@@ -372,8 +382,20 @@ function weightedPick(pool, mapIndex, rng = Math.random.bind(Math)) {
 }
 
 // rng : passé depuis MapGenerator pour le déterminisme complet
-export function generateEnemyTeam(archetype, targetBudget, maxUnits = 6, mapIndex = 0, rng = Math.random.bind(Math)) {
-  const pool  = [...archetype.pool];
+export function generateEnemyTeam(archetype, targetBudget, maxUnits = 6, mapIndex = 0,
+                                  rng = Math.random.bind(Math), allowGen2 = false) {
+  // Pool de base (gen 1) + gen 2 de l'archétype si la génération est débloquée.
+  // Les entrées gen 2 sont résolues depuis POKEMONS : pas de duplication.
+  const pool = [...archetype.pool];
+  if (allowGen2 && Array.isArray(archetype.poolGen2)) {
+    archetype.poolGen2.forEach(id => {
+      const p = POKE_BY_ID.get(id);
+      if (p && !pool.some(x => x.id === id)) {
+        pool.push({ id: p.id, name: p.name, types: p.types,
+                    stats: { ...p.stats }, spriteUrl: p.spriteUrl });
+      }
+    });
+  }
   const team  = [];
   let   spent = 0;
   let   tries = 0;
@@ -437,6 +459,8 @@ export { TIER_RATES, pokemonTier };
 export const TRAINER_ARCHETYPES_EXTRA = [
   {
     id:    'karateka',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [214, 236, 237],
     name:  'Karatéka',
     types: ['Combat'],
     color:       0xc0392b,
@@ -469,6 +493,8 @@ export const TRAINER_ARCHETYPES_EXTRA = [
 
   {
     id:    'ornithologue',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [163, 164, 169, 176, 187, 188, 189, 198, 225, 227],
     name:  'Ornithologue',
     types: ['Vol'],
     color:       0x74b9ff,
@@ -507,6 +533,8 @@ export const TRAINER_ARCHETYPES_EXTRA = [
 
   {
     id:    'scientifique',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [172, 179, 180, 181, 211, 239, 169],
     name:  'Scientifique',
     types: ['Électrik', 'Poison'],
     color:       0xf9ca24,
@@ -548,6 +576,8 @@ export const TRAINER_ARCHETYPES_EXTRA = [
 
   {
     id:    'gamin',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [161, 162, 172, 173, 174, 175, 190, 216, 235, 241],
     name:  'Gamin',
     types: ['Normal'],
     color:       0xffeaa7,
@@ -597,6 +627,8 @@ export const TRAINER_ARCHETYPES_EXTRA = [
 
   {
     id:    'topdresseur',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [154, 157, 160, 181, 196, 197, 212, 217, 229, 232, 234],
     name:  'TopDresseur',
     types: ['Normal'],
     color:       0x6c5ce7,
@@ -642,6 +674,8 @@ export const TRAINER_ARCHETYPES_EXTRA = [
 
   {
     id:    'sbire_rocket',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [167, 168, 169, 206, 211, 215, 228, 229],
     name:  'Sbire Team Rocket',
     types: ['Poison', 'Normal'],
     color:       0x2d3436,
@@ -688,6 +722,8 @@ export const TRAINER_ARCHETYPES_EXTRA = [
 
   {
     id:    'vieillard',
+    // Pokémon gen 2 de cet archétype, ajoutés au pool une fois Johto débloqué
+    poolGen2: [173, 174, 175, 176, 183, 184, 209, 210, 185, 213, 222],
     name:  'Vieillard',
     types: ['Fée', 'Roche'], // Fée et fossiles
     color:       0xdfe6e9,

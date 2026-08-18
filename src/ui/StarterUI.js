@@ -13,7 +13,7 @@
 import { POKEMONS }                    from '../data/pokemons.js';
 import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
-import { initRun, applyAnomalyToUnits, getBSTTier } from '../data/runState.js';
+import { initRun, applyAnomalyToUnits, getBSTTier, getRunRegion } from '../data/runState.js';
 import { assignCorners }               from '../data/synergies.js';
 import { TYPE_COLORS as TC }           from '../data/pokemons.js';
 import { getRegionStarterIds, DEFAULT_REGION } from '../data/regions.js';
@@ -97,7 +97,7 @@ export const StarterUI = {
     if (!container) return;
     container.innerHTML = '';
 
-    const regionId    = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+    const regionId    = getRunRegion(this._registry);
     const starterIds  = getRegionStarterIds(regionId);
     const rawStarters = starterIds.map(id => POKEMONS.find(p => p.id === id)).filter(Boolean);
     const starters    = applyAnomalyToUnits(rawStarters, this._registry);

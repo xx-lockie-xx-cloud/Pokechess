@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getRunState, addSeenPokemon,
-         saveMapProgress, getMapProgress } from '../data/runState.js';
+         saveMapProgress, getMapProgress, BANK_MAX_SIZE } from '../data/runState.js';
 import { DIFFICULTIES, ACHIEVEMENTS, getDifficulty,
          getUnlockedDifficultiesWithMeta,
          getUnlockedDifficulties }             from '../data/levelSystem.js';
@@ -32,6 +32,12 @@ import { RelicUI }           from './RelicUI.js';
 import { RelicEngine }       from '../combat/RelicEngine.js';
 import { getRegionList, getRegionDifficulties, isRegionUnlocked, DEFAULT_REGION,
          REGIONS } from '../data/regions.js';
+import { getDestinationName }  from '../data/arenas.js';
+import { CasinoUI }            from './CasinoUI.js';
+import { TrainingUI }          from './TrainingUI.js';
+import { BlackMarketUI }       from './BlackMarketUI.js';
+import { DuelUI }              from './DuelUI.js';
+import { SanctuaryUI }         from './SanctuaryUI.js';
 
 // Écrans complets (la map reste active en permanence pendant la partie)
 const SCREEN_IDS = {
@@ -45,6 +51,11 @@ const OVERLAY_IDS = {
   wild:         'overlay-wild',
   shop:         'overlay-shop',
   item:         'overlay-item',
+  casino:       'overlay-casino',
+  training:     'overlay-training',
+  market:       'overlay-market',
+  duel:         'overlay-duel',
+  sanctuary:    'overlay-sanctuary',
   combat:       'overlay-combat',
   arenaVictory: 'overlay-arena-victory',
 };
@@ -70,8 +81,14 @@ class UIManagerClass {
       ?.addEventListener('click', () => this._showEpopeeDetails());
 
     document.getElementById('btn-menu-home')
-      ?.addEventListener('click', () => {
-        const ok = confirm('Retourner au menu principal ? Ta progression est sauvegardée.');
+      ?.addEventListener('click', async () => {
+        const ok = await this.confirm({
+          icon:     '🏠',
+          title:    'Retourner au menu ?',
+          message:  'Votre progression est sauvegardée, vous pourrez reprendre votre épopée avec le bouton Continuer.',
+          yesLabel: 'Retourner au menu',
+          noLabel:  'Rester en jeu',
+        });
         if (!ok) return;
         const mapEl = document.getElementById('screen-map');
         if (mapEl) { mapEl.style.cssText = ''; mapEl.classList.remove('active'); }
@@ -134,7 +151,7 @@ class UIManagerClass {
       if (meta && saveMeta) {
         saveMeta.classList.remove('hidden');
         saveMeta.innerHTML = `
-          <div class="save-meta-title">En route vers ${meta.city} — étape ${meta.step}/${meta.totalCols}</div>
+          <div class="save-meta-title">En route vers ${meta.city ?? getDestinationName(meta.mapIdx ?? 0, meta.region ?? DEFAULT_REGION)} : étape ${meta.step}/${meta.totalCols}</div>
           <div class="save-meta-details">
             <span>🗺 Arène ${meta.map}</span>
             <span>💰 ${meta.coins} pièces</span>
@@ -143,6 +160,14 @@ class UIManagerClass {
           </div>
         `;
       }
+    } else {
+      // Aucune sauvegarde (première partie, ou défaite qui vient de la sceller) :
+      // on masque explicitement. Sans ce bloc, le bouton gardait l'état du rendu
+      // précédent et proposait de reprendre une partie perdue.
+      btnContinue?.classList.add('hidden');
+      saveActions?.classList.add('hidden');
+      saveMeta?.classList.add('hidden');
+      document.getElementById('menu-save-actions-extra')?.classList.add('hidden');
     }
 
     // Continuer — restaure la map depuis le seed dans runState
@@ -151,6 +176,15 @@ class UIManagerClass {
       if (!save) return;
       const state = this.registry.get('runState');
       if (!state) return;
+
+      // Reprendre une épopée réaligne la SÉLECTION du menu sur la région du run.
+      // Sans cela, le joueur pouvait reprendre une partie de Johto alors que le
+      // menu affichait Kanto, et les nœuds étaient générés pour la mauvaise région.
+      const runRegion = state.region ?? DEFAULT_REGION;
+      const m = SaveManager.loadMeta();
+      if (m.region !== runRegion) {
+        SaveManager.saveMeta({ ...m, region: runRegion });
+      }
 
       // Le seed MAÎTRE vient de state.seed ; la progression de mapVisited/mapAvailable
       const progress = getMapProgress(this.registry);
@@ -175,8 +209,29 @@ class UIManagerClass {
         if (devTaps >= 3) { devTaps = 0; this._devUnlockAll(); }
       });
 
-    document.getElementById('btn-new-game')?.addEventListener('click', () => {
-      console.log('[UIManager] btn-new-game cliqué');
+    document.getElementById('btn-new-game')?.addEventListener('click', async () => {
+      // Une seule épopée peut exister à la fois. Si une partie est en cours dans
+      // une AUTRE région, on demande confirmation avant de l'abandonner : sinon
+      // deux épopées semblaient coexister et la reprise mélangeait les nœuds.
+      const meta0     = SaveManager.loadMeta();
+      const menuRegion = meta0.region ?? DEFAULT_REGION;
+      const saveMeta0  = SaveManager.hasSave() ? SaveManager.getMeta() : null;
+      const runRegion  = saveMeta0?.region ?? null;
+
+      if (runRegion && runRegion !== menuRegion) {
+        const nameOf = (id) => REGIONS[id]?.name ?? id;
+        const ok = await this.confirm({
+          icon:     '⚠️',
+          title:    'Abandonner l\'épopée en cours ?',
+          message:  `Une épopée est en cours à ${nameOf(runRegion)} `
+                  + `(arène ${saveMeta0.map}). Commencer une nouvelle épopée à `
+                  + `${nameOf(menuRegion)} l'effacera définitivement.`,
+          yesLabel: 'Abandonner et commencer',
+          noLabel:  'Annuler',
+        });
+        if (!ok) return;
+      }
+
       SaveManager.deleteRunSave();
       // Seed : personnalisée si la case "Choisir la seed" est cochée, sinon aléatoire
       const seedToggle = document.getElementById('seed-toggle');
@@ -190,7 +245,9 @@ class UIManagerClass {
       this.registry.reset();
       this.registry.set('runState', { currentMap:0, coins:5, inventory:[],
         playerBank:[], unlockedSlots:3, seenPokemon:[], loopCount:0, seed,
-        difficulty: diff });
+        difficulty: diff,
+        // Région FIGÉE dès la création : le menu peut changer sans impacter le run
+        region: SaveManager.loadMeta()?.region ?? DEFAULT_REGION });
       console.log('[UIManager] appel RelicUI.open()');
       RelicUI.open((relicId) => {
         console.log('[UIManager] RelicUI callback, relicId =', relicId);
@@ -224,26 +281,53 @@ class UIManagerClass {
       SaveManager.importJSON(
         this.registry,
         (save) => {
-          alert('✅ Sauvegarde importée ! Clique sur "Continuer" pour reprendre.');
+          this.confirm({
+          icon:     '✅',
+          title:    'Sauvegarde importée',
+          message:  'Cliquez sur Continuer pour reprendre votre épopée.',
+          yesLabel: 'Parfait',
+          noLabel:  '',
+        });
           location.reload();   // recharge pour réinitialiser proprement l'UI
         },
-        (err) => alert(`❌ ${err}`)
+        (err) => this.confirm({
+          icon: '❌', title: 'Import impossible', message: String(err),
+          yesLabel: 'Fermer', noLabel: '',
+        })
       );
     });
 
     // Supprimer la run
-    document.getElementById('btn-delete-save')?.addEventListener('click', () => {
-      const ok = confirm('Supprimer définitivement ta sauvegarde ?');
+    document.getElementById('btn-delete-save')?.addEventListener('click', async () => {
+      const ok = await this.confirm({
+        icon:     '🗑️',
+        title:    'Supprimer la sauvegarde ?',
+        message:  'Votre épopée en cours sera définitivement perdue.',
+        yesLabel: 'Supprimer',
+        noLabel:  'Annuler',
+      });
       if (!ok) return;
       SaveManager.deleteSave();
       location.reload();
     });
 
     // Reset complet (achievements + niveaux + méta)
-    document.getElementById('btn-reset-all')?.addEventListener('click', () => {
-      const ok1 = confirm('⚠️ Réinitialiser TOUTE ta progression ? (niveaux, succès, difficulté)');
+    document.getElementById('btn-reset-all')?.addEventListener('click', async () => {
+      const ok1 = await this.confirm({
+        icon:     '⚠️',
+        title:    'Tout réinitialiser ?',
+        message:  'Niveaux, succès, reliques, statistiques et difficultés débloquées seront effacés.',
+        yesLabel: 'Continuer',
+        noLabel:  'Annuler',
+      });
       if (!ok1) return;
-      const ok2 = confirm('Dernière confirmation — cette action est irréversible.');
+      const ok2 = await this.confirm({
+        icon:     '🔥',
+        title:    'Dernière confirmation',
+        message:  'Cette action est irréversible. Toute votre progression sera perdue.',
+        yesLabel: 'Tout effacer',
+        noLabel:  'Finalement non',
+      });
       if (!ok2) return;
       SaveManager.resetMeta();
       SaveManager.deleteSave();
@@ -266,6 +350,9 @@ class UIManagerClass {
     let regionId = meta.region ?? DEFAULT_REGION;
     if (!isRegionUnlocked(regionId, meta)) regionId = DEFAULT_REGION;
     const regions   = getRegionList(meta);
+    // Région de l'épopée en cours : signalée dans le sélecteur pour que le
+    // joueur voie tout de suite laquelle il reprendrait avec « Continuer ».
+    const runRegionId = SaveManager.hasSave() ? SaveManager.getMeta()?.region : null;
     const regDiffs  = getRegionDifficulties(regionId, meta);
 
     // Difficulté courante valide pour cette région ? sinon on prend la première
@@ -300,7 +387,8 @@ class UIManagerClass {
               ${r.unlocked ? '' : '<span class="region-lock">🔒</span>'}
             </span>
             <span class="region-name">${r.name}</span>
-            <span class="region-sub">${r.unlocked ? r.subtitle : r.unlockHint}</span>
+            ${r.id === runRegionId ? '<span class="region-badge">Épopée en cours</span>' : ''}
+            ${r.unlocked ? '' : `<span class="region-sub">${r.unlockHint}</span>`}
           </button>
         `).join('')}
       </div>
@@ -327,10 +415,43 @@ class UIManagerClass {
     `;
 
     container.querySelectorAll('.btn-region:not(.locked)').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const m = SaveManager.loadMeta();
-        SaveManager.saveMeta({ ...m, region: btn.dataset.region });
-        this._renderDifficultySelector();   // re-filtre les difficultés
+      btn.addEventListener('click', async () => {
+        const target = btn.dataset.region;
+        const m      = SaveManager.loadMeta();
+        if ((m.region ?? DEFAULT_REGION) === target) return;
+
+        // Une seule épopée à la fois : changer de région avec une partie en
+        // cours dans une AUTRE région créerait deux sauvegardes concurrentes
+        // (et une carte incohérente au moment de reprendre).
+        const runRegion = SaveManager.getMeta()?.region ?? null;
+        if (SaveManager.hasSave() && runRegion && runRegion !== target) {
+          const from = REGIONS[runRegion]?.name ?? runRegion;
+          const to   = REGIONS[target]?.name    ?? target;
+          const ok = await this.confirm({
+            icon:     '⚠️',
+            title:    'Abandonner l\'épopée en cours ?',
+            message:  `Une épopée est en cours à ${from}. Passer à ${to} l'abandonnera définitivement.`,
+            yesLabel: `Abandonner et jouer à ${to}`,
+            noLabel:  'Rester à ' + from,
+          });
+          if (!ok) return;
+          SaveManager.deleteSave();
+          this.registry?.sealRun?.();
+          this.registry?.unsealRun?.();
+          SaveManager.saveMeta({ ...SaveManager.loadMeta(), region: target });
+          // Rechargement complet : le registre garde en mémoire l'épopée
+          // abandonnée (runState, playerUnits, progression de carte). Un simple
+          // re-rendu du menu laisserait ces résidus et ferait réapparaître
+          // l'ancienne région comme "épopée en cours".
+          window.location.reload();
+          return;
+        }
+
+        SaveManager.saveMeta({ ...SaveManager.loadMeta(), region: target });
+        // Re-rend le sélecteur : c'est lui qui porte le contour doré, les
+        // difficultés filtrées et le badge d'épopée en cours. `_initMenu()`
+        // ne fait rien, l'appeler ici laissait l'ancienne région surlignée.
+        this._renderDifficultySelector();
       });
     });
 
@@ -404,7 +525,7 @@ class UIManagerClass {
           <div class="ui-confirm-title">${title}</div>
           ${message ? `<div class="ui-confirm-msg">${message}</div>` : ''}
           <div class="ui-confirm-actions">
-            <button class="ui-confirm-no">${noLabel}</button>
+            ${noLabel ? `<button class="ui-confirm-no">${noLabel}</button>` : ''}
             <button class="ui-confirm-yes">${yesLabel}</button>
           </div>
         </div>`;
@@ -422,7 +543,7 @@ class UIManagerClass {
         if (e.key === 'Enter')  close(true);
       };
       overlay.querySelector('.ui-confirm-yes').addEventListener('click', () => close(true));
-      overlay.querySelector('.ui-confirm-no').addEventListener('click',  () => close(false));
+      overlay.querySelector('.ui-confirm-no')?.addEventListener('click', () => close(false));
       overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
       document.addEventListener('keydown', onKey);
     });
@@ -475,6 +596,59 @@ class UIManagerClass {
 
       case 'menu':
         this._initMenu();
+        break;
+
+      case 'training':
+        TrainingUI.init(data, this.registry, () => {
+          this._closeOverlay('training');
+          this._refreshMapScene({
+            mapNodes:  data.mapNodes, startNode: data.startNode, mapIndex: data.mapIndex,
+          });
+        });
+        break;
+
+      case 'sanctuary':
+        SanctuaryUI.init(data, this.registry, () => {
+          this._closeOverlay('sanctuary');
+          this._refreshMapScene({
+            mapNodes:  data.mapNodes, startNode: data.startNode, mapIndex: data.mapIndex,
+          });
+        });
+        break;
+
+      case 'market':
+        BlackMarketUI.init(data, this.registry, () => {
+          this._closeOverlay('market');
+          this._refreshMapScene({
+            mapNodes:  data.mapNodes, startNode: data.startNode, mapIndex: data.mapIndex,
+          });
+        });
+        break;
+
+      case 'duel':
+        DuelUI.init(data, this.registry, (duelData) => {
+          this._closeOverlay('duel');
+          if (!duelData) {
+            // Pari refusé : retour à la carte
+            this._refreshMapScene({
+              mapNodes: data.mapNodes, startNode: data.startNode, mapIndex: data.mapIndex,
+            });
+            return;
+          }
+          // Combat contraint à une unité par camp
+          this.show('combat', { ...data, ...duelData });
+        });
+        break;
+
+      case 'casino':
+        CasinoUI.init(data, this.registry, () => {
+          this._closeOverlay('casino');
+          this._refreshMapScene({
+            mapNodes:  data.mapNodes,
+            startNode: data.startNode,
+            mapIndex:  data.mapIndex,
+          });
+        });
         break;
 
       case 'starter':
@@ -709,9 +883,29 @@ class UIManagerClass {
     const relicsUsedCount = Object.values(stats.relicsUsed ?? {}).reduce((a, b) => a + b, 0);
     const totalAch = (() => { try { return Object.keys(ACHIEVEMENTS).length; } catch { return 0; } })();
 
+    // Collection par génération : les listes étant dédupliquées, chaque total
+    // plafonne au nombre d'espèces de la génération (151 pour Kanto, 100 pour Johto).
+    const inRange = (list, a, b) => (list ?? []).filter(id => id >= a && id <= b).length;
+    const seen    = meta.seenPokemon   ?? [];
+    const caught  = meta.caughtPokemon ?? [];
+    const gen2Ok  = isRegionUnlocked('johto', meta);
+
+    // Temps de jeu cumulé
+    const ptMs = stats.playtimeMs ?? 0;
+    const ptH  = Math.floor(ptMs / 3600000);
+    const ptM  = Math.floor((ptMs % 3600000) / 60000);
+    const playtime = ptH > 0 ? `${ptH} h ${String(ptM).padStart(2, '0')}` : `${ptM} min`;
+
+    const byRegion = (region) => {
+      const lb = stats.leaguesByRegion?.[region] ?? {};
+      return Object.values(lb).reduce((a, b) => a + b, 0);
+    };
+
     const sections = [
       ['Ligue', [
         ['🏆 Ligues vaincues',    stats.leaguesBeaten ?? 0],
+        ['🌸 à Kanto',            byRegion('kanto')],
+        ...(gen2Ok ? [['🌊 à Johto', byRegion('johto')]] : []),
         ['📍 en Facile',          stats.leaguesByDiff?.easy    ?? 0],
         ['⚔️ en Normal',          stats.leaguesByDiff?.normal  ?? 0],
         ['🔥 en Difficile',       stats.leaguesByDiff?.hard    ?? 0],
@@ -723,14 +917,19 @@ class UIManagerClass {
         ['❌ Combats perdus',     stats.totalLosses ?? 0],
         ['📈 Taux de victoire',   `${winRate}%`],
       ]],
-      ['Collection', [
-        ['📖 Pokémon vus',        (meta.seenPokemon ?? []).length + ' / 151'],
-        ['🎒 Pokémon capturés',   stats.pokemonCaptured ?? 0],
-        ['⭐ Pokémon niveau 100', maxLevelCount],
+      ['Pokédex Kanto', [
+        ['📖 Vus',                `${inRange(seen, 1, 151)} / 151`],
+        ['🎒 Capturés',           `${inRange(caught, 1, 151)} / 151`],
       ]],
+      ...(gen2Ok ? [['Pokédex Johto', [
+        ['📖 Vus',                `${inRange(seen, 152, 251)} / 100`],
+        ['🎒 Capturés',           `${inRange(caught, 152, 251)} / 100`],
+      ]]] : []),
       ['Progression', [
+        ['⭐ Pokémon niveau 100', maxLevelCount],
         ['💎 Reliques utilisées', relicsUsedCount],
         ['🏆 Succès débloqués',   `${Object.keys(meta.achievements ?? {}).length}${totalAch ? ' / ' + totalAch : ''}`],
+        ['⏱ Temps de jeu',       playtime],
       ]],
     ];
 
@@ -758,13 +957,20 @@ class UIManagerClass {
   }
 
   // ── Mode DEV : toggle unlock/reset tous les achievements ───────────────────
-  _devUnlockAll() {
+  async _devUnlockAll() {
     const meta   = SaveManager.loadMeta();
     const isActive = !!meta.devMode;
 
     if (isActive) {
       // Désactive le mode dev → retire les achievements débloqués par dev
-      if (!confirm('Quitter le mode dev ? Les succès débloqués automatiquement seront retirés et les niveaux des Pokémon restaurés.')) return;
+      const ok = await this.confirm({
+        icon:     '🛠',
+        title:    'Quitter le mode dev ?',
+        message:  'Les succès débloqués automatiquement seront retirés, et les niveaux des Pokémon restaurés.',
+        yesLabel: 'Quitter le mode dev',
+        noLabel:  'Rester',
+      });
+      if (!ok) return;
       meta.devMode = false;
       // Retire uniquement les achievements marqués _byDev
       Object.keys(meta.achievements ?? {}).forEach(id => {
@@ -844,9 +1050,8 @@ class UIManagerClass {
     if (relicId === 'contrat_maudit') {
       this.registry.set('runState', { ...rs, coins: (rs.coins ?? 5) + 8 });
     }
-    if (relicId === 'pochette_surprise') {
-      this.registry.set('runState', { ...rs, _startRandomItem: true });
-    }
+    // Pochette Surprise n'offre plus d'objet au départ : elle en donne un
+    // TYPÉ à chaque Pokémon capturé (voir WildUI).
   }
 
   _initMenu() {
@@ -862,6 +1067,11 @@ class UIManagerClass {
       case 'combat': this.show('combat', data); break;
       case 'shop':   this.show('shop',   data); break;
       case 'item':   this.show('item',   data); break;
+      case 'casino':   this.show('casino',   data); break;
+      case 'training': this.show('training', data); break;
+      case 'market':    this.show('market',    data); break;
+      case 'sanctuary': this.show('sanctuary', data); break;
+      case 'duel':     this.show('duel',     data); break;
       default:
         // Pas de rencontre → map déjà en fond, on rafraîchit juste les nœuds
         this._refreshMapScene({
@@ -877,6 +1087,21 @@ class UIManagerClass {
   // ─────────────────────────────────────────────────────────────────────────
   _onCombatDone(result) {
     const isWin = result.winner === 'player';
+
+    // ── Duel 1vs1 : règlement du pari, la défaite n'est PAS fatale ──────────
+    if (result.isDuel) {
+      const gain = DuelUI.settle(this.registry, { won: isWin, wager: result.duelWager });
+      this._showToast(
+        isWin ? `⚔️ Duel remporté ! +${gain} pièces`
+              : `⚔️ Duel perdu. ${result.duelWager} pièces envolées.`,
+        isWin ? '#2ecc71' : '#636e72');
+      this._refreshMapScene({
+        mapNodes:  result.mapNodes,
+        startNode: result.startNode,
+        mapIndex:  result.mapIndex,
+      });
+      return;
+    }
 
     if (isWin) {
       if (result.nodeType === 'boss') {
@@ -951,6 +1176,45 @@ class UIManagerClass {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // openBankForRoom(pokemon) — ouvre l'écran de préparation pour libérer une
+  // place, puis rend la main.
+  //
+  // Appelé par le Casino quand un jackpot tombe alors que la banque est pleine :
+  // plutôt que de perdre le Pokémon rare, on laisse le joueur vendre.
+  // Résout `true` si une place est libre au moment de la fermeture.
+  openBankForRoom(pokemon) {
+    return new Promise(resolve => {
+      const overlay = document.getElementById('overlay-prep');
+      if (!overlay) { resolve(false); return; }
+
+      const hasRoom = () =>
+        (this.registry?.get?.('runState')?.playerBank ?? []).length < BANK_MAX_SIZE;
+
+      if (hasRoom()) { resolve(true); return; }
+
+      // Bandeau d'explication, retiré à la fermeture
+      const note = document.createElement('div');
+      note.id = 'prep-room-note';
+      note.className = 'prep-room-note';
+      note.innerHTML = `🎰 <b>${pokemon?.name ?? 'Un Pokémon rare'}</b> vous attend !
+        Vendez un Pokémon pour lui faire de la place, puis fermez cet écran.`;
+      overlay.prepend(note);
+
+      PrepUI.open(this.registry);
+      overlay.classList.remove('hidden');
+
+      // La fermeture peut venir du bouton, de la croix ou d'un clic extérieur :
+      // on surveille l'état de l'overlay plutôt qu'un événement précis.
+      const timer = setInterval(() => {
+        if (overlay.classList.contains('hidden')) {
+          clearInterval(timer);
+          document.getElementById('prep-room-note')?.remove();
+          resolve(hasRoom());
+        }
+      }, 250);
+    });
+  }
+
   // PrepUI overlay
   // ─────────────────────────────────────────────────────────────────────────
   _togglePrep() {

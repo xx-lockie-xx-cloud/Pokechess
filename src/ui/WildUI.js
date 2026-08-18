@@ -17,10 +17,11 @@ import { getBSTTier }                  from '../data/runState.js';
 import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
 import {
-  getRunState, addToBank, removeCoins, addCoins,
+  getRunState, addToBank, removeCoins, addCoins, addToInventory,
   weightedWildDraw, BANK_MAX_SIZE,
   addSeenPokemon, applyAnomalyToUnits
 } from '../data/runState.js';
+import { ITEMS } from '../data/items.js';
 import { assignCorners } from '../data/synergies.js';
 import { RelicEngine } from '../combat/RelicEngine.js';
 
@@ -424,6 +425,16 @@ export const WildUI = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Objet correspondant à l'un des types du Pokémon (Pochette Surprise).
+  // Si plusieurs types, l'un d'eux est tiré au sort.
+  _typedItemFor(pokemon) {
+    const types = pokemon?.types ?? [];
+    const pool  = Object.values(ITEMS).filter(i =>
+      i.type === 'equippable' && types.includes(i.typeFilter));
+    if (!pool.length) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  },
+
   // _capture()
   // ─────────────────────────────────────────────────────────────────────────
   _capture() {
@@ -471,6 +482,15 @@ export const WildUI = {
       addToBank(this._registry, clone);
     }
 
+    // Pochette Surprise : un objet TYPÉ offert à chaque capture, choisi parmi
+    // les types du Pokémon obtenu (Eau Mystique pour un Eau, Charbon pour un
+    // Feu...). C'est ce qui compense le masquage des rencontres.
+    let bonusItem = null;
+    if (RelicEngine.givesItemOnCatch(getRunState(this._registry)?.relic?.id)) {
+      bonusItem = this._typedItemFor(this._selected);
+      if (bonusItem) addToInventory(this._registry, bonusItem.id);
+    }
+
     // Statistiques : enregistre la (les) capture(s)
     window.SaveManager?.recordCapture?.(isDoppel ? 2 : 1);
     // Succès immédiats liés à la capture (Coup de chance : légendaire) et aux
@@ -492,7 +512,9 @@ export const WildUI = {
     if (info) {
       info.style.color = 'var(--color-green)';
       const afterState = getRunState(this._registry);
-      info.textContent = `${capturedName} capturé ! 💰 ${afterState.coins ?? 0} pièces restantes`;
+      info.innerHTML = `${capturedName} capturé !`
+        + (bonusItem ? ` <span class="wild-bonus">🎁 ${bonusItem.emoji} ${bonusItem.name} offert !</span>` : '')
+        + ` 💰 ${afterState.coins ?? 0} pièces restantes`;
     }
 
     this._selected = null;
@@ -568,10 +590,18 @@ export const WildUI = {
     switch (nodeType) {
       case 'shop':   nextScreen = 'shop';   break;
       case 'item':   nextScreen = 'item';   break;
+      case 'casino':   nextScreen = 'casino';   break;
+      case 'training': nextScreen = 'training'; break;
+      case 'duel':     nextScreen = 'duel';     break;
+      case 'market':    nextScreen = 'market';    break;
+      case 'sanctuary': nextScreen = 'sanctuary'; break;
       case 'boss':   nextScreen = 'combat'; break;
       case 'random': {
         const r = Math.random();
-        nextScreen = r < 0.4 ? 'combat' : r < 0.7 ? 'shop' : 'item';
+        nextScreen = r < 0.30 ? 'combat' : r < 0.50 ? 'shop'
+                   : r < 0.70 ? 'item'   : r < 0.80 ? 'casino'
+                   : r < 0.85 ? 'training' : r < 0.91 ? 'market'
+                   : r < 0.96 ? 'sanctuary' : 'duel';
         break;
       }
       default: nextScreen = 'combat';

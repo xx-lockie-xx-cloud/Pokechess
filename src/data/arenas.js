@@ -326,7 +326,8 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
           spriteUrl: base.spriteUrl,
         };
       }).filter(Boolean)
-    : generateEnemyTeam(arch, budget, 6, Math.min(mapIndex, 8), rng);
+    : generateEnemyTeam(arch, budget, 6, Math.min(mapIndex, 8), rng,
+                        isPokemonAllowed(152, regionId, meta));
 
   // Applique le boost "Maître" aux stats de chaque pokémon
   const team = rawTeam.map(u => {

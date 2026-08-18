@@ -566,8 +566,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_ACTION: [{ type:'heal_self', rate:0.05 }] } },
   },
   80: {
-    35: { id:'mega_drain_f', name:'Méga-Drain', desc:'Drain 30% des dégâts',
-      hooks:{ ON_ATTACK: [{ type:'drain', rate:0.30 }] } },
+    35: { id:'coquillage_80', name:'Coquillage', desc:'Bouclier de 20% des PV max',
+      hooks:{ ON_SETUP: [{ type:'shield', rate:0.2 }] } },
     70: { id:'assimilation', name:'Assimilation', desc:'+20% SP.ATK',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spa', mult:1.20 }] } },
   },
@@ -644,8 +644,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_RECEIVE: [{ type:'counter', rate:0.50 }] } },
   },
   91: {
-    35: { id:'gel_crus', name:'Gel', desc:'25% gel en attaque',
-      hooks:{ ON_ATTACK: [{ type:'proc_status', status:'freeze', chance:0.25, turns:2 }] } },
+    35: { id:'carapace_dure_91', name:'Carapace Dure', desc:'Bouclier de 30% de sa DEF',
+      hooks:{ ON_SETUP: [{ type:'shield', rate:0.30, fromStat:'def' }] } },
     70: { id:'carapace_gl', name:'Carapace de Glace', desc:'Immunisé brûlure + -20% dégâts',
       hooks:{ ON_SETUP: [{ type:'status_immunity', statuses:['burn'] },
                          { type:'stat_boost', stat:'_dmgReduction', mult:0.80 }] } },
@@ -667,14 +667,14 @@ export const POKEMON_PASSIVES = {
   94: {
     35: { id:'tenebres', name:'Ténèbres', desc:'Ignore 25% DEF/SP.DEF',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'ignoreDef', pct:0.25 }] } },
-    70: { id:'cauchemar_et', name:'Cauchemar Éternel', desc:'À la mort → tous ennemis -20% HP',
-      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.20 }] } },
+    70: { id:'ombre_ternelle_94', name:'Ombre Éternelle', desc:'Déclenche la Nuit Noire en combat',
+      hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'darkness' }] } },
   },
 
   // ── Onix ────────────────────────────────────────────────────────────────
   95: {
-    35: { id:'mur_pierre', name:'Mur de Pierre', desc:'-30% dégâts reçus',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'_dmgReduction', mult:0.70 }] } },
+    35: { id:'peau_de_roc_95', name:'Peau de Roc', desc:'Bouclier de 30% de sa DEF',
+      hooks:{ ON_SETUP: [{ type:'shield', rate:0.30, fromStat:'def' }] } },
     70: { id:'force_tit', name:'Force Titanesque', desc:'+10% ATK par ennemi K.O.',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'atkOnEnemyKo', boost:0.10 }] } },
   },
@@ -731,8 +731,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'aoe_status', status:'sleep', turns:2, row:'all', chance:0.30 }] } },
   },
   103: {
-    35: { id:'melodie_n', name:'Mélodie', desc:'Soigne 10% HP alliés / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.10 }] } },
+    35: { id:'melodie_n', name:'Mélodie', desc:'Soigne 4% HP alliés / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.04 }] } },
     70: { id:'hypnose_fl', name:'Hypnose Florale', desc:'Endort 1 ennemi aléatoire au début',
       hooks:{ ON_SETUP: [{ type:'aoe_status', status:'sleep', turns:2, row:'random1', chance:1.0 }] } },
   },
@@ -803,8 +803,8 @@ export const POKEMON_PASSIVES = {
 
   // ── Leveinard ─────────────────────────────────────────────────────────────
   113: {
-    35: { id:'soin_lev', name:'Soin', desc:'Soigne 10% HP alliés / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.10 }] } },
+    35: { id:'soin_lev', name:'Soin', desc:'Soigne 5% HP alliés / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.05 }] } },
     70: { id:'devouement', name:'Dévouement', desc:'+30% HP',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'hp', mult:1.30 }] } },
   },
@@ -830,7 +830,7 @@ export const POKEMON_PASSIVES = {
     35: { id:'rapide_h', name:'Rapide', desc:'+20% VIT',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spd', mult:1.20 }] } },
     70: { id:'danse_lames_h', name:'Danse-Lames', desc:'+10% ATK cumulatif/frappe',
-      hooks:{ ON_ATTACK: [{ type:'ramp_stat', stat:'atk', rate:0.10, max:0.60 }] } },
+      hooks:{ ON_ATTACK: [{ type:'ramp_stat', stat:'atk', rate:0.10, max:0.50 }] } },
   },
   117: {
     35: { id:'jet_eau', name:'Jet d\'Eau', desc:'+15% SP.ATK',
@@ -861,8 +861,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_ACTION: [{ type:'emergency_heal', rate:0.20, threshold:0.25 }] } },
   },
   121: {
-    35: { id:'rayonnement', name:'Rayonnement', desc:'Soigne 8% HP alliés / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.08 }] } },
+    35: { id:'rayonnement', name:'Rayonnement', desc:'Soigne 4% HP alliés / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.04 }] } },
     70: { id:'teleportation', name:'Téléportation', desc:'Esquive 1 attaque/combat',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'dodgeOnce' }] } },
   },
@@ -880,7 +880,7 @@ export const POKEMON_PASSIVES = {
     35: { id:'lames_ins', name:'Lames', desc:'2 frappes par attaque',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'multiHit', hits:2, mult:0.60 }] } },
     70: { id:'danse_lames_i', name:'Danse-Lames', desc:'+10% ATK cumulatif/frappe',
-      hooks:{ ON_ATTACK: [{ type:'ramp_stat', stat:'atk', rate:0.10, max:0.60 }] } },
+      hooks:{ ON_ATTACK: [{ type:'ramp_stat', stat:'atk', rate:0.10, max:0.50 }] } },
   },
 
   // ── Lippoutou ─────────────────────────────────────────────────────────────
@@ -998,8 +998,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'revive_mark', rate:0.25 }] } },
   },
   139: {
-    35: { id:'armure_fos', name:'Armure Fossile', desc:'Absorbe 1 coup + -20% dégâts',
-      hooks:{ ON_SETUP: [{ type:'shield' }, { type:'stat_boost', stat:'_dmgReduction', mult:0.80 }] } },
+    35: { id:'spirale_ancienne_139', name:'Spirale Ancienne', desc:'Bouclier de 25% des PV max',
+      hooks:{ ON_SETUP: [{ type:'shield', rate:0.25 }] } },
     70: { id:'frappe_fos', name:'Frappe Fossile', desc:'Ignore 30% DEF',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'ignoreDef', pct:0.30 }] } },
   },
@@ -1255,8 +1255,8 @@ export const POKEMON_PASSIVES = {
   180: {
     35: { id:'charge_statique_180', name:'Charge Statique', desc:'+7% SPA par action (max 35%)',
       hooks:{ ON_ACTION: [{ type:'ramp_stat', stat:'spa', rate:0.07, max:0.35 }] } },
-    70: { id:'toison_180', name:'Toison', desc:'Bouclier 15% PV',
-      hooks:{ ON_SETUP: [{ type:'shield', rate:0.15 }] } },
+    70: { id:'toison_180', name:'Toison', desc:'Bouclier de 30% de sa DEF.SPÉ',
+      hooks:{ ON_SETUP: [{ type:'shield', rate:0.30, fromStat:'spd_def' }] } },
   },
   181: {
     35: { id:'phare_181', name:'Phare', desc:'+25% SPA aux alliés Électrik',
@@ -1267,8 +1267,8 @@ export const POKEMON_PASSIVES = {
   182: {
     35: { id:'pollen_182', name:'Pollen', desc:'20% d\'empoisonner en attaquant',
       hooks:{ ON_ATTACK: [{ type:'proc_status', status:'poison', chance:0.20 }] } },
-    70: { id:'chlorophylle_182', name:'Chlorophylle', desc:'+25% VIT',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spd', mult:1.25 }] } },
+    70: { id:'chlorophylle_182', name:'Chlorophylle', desc:'+25% VIT au Zénith',
+      hooks:{ ON_SETUP: [{ type:'weather_boost', weather:'sun', stats:['spd'], mult:1.25 }] } },
   },
   183: {
     35: { id:'ventre_a_terre_183', name:'Ventre à Terre', desc:'+50% ATK',
@@ -1291,8 +1291,8 @@ export const POKEMON_PASSIVES = {
   186: {
     35: { id:'moiteur_186', name:'Moiteur', desc:'-15% dégâts reçus',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'_dmgReduction', mult:0.85 }] } },
-    70: { id:'danse_pluie_186', name:'Danse Pluie', desc:'+20% SPA aux alliés Eau',
-      hooks:{ ON_SETUP: [{ type:'aura_type_boost', pkType:'Eau', stat:'spa', mult:1.20 }] } },
+    70: { id:'danse_pluie_186', name:'Danse Pluie', desc:'Déclenche la Pluie en combat',
+      hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'rain' }] } },
   },
   187: {
     35: { id:'infiltration_187', name:'Infiltration', desc:'Ignore 15% DEF',
@@ -1319,16 +1319,16 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'buff_allies', mult:1.12 }] } },
   },
   191: {
-    35: { id:'chlorophylle_191', name:'Chlorophylle', desc:'+25% VIT',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spd', mult:1.25 }] } },
+    35: { id:'chlorophylle_191', name:'Chlorophylle', desc:'+25% VIT au Zénith',
+      hooks:{ ON_SETUP: [{ type:'weather_boost', weather:'sun', stats:['spd'], mult:1.25 }] } },
     70: { id:'racines_191', name:'Racines', desc:'Soigne 10% PV / 8 actions',
       hooks:{ ON_PERIODIC: [{ type:'heal_self_periodic', rate:0.10 }] } },
   },
   192: {
-    35: { id:'capteur_solaire_192', name:'Capteur Solaire', desc:'+25% SPA',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spa', mult:1.25 }] } },
-    70: { id:'eclat_solaire_192', name:'Éclat Solaire', desc:'À la mort : AoE 20% PV',
-      hooks:{ ON_DEATH: [{ type:'aoe_damage', rate:0.20 }] } },
+    35: { id:'capteur_solaire_192', name:'Capteur Solaire', desc:'+25% ATK.SPÉ au Zénith',
+      hooks:{ ON_SETUP: [{ type:'weather_boost', weather:'sun', stats:['spa'], mult:1.25 }] } },
+    70: { id:'chlorophylle_192', name:'Chlorophylle', desc:'+25% VIT au Zénith',
+      hooks:{ ON_SETUP: [{ type:'weather_boost', weather:'sun', stats:['spd'], mult:1.25 }] } },
   },
   193: {
     35: { id:'il_compose_193', name:'Œil Composé', desc:'Ignore 20% DEF',
@@ -1351,14 +1351,14 @@ export const POKEMON_PASSIVES = {
   196: {
     35: { id:'synchro_196', name:'Synchro', desc:'Renvoie 30% des dégâts',
       hooks:{ ON_RECEIVE: [{ type:'counter', rate:0.30 }] } },
-    70: { id:'prescience_196', name:'Prescience', desc:'+25% SPA',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spa', mult:1.25 }] } },
+    70: { id:'prescience_196', name:'Prescience', desc:'Déclenche la Nuit Noire en combat',
+      hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'darkness' }] } },
   },
   197: {
     35: { id:'synchro_197', name:'Synchro', desc:'Renvoie 35% des dégâts',
       hooks:{ ON_RECEIVE: [{ type:'counter', rate:0.35 }] } },
-    70: { id:'garde_nocturne_197', name:'Garde Nocturne', desc:'+20% ATK à la mort d\'un allié',
-      hooks:{ ON_SETUP: [{ type:'flag', flag:'atkOnAllyKo', boost:0.20 }] } },
+    70: { id:'garde_nocturne_197', name:'Garde Nocturne', desc:'Déclenche la Nuit Noire en combat',
+      hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'darkness' }] } },
   },
   198: {
     35: { id:'larcin_198', name:'Larcin', desc:'+1 pièce par K.O.',
@@ -1417,14 +1417,14 @@ export const POKEMON_PASSIVES = {
   207: {
     35: { id:'hyper_cutter_207', name:'Hyper Cutter', desc:'Ignore 25% DEF',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'ignoreDef', pct:0.25 }] } },
-    70: { id:'sable_volant_207', name:'Sable Volant', desc:'+15% esquive',
-      hooks:{ ON_SETUP: [{ type:'evasion', rate:0.15 }] } },
+    70: { id:'sable_volant_207', name:'Sable Volant', desc:'+25% VIT en Tempête de sable',
+      hooks:{ ON_SETUP: [{ type:'weather_boost', weather:'sandstorm', stats:['spd'], mult:1.25 }] } },
   },
   208: {
     35: { id:'corps_sain_208', name:'Corps Sain', desc:'Immunisé à tous les statuts',
       hooks:{ ON_SETUP: [{ type:'status_immunity', statuses:['burn','poison','paralyze','freeze','confuse','sleep'] }] } },
-    70: { id:'carapace_d_acier_208', name:'Carapace d\'Acier', desc:'-20% dégâts aux alliés Acier',
-      hooks:{ ON_SETUP: [{ type:'aura_dmg_reduction', pkType:'Acier', mult:0.80 }] } },
+    70: { id:'carapace_d_acier_208', name:"Carapace d'Acier", desc:'Déclenche la Tempête de sable',
+      hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'sandstorm' }] } },
   },
   209: {
     35: { id:'intimidation_209', name:'Intimidation', desc:'-18% ATK ennemie',
@@ -1441,8 +1441,8 @@ export const POKEMON_PASSIVES = {
   211: {
     35: { id:'point_poison_211', name:'Point Poison', desc:'30% d\'empoisonner l\'attaquant',
       hooks:{ ON_RECEIVE: [{ type:'proc_status_attacker', status:'poison', chance:0.30 }] } },
-    70: { id:'gonflement_211', name:'Gonflement', desc:'Bouclier 20% PV',
-      hooks:{ ON_SETUP: [{ type:'shield', rate:0.20 }] } },
+    70: { id:'gonflement_211', name:'Gonflement', desc:'Bouclier de 30% de sa DEF',
+      hooks:{ ON_SETUP: [{ type:'shield', rate:0.30, fromStat:'def' }] } },
   },
   212: {
     35: { id:'technicien_212', name:'Technicien', desc:'+20% ATK',
@@ -1453,8 +1453,8 @@ export const POKEMON_PASSIVES = {
   213: {
     35: { id:'robustesse_213', name:'Robustesse', desc:'Survit à 1 PV une fois',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'sturdy' }] } },
-    70: { id:'coque_solide_213', name:'Coque Solide', desc:'-35% dégâts reçus',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'_dmgReduction', mult:0.65 }] } },
+    70: { id:'coque_solide_213', name:'Coque Solide', desc:'Bouclier de 30% de sa DEF au combat',
+      hooks:{ ON_SETUP: [{ type:'shield', rate:0.3, fromStat:'def' }] } },
   },
   214: {
     35: { id:'essaim_214', name:'Essaim', desc:'+40% ATK si PV<33%',
@@ -1489,12 +1489,12 @@ export const POKEMON_PASSIVES = {
   219: {
     35: { id:'corps_ardent_219', name:'Corps Ardent', desc:'35% de brûler l\'attaquant',
       hooks:{ ON_RECEIVE: [{ type:'proc_status_attacker', status:'burn', chance:0.35 }] } },
-    70: { id:'roche_fondue_219', name:'Roche Fondue', desc:'+25% SPA',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spa', mult:1.25 }] } },
+    70: { id:'roche_fondue_219', name:'Roche Fondue', desc:'+25% ATK.SPÉ au Zénith',
+      hooks:{ ON_SETUP: [{ type:'weather_boost', weather:'sun', stats:['spa'], mult:1.25 }] } },
   },
   220: {
-    35: { id:'fourrure_220', name:'Fourrure', desc:'+25% DEF',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'def', mult:1.25 }] } },
+    35: { id:'fourrure_220', name:'Fourrure', desc:'+25% DEF sous la Grêle',
+      hooks:{ ON_SETUP: [{ type:'weather_boost', weather:'hail', stats:['def'], mult:1.25 }] } },
     70: { id:'peau_gelee_220', name:'Peau Gelée', desc:'20% de geler l\'attaquant',
       hooks:{ ON_RECEIVE: [{ type:'proc_status_attacker', status:'freeze', chance:0.20 }] } },
   },
@@ -1523,8 +1523,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'intimidate', stat:'atk', mult:0.85 }] } },
   },
   225: {
-    35: { id:'bourrasque_225', name:'Bourrasque', desc:'+25% VIT',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spd', mult:1.25 }] } },
+    35: { id:'bourrasque_225', name:'Bourrasque', desc:'+25% VIT sous la Grêle',
+      hooks:{ ON_SETUP: [{ type:'weather_boost', weather:'hail', stats:['spd'], mult:1.25 }] } },
     70: { id:'cadeau_surprise_225', name:'Cadeau Surprise', desc:'Soigne 8% PV à l\'allié le + faible',
       hooks:{ ON_PERIODIC: [{ type:'heal_weakest_ally', rate:0.08 }] } },
   },
@@ -1595,8 +1595,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_ACTION: [{ type:'ramp_stat', stat:'atk', rate:0.07, max:0.35 }] } },
   },
   237: {
-    35: { id:'intimidation_237', name:'Intimidation', desc:'-18% ATK ennemie',
-      hooks:{ ON_SETUP: [{ type:'intimidate', stat:'atk', mult:0.82 }] } },
+    35: { id:'garde_toupie_237', name:'Garde Toupie', desc:'Bouclier de 30% de sa DEF.SPÉ',
+      hooks:{ ON_SETUP: [{ type:'shield', rate:0.30, fromStat:'spd_def' }] } },
     70: { id:'toupie_237', name:'Toupie', desc:'Renvoie 50% des dégâts',
       hooks:{ ON_RECEIVE: [{ type:'counter', rate:0.50 }] } },
   },
@@ -1633,20 +1633,20 @@ export const POKEMON_PASSIVES = {
   243: {
     35: { id:'pression_243', name:'Pression', desc:'-15% VIT ennemie',
       hooks:{ ON_SETUP: [{ type:'intimidate', stat:'spd', mult:0.85 }] } },
-    70: { id:'eclair_legendaire_243', name:'Éclair Légendaire', desc:'+25% SPA',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spa', mult:1.25 }] } },
+    70: { id:'clair_l_gendaire_243', name:'Éclair Légendaire', desc:'Déclenche la Pluie en combat',
+      hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'rain' }] } },
   },
   244: {
     35: { id:'pression_244', name:'Pression', desc:'-15% ATK ennemie',
       hooks:{ ON_SETUP: [{ type:'intimidate', stat:'atk', mult:0.85 }] } },
-    70: { id:'volcan_244', name:'Volcan', desc:'+20% ATK',
-      hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'atk', mult:1.20 }] } },
+    70: { id:'volcan_244', name:'Volcan', desc:'Déclenche le Zénith en combat',
+      hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'sun' }] } },
   },
   245: {
     35: { id:'pression_245', name:'Pression', desc:'-15% SPA ennemie',
       hooks:{ ON_SETUP: [{ type:'intimidate', stat:'spa', mult:0.85 }] } },
-    70: { id:'vent_purificateur_245', name:'Vent Purificateur', desc:'Immunisé à tous les statuts',
-      hooks:{ ON_SETUP: [{ type:'status_immunity', statuses:['burn','poison','paralyze','freeze','confuse','sleep'] }] } },
+    70: { id:'vent_purificateur_245', name:'Vent Purificateur', desc:'Déclenche la Pluie en combat',
+      hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'rain' }] } },
   },
   246: {
     35: { id:'mue_246', name:'Mue', desc:'Soigne 8% PV / 8 actions',
@@ -1661,8 +1661,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'shield', rate:0.25 }] } },
   },
   248: {
-    35: { id:'sable_volant_248', name:'Sable Volant', desc:'-15% VIT ennemie',
-      hooks:{ ON_SETUP: [{ type:'intimidate', stat:'spd', mult:0.85 }] } },
+    35: { id:'sable_volant_248', name:'Sable Volant', desc:'Déclenche la Tempête de sable',
+      hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'sandstorm' }] } },
     70: { id:'tyran_248', name:'Tyran', desc:'+20% ATK à la mort d\'un allié',
       hooks:{ ON_SETUP: [{ type:'flag', flag:'atkOnAllyKo', boost:0.20 }] } },
   },

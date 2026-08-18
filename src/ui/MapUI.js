@@ -4,7 +4,7 @@
 
 import { RelicUI } from './RelicUI.js';
 import { MapGenerator, NODE_TYPES } from '../map/MapGenerator.js';
-import { getRunState }              from '../data/runState.js';
+import { getRunState, getRunRegion } from '../data/runState.js';
 import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES }       from '../data/trainers.js';
 import { getArenaForMap, getDestinationName } from '../data/arenas.js';
 import { DEFAULT_REGION }           from '../data/regions.js';
@@ -25,6 +25,11 @@ const NODE_META = {
   shop:   { emoji: '🛒', glow: '#74b9ff', label: 'Boutique'  },
   item:   { emoji: '🎒', glow: '#d980fa', label: 'Objet'     },
   boss:   { emoji: '👑', glow: '#ffd700', label: 'Arène'     },
+  casino:   { emoji: '🎰', glow: '#f6b93b', label: 'Casino'      },
+  training: { emoji: '🏋️', glow: '#e17055', label: 'Entraînement' },
+  duel:     { emoji: '⚔️', glow: '#e84393', label: '1vs1'         },
+  market:    { emoji: '🕶️', glow: '#636e72', label: 'Marché Noir' },
+  sanctuary: { emoji: '⛩️', glow: '#e17055', label: 'Sanctuaire'  },
   random: { emoji: '🎲', glow: '#1abc9c', label: 'Mystère'   },
 };
 
@@ -111,7 +116,7 @@ export const MapUI = {
 
     // Titre
     const title = document.createElement('div');
-    const rid   = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+    const rid   = getRunRegion(this._registry);
     title.textContent = `En Route vers ${getDestinationName(this._mapIdx, rid)}`;
     title.style.cssText = `
       flex-shrink: 0;
@@ -502,7 +507,7 @@ export const MapUI = {
     if (node.type === NODE_TYPES.BOSS) {
       // La région DOIT être passée : sans elle, getArenaForMap retombe sur
       // Kanto et affiche Pierre à la place du champion de Johto.
-      const rid = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+      const rid = getRunRegion(this._registry);
       const a = getArenaForMap(this._mapIdx, rid);
       return a?.championSprite ?? null;
     }

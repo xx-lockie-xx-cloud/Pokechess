@@ -9,8 +9,17 @@
 export function getEffectiveStats(unit, meta = null) {
   const base = { ...(unit.stats ?? {}) };
 
-  // Bonus de niveau (persistant entre les runs)
-  const level     = meta?.pokemonLevels?.[unit.id] ?? unit.level ?? 1;
+  // Bonus de niveau (persistant entre les runs), plus les niveaux TEMPORAIRES
+  // accordés par un objet (Super Bonbon). Ces derniers ne sont pas sauvegardés
+  // et disparaissent si l'objet est retiré.
+  //
+  // Le total peut DÉPASSER 100 (un Pokémon niveau 100 avec un Super Bonbon
+  // compte comme 120) : le plafond de 100 ne concerne que le niveau ACQUIS,
+  // appliqué dans SaveManager.gainPokemonLevel. Un Pokémon niveau 90 équipé
+  // affiche donc 110 tout en pouvant encore progresser jusqu'à 100.
+  const baseLevel = meta?.pokemonLevels?.[unit.id] ?? unit.level ?? 1;
+  const itemLevel = unit.heldItem?.levelBonus ?? 0;
+  const level     = baseLevel + itemLevel;
   const levelMult = level > 1 ? 1 + (level - 1) * 0.005 : 1;
   const withLevel = {};
   for (const [k, v] of Object.entries(base)) {
@@ -45,9 +54,13 @@ export const ITEMS = {
     reviveRate: 0.50,   // effet lu par CombatEngine (résurrection unique, objet non consommé)
   },
   super_bonbon: {
-    id: 'super_bonbon', name: 'Super Bonbon', emoji: '🍬', price: 6,
-    type: 'consumable',
-    description: 'Fait évoluer un Pokémon immédiatement.',
+    id: 'super_bonbon', name: 'Super Bonbon', emoji: '🍬', price: 3,
+    type: 'equippable',
+    description: '+20 niveaux au porteur tant qu\'il est équipé.',
+    // Niveaux TEMPORAIRES : appliqués dans getEffectiveStats via levelBonus,
+    // donc perdus dès que l'objet change de porteur ou est retiré. Rien n'est
+    // écrit dans meta.pokemonLevels.
+    levelBonus: 20,
   },
 
   // ── Objets typés (+30% ATK et SP.ATK pour le bon type) ─────────────────────
@@ -134,6 +147,38 @@ export const ITEMS = {
     type: 'equippable',
     description: 'Rend 25% des PV max en passant sous 50% de PV (une fois).',
     emergencyHeal: { threshold: 0.50, rate: 0.25 },
+  },
+
+  // ── Roches météo : posent une météo globale au début du combat ──────────
+  roche_chaude: {
+    id: 'roche_chaude', name: 'Roche Chaude', emoji: '☀️', price: 6,
+    type: 'equippable',
+    description: 'Déclenche Zénith au début du combat (10 tours).',
+    setsWeather: 'sun',
+  },
+  roche_humide: {
+    id: 'roche_humide', name: 'Roche Humide', emoji: '💧', price: 6,
+    type: 'equippable',
+    description: 'Déclenche Pluie au début du combat (10 tours).',
+    setsWeather: 'rain',
+  },
+  roche_lisse: {
+    id: 'roche_lisse', name: 'Roche Lisse', emoji: '🏜️', price: 6,
+    type: 'equippable',
+    description: 'Déclenche Tempête de sable au début du combat (10 tours).',
+    setsWeather: 'sandstorm',
+  },
+  roche_glace: {
+    id: 'roche_glace', name: 'Roche Glace', emoji: '🧊', price: 6,
+    type: 'equippable',
+    description: 'Déclenche Grêle au début du combat (10 tours).',
+    setsWeather: 'hail',
+  },
+  roche_obscure: {
+    id: 'roche_obscure', name: 'Roche Obscure', emoji: '🌑', price: 6,
+    type: 'equippable',
+    description: 'Déclenche Nuit Noire au début du combat (10 tours).',
+    setsWeather: 'darkness',
   },
 
   // ── Objets typés complémentaires (uniformisation des 18 types) ──────────

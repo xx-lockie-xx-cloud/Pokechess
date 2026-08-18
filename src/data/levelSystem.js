@@ -157,7 +157,28 @@ export const ACHIEVEMENTS = {
   },
   encyclopedie: {
     id: 'encyclopedie', label: '📖 Encyclopédie',
-    desc: 'Rencontrer les 151 pokémons', category: 'collection',
+    desc: 'Rencontrer les 151 pokémons de Kanto', category: 'collection',
+  },
+  // ── Collection Johto (gen 2) ───────────────────────────────────────────────
+  curieux_johto: {
+    id: 'curieux_johto', label: '📖 Curieux de Johto',
+    desc: 'Rencontrer 50 pokémons de Johto', category: 'collection',
+  },
+  encyclopedie_johto: {
+    id: 'encyclopedie_johto', label: '📖 Encyclopédie de Johto',
+    desc: 'Rencontrer les 100 pokémons de Johto', category: 'collection',
+  },
+  dresseur_kanto: {
+    id: 'dresseur_kanto', label: '🎒 Dresseur de Kanto',
+    desc: 'Capturer les 151 pokémons de Kanto', category: 'collection',
+  },
+  dresseur_johto: {
+    id: 'dresseur_johto', label: '🎒 Dresseur de Johto',
+    desc: 'Capturer les 100 pokémons de Johto', category: 'collection',
+  },
+  ligue_johto: {
+    id: 'ligue_johto', label: '🌊 Vainqueur de Johto',
+    desc: 'Terminer la Ligue de Johto', category: 'league',
   },
   coup_de_chance: {
     id: 'coup_de_chance', label: '⭐ Coup de Chance',
@@ -684,4 +705,27 @@ export function getActiveTalentEffects(meta) {
     });
   });
   return effects;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getEffectiveLevel(unit, meta) — niveau AFFICHÉ, bonus d'objet compris
+//
+// Le Super Bonbon accorde des niveaux temporaires : ils comptent pour les stats
+// et pour l'affichage, mais ne sont jamais écrits dans meta.pokemonLevels.
+// ─────────────────────────────────────────────────────────────────────────────
+export function getEffectiveLevel(unit, meta = null) {
+  const base  = meta?.pokemonLevels?.[unit?.id] ?? unit?.level ?? 1;
+  const bonus = unit?.heldItem?.levelBonus ?? 0;
+  // Le total n'est PAS plafonné : seul le niveau acquis l'est (à 100).
+  // `base` reste la valeur de référence pour l'entraînement et la progression.
+  return { level: base + bonus, base, bonus };
+}
+
+// Badge tenant compte du bonus d'objet (affiche « Nv.45 +20 » le cas échéant)
+export function getLevelBadgeHTMLFor(unit, meta = null) {
+  const { level, bonus } = getEffectiveLevel(unit, meta);
+  const color = getLevelColor(level);
+  const extra = bonus > 0
+    ? `<span class="level-bonus" title="Super Bonbon">+${bonus}</span>` : '';
+  return `<span class="level-badge" style="color:${color};border-color:${color}">Nv.${level}</span>${extra}`;
 }

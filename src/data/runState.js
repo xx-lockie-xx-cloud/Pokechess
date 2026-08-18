@@ -45,6 +45,13 @@ export function initRun(registry, starterPokemon) {
     caughtPokemon: [starterPokemon.id],
     loopCount:     0,
     difficulty:    prev.difficulty   ?? 'easy',
+    // Région FIGÉE pour toute l'épopée. Elle vient du SÉLECTEUR DU MENU, pas
+    // de prev : initRun démarre une NOUVELLE épopée, et prev peut encore
+    // contenir la région d'une partie précédente abandonnée, ce qui faisait
+    // hériter la nouvelle épopée de l'ancienne région.
+    region:        window.SaveManager?.loadMeta?.()?.region
+                     ?? prev.region
+                     ?? 'kanto',
     seed:          prev.seed         ?? String(Date.now()),
     relic:         prev.relic        ?? null,
     anomalyTypes:  prev.anomalyTypes ?? null,
@@ -281,4 +288,19 @@ export function applyAnomalyToUnits(units, registry) {
     ? { ...u, types: anomalyTypes[u.id] }
     : u
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getRunRegion(registry) — région de l'ÉPOPÉE en cours.
+//
+// À utiliser partout pendant une partie (carte, combat, victoire d'arène) :
+// le sélecteur du menu (meta.region) sert uniquement à CHOISIR la région d'une
+// prochaine épopée. Sans cette distinction, changer la sélection au menu
+// modifierait rétroactivement une partie déjà commencée.
+// ─────────────────────────────────────────────────────────────────────────────
+export function getRunRegion(registry) {
+  const fromRun = registry ? getRunState(registry)?.region : null;
+  return fromRun
+      ?? window.SaveManager?.loadMeta?.()?.region
+      ?? 'kanto';
 }
