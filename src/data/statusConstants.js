@@ -9,7 +9,7 @@
 
 export const STATUS_VALUES = {
   // Dégâts sur la durée (fraction des PV max, par stack et par tour)
-  burnDmgPerStack:   0.05,
+  burnDmgPerStack:   0.04,
   poisonDmgPerStack: 0.04,
   burnAtkMult:       0.90,   // brûlure : ATK ×0.90 (synergie Feu)
 
@@ -22,7 +22,7 @@ export const STATUS_VALUES = {
   freezeActions:  2,
 
   // Plafonds de cumul
-  maxStacks: 5,
+  maxStacks: 10,
 };
 
 export const SYNERGY_VALUES = {
@@ -38,6 +38,7 @@ export const SYNERGY_VALUES = {
   intimidateMult:   0.85,   // Ténèbres : ATK/SP.ATK ennemies
   ironDmgTaken:     0.80,   // Acier : dégâts reçus
   rageDmgPerKo:     0.10,   // Dragon : dégâts par allié KO
+  rockShieldRate:   0.05,   // Roche : bouclier d'équipe, au tour 0 puis toutes les 8 actions
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ export const EFFECT_DESCRIPTIONS = {
   intimidate: `🌑 Intimidation : -${inv(SYNERGY_VALUES.intimidateMult)} ATK + SP.ATK ennemies au début`,
   iron:   `⚙️ Armure Acier : -${inv(SYNERGY_VALUES.ironDmgTaken)} dégâts reçus pour les Acier`,
   rage:   `🐉 Rage : +${pct(SYNERGY_VALUES.rageDmgPerKo)} dégâts par allié Dragon KO`,
-  armor:  `🛡 Armure : le premier coup reçu est absorbé`,
+  armor:  `🪨 Armure Roche : bouclier de ${Math.round(SYNERGY_VALUES.rockShieldRate*100)}% des PV à toute l'équipe, renouvelé toutes les 8 actions`,
   charm:  `🧚 Charme : les ennemis ciblent toujours le + défensif`,
 };
 
@@ -82,7 +83,7 @@ export const EFFECT_LABELS_SHORT = {
   quake:    `🏔 Tremblement -${Math.round(SYNERGY_VALUES.quakeHpLoss*100)}% HP`,
   curse:    `👻 Malédiction ${Math.round(SYNERGY_VALUES.curseHpPerTurn*100)}%/tour`,
   intimidate: `🌑 Intimidation -${Math.round((1-SYNERGY_VALUES.intimidateMult)*100)}%`,
-  armor:    `🛡 Armure`,
+  armor:    `🪨 Bouclier ${Math.round(SYNERGY_VALUES.rockShieldRate*100)}%`,
   charm:    `🧚 Charme (ciblage)`,
   rage:     `🐉 Rage (+${Math.round(SYNERGY_VALUES.rageDmgPerKo*100)}%/mort)`,
   iron:     `⚙️ Armure Acier -${Math.round((1-SYNERGY_VALUES.ironDmgTaken)*100)}%`,

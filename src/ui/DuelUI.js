@@ -8,8 +8,9 @@
 //   victoire → mise doublée   défaite → mise perdue
 //
 // La défaite n'est PAS fatale : sans cela, personne ne prendrait le pari.
-// Le duel se déroule sur la case avant-centre du terrain (col 1, row 0) pour
-// les deux camps, ce qui évite d'avoir à gérer un placement.
+// Le joueur désigne librement son champion parmi les Pokémon posés sur son
+// terrain ; celui-ci est déplacé sur la case de duel le temps du combat, sans
+// que son placement réel soit modifié.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { POKEMONS }                     from '../data/pokemons.js';
@@ -108,31 +109,27 @@ export const DuelUI = {
                  value="${this._wager}" ${maxW < 1 ? 'disabled' : ''} />
         </div>
 
-        <p class="duel-hint">Placez votre Champion sur la case indiquée</p>
+        <p class="duel-hint">Désignez votre Champion</p>
 
         <div class="duel-board">
           ${[0, 1].map(row => `
             <div class="duel-row">
               ${[0, 1, 2].map(col => {
                 const u   = team.find(p => p.col === col && p.row === row);
-                const isD = (col === DUEL_COL && row === DUEL_ROW);
                 const idx = u ? team.indexOf(u) : -1;
+                const sel = this._sel === idx && idx >= 0;
                 return `
-                  <button class="duel-cell ${isD ? 'duel-target' : ''}
-                                 ${this._sel === idx && idx >= 0 ? 'active' : ''}
-                                 ${u ? '' : 'empty'}"
+                  <button class="duel-cell ${sel ? 'active' : ''} ${u ? '' : 'empty'}"
                           data-idx="${idx}" ${u ? '' : 'disabled'}>
                     ${u ? `<img src="${u.spriteUrl}" alt="${u.name}" class="tr-sprite"
                                 onerror="this.src='assets/placeholder.png'" />
                           <span class="tr-name">${u.name}</span>`
                         : '<span class="duel-empty">·</span>'}
-                    ${isD ? '<span class="duel-flag">⚔️</span>' : ''}
+                    ${sel ? '<span class="duel-flag">⚔️</span>' : ''}
                   </button>`;
               }).join('')}
             </div>`).join('')}
         </div>
-        <p class="duel-note">La case marquée ⚔️ est celle du duel. Réorganisez votre
-          terrain depuis l'écran de préparation si besoin.</p>
 
         <div class="node-actions">
           <button id="duel-go" class="btn-primary" ${this._sel == null || maxW < 1 ? 'disabled' : ''}>

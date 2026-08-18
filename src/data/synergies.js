@@ -68,7 +68,7 @@ export const SYNERGIES = {
   "Roche": {
     icon: "🪨", color: 0xb8a038,
     seuil2: { label: "+20% DEF", statBonus: { def: 1.20 }, effect: null },
-    seuil3: { label: "+40% DEF + Armure", statBonus: { def: 1.40 }, effect: "armor" },
+    seuil3: { label: "+40% DEF + Bouclier d'équipe", statBonus: { def: 1.40 }, effect: "armor" },
   },
   "Sol": {
     icon: "🏔", color: 0xe0c068,

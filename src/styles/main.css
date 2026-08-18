@@ -5291,18 +5291,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 .duel-cell:hover:not([disabled]) { transform: translateY(-2px); }
 .duel-cell.empty  { opacity: 0.35; cursor: not-allowed; }
-.duel-cell.active { border-color: var(--color-gold); box-shadow: 0 0 12px rgba(255,215,0,0.3); }
-
-/* Case de duel : mise en évidence permanente */
-.duel-cell.duel-target {
-  border-color: #e84393;
-  box-shadow: 0 0 14px rgba(232,67,147,0.45);
+.duel-cell.active {
+  border-color: var(--color-gold);
+  box-shadow: 0 0 14px rgba(255,215,0,0.35);
   animation: duel-pulse 1.8s ease-in-out infinite;
 }
 @keyframes duel-pulse {
-  0%, 100% { box-shadow: 0 0 10px rgba(232,67,147,0.35); }
-  50%      { box-shadow: 0 0 20px rgba(232,67,147,0.65); }
+  0%, 100% { box-shadow: 0 0 10px rgba(255,215,0,0.28); }
+  50%      { box-shadow: 0 0 20px rgba(255,215,0,0.55); }
 }
+
+/* Épées sur le champion DÉSIGNÉ (et non sur une case imposée) */
 .duel-flag {
   position: absolute;
   top: -8px; right: -6px;

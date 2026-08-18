@@ -11,6 +11,10 @@ import { STATUS_VALUES }                  from '../data/statusConstants.js';
 import { PassiveEngine }                 from './PassiveEngine.js';
 import { RelicEngine }                   from './RelicEngine.js';
 
+// Synergie Roche : part des PV max accordée en bouclier, au tour 0 puis
+// toutes les 8 actions.
+const ROCK_SHIELD_RATE = 0.05;
+
 // ── Multiplicateur AoE selon le nombre de cibles ─────────────────────────────
 function aoeMult(targetCount) {
   if (targetCount <= 1) return 1.0;
@@ -298,6 +302,7 @@ export class CombatEngine {
         this._tickWeather();
 
         if (actionCount % 8 === 0) {
+          this._applyRockShield();   // synergie Roche : renouvelle le bouclier
           this._resolveEndOfTurn();
           this._tickTraps();
           this._resolveFutureAttacks();
@@ -362,13 +367,26 @@ export class CombatEngine {
     }
     this._applyPreEffects('player', this.playerFx, this.enemyUnits, this.playerUnits);
     this._applyPreEffects('enemy',  this.enemyFx,  this.playerUnits, this.enemyUnits);
-    // Armure Roche
-    ['player','enemy'].forEach(side => {
+    // Synergie Roche : bouclier d'équipe posé au tour 0, puis renouvelé
+    // périodiquement (voir _tickRockShield). Il profite à TOUTE l'équipe, et
+    // plus seulement aux Pokémon de type Roche.
+    this._applyRockShield();
+  }
+
+  // Bouclier de la synergie Roche : ROCK_SHIELD_RATE des PV max à tous les
+  // alliés du camp concerné. Cumulatif avec les autres boucliers.
+  _applyRockShield() {
+    ['player', 'enemy'].forEach(side => {
       const fx = this._fx(side);
+      if (!fx.has('armor')) return;
       const allies = side === 'player' ? this.playerUnits : this.enemyUnits;
-      if (fx.has('armor')) {
-        allies.filter(u => u.types.includes('Roche')).forEach(u => { u.armorShield = true; });
-      }
+      allies.filter(u => u.hp > 0).forEach(u => {
+        const pts = Math.max(1, Math.round(u.maxHp * ROCK_SHIELD_RATE));
+        u.shield    = (u.shield ?? 0) + pts;
+        u.maxShield = Math.max(u.maxShield ?? 0, u.shield);
+      });
+      this.log.push({ type: 'pre_combat', effect: 'shield', label: '🪨 Armure Roche',
+        targetSide: side });
     });
   }
 

@@ -45,8 +45,27 @@ export const BlackMarketUI = {
     this._render();
   },
 
+  // Terrain ET banque : sans le terrain, un joueur ayant posé toute son équipe
+  // n'aurait rien à échanger et le nœud serait un cul-de-sac.
+  _groups() {
+    const state = getRunState(this._registry) ?? {};
+    const bank  = (state.playerBank ?? []).filter(Boolean);
+    const field = this._registry?.get?.('playerUnits') ?? [];
+    const onField = new Set(field.map(u => u?.uid).filter(Boolean));
+    const isField = u => onField.has(u.uid) || u.isInTeam === true;
+    return { field: bank.filter(isField), bench: bank.filter(u => !isField(u)) };
+  },
+
+  // Liste à plat dans l'ordre d'affichage (terrain puis banque)
   _team() {
-    return (getRunState(this._registry)?.playerBank ?? []).filter(Boolean);
+    const g = this._groups();
+    return [...g.field, ...g.bench];
+  },
+
+  // Index dans playerBank, la liste affichée étant réordonnée
+  _bankIndexOf(unit) {
+    const bank = getRunState(this._registry)?.playerBank ?? [];
+    return bank.findIndex(u => u && u.uid === unit.uid);
   },
 
   // Candidats : tier SUPÉRIEUR (plafonné T4), au moins un type commun, espèce
@@ -65,6 +84,33 @@ export const BlackMarketUI = {
       p.types.some(t => source.types.includes(t)));
   },
 
+  // Une section (Terrain ou Banque). `offset` décale les index pour rester
+  // cohérent avec la liste à plat de _team().
+  _renderGroup(title, list, offset, coins) {
+    if (!list.length) return '';
+    return `
+      <div class="node-section">${title}</div>
+      <div class="training-list">
+        ${list.map((p, k) => {
+          const i    = offset + k;
+          const from = Math.min(getBSTTier(p), MAX_TIER);
+          const to   = targetTier(from);
+          const cost = tradeCost(from);
+          const n    = this._candidates(p).length;
+          const can  = n > 0 && coins >= cost;
+          return `
+            <button class="training-card ${this._sel === i ? 'active' : ''} ${can ? '' : 'disabled'}"
+                    data-idx="${i}" ${can ? '' : 'disabled'}>
+              <img src="${p.spriteUrl}" alt="${p.name}" class="tr-sprite"
+                   onerror="this.src='assets/placeholder.png'" />
+              <span class="tr-name">${p.name}</span>
+              <span class="tr-lv">T${from} → <b>T${to}</b></span>
+              <span class="tr-cost">${n ? `💰 ${cost}` : 'Aucun échange'}</span>
+            </button>`;
+        }).join('')}
+      </div>`;
+  },
+
   _render() {
     const root = document.getElementById('blackmarket-root');
     if (!root) return;
@@ -80,24 +126,10 @@ export const BlackMarketUI = {
           <b>Vous ne saurez ce que vous recevez qu'après l'échange.</b>
         </p>
 
-        <div class="training-list">
-          ${team.length ? team.map((p, i) => {
-            const from = Math.min(getBSTTier(p), MAX_TIER);
-            const to   = targetTier(from);
-            const cost = tradeCost(from);
-            const n    = this._candidates(p).length;
-            const can  = n > 0 && coins >= cost;
-            return `
-              <button class="training-card ${this._sel === i ? 'active' : ''} ${can ? '' : 'disabled'}"
-                      data-idx="${i}" ${can ? '' : 'disabled'}>
-                <img src="${p.spriteUrl}" alt="${p.name}" class="tr-sprite"
-                     onerror="this.src='assets/placeholder.png'" />
-                <span class="tr-name">${p.name}</span>
-                <span class="tr-lv">T${from} → <b>T${to}</b></span>
-                <span class="tr-cost">${n ? `💰 ${cost}` : 'Aucun échange'}</span>
-              </button>`;
-          }).join('') : '<p class="node-empty">Aucun Pokémon à échanger.</p>'}
-        </div>
+        ${team.length
+          ? this._renderGroup('Sur le terrain', this._groups().field, 0, coins)
+            + this._renderGroup('En banque', this._groups().bench, this._groups().field.length, coins)
+          : '<p class="node-empty">Aucun Pokémon à échanger.</p>'}
 
         <p id="bm-info" class="node-info"></p>
 
@@ -125,8 +157,12 @@ export const BlackMarketUI = {
     if (this._sel == null) return;
     const state = getRunState(this._registry) ?? {};
     const bank  = [...(state.playerBank ?? [])];
-    const src   = bank[this._sel];
+    // L'index affiché suit l'ordre terrain-puis-banque : on repasse par l'uid
+    // pour retrouver la vraie position dans playerBank.
+    const src   = this._team()[this._sel];
     if (!src) return;
+    const bankIdx = this._bankIndexOf(src);
+    if (bankIdx < 0) return;
 
     const from = Math.min(getBSTTier(src), MAX_TIER);
     const cost = tradeCost(from);
@@ -148,8 +184,17 @@ export const BlackMarketUI = {
       heldItem: src.heldItem ?? null,
       corners:  assignCorners(pick),
     };
-    bank[this._sel] = replacement;
+    bank[bankIdx] = replacement;
     setRunState(this._registry, { playerBank: bank });
+
+    // Si le Pokémon cédé était POSÉ, le remplaçant prend sa case sur le terrain
+    const field = this._registry?.get?.('playerUnits') ?? [];
+    const fIdx  = field.findIndex(u => u && u.uid === src.uid);
+    if (fIdx >= 0) {
+      const nf = [...field];
+      nf[fIdx] = replacement;
+      this._registry.set('playerUnits', nf);
+    }
 
     this._sel = null;
     this._render();
