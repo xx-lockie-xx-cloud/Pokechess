@@ -743,12 +743,16 @@ export const CombatUI = {
       });
     }
 
-    if (winner !== 'player') {
+    if (winner !== 'player' && !this._data?.isDuel) {
       // Anti-exploit : défaite SCELLÉE immédiatement.
       // Quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
+      //
+      // EXCEPTION : le duel du 1vs1 Boulevard. Perdre n'y coûte que la mise,
+      // l'épopée continue. Sceller la partie y détruisait la sauvegarde et
+      // faisait disparaître le bouton Continuer au retour au menu.
       this._registry?.sealRun?.();   // bloque tout autosave ultérieur
       SaveManager.deleteSave?.();    // efface la sauvegarde de run existante
-    } else if (this._registry) {
+    } else if (winner === 'player' && this._registry) {
       // ── Récompenses ATOMIQUES avec le commit de progression ────────────────
       // Exp et pièces sont accordées DÈS la victoire calculée : un F5 pendant la
       // lecture valide le nœud AVEC ses gains. L'animation ne fait qu'afficher.

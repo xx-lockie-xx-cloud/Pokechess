@@ -34,21 +34,16 @@ export const TrainingUI = {
     return getRunState(this._registry)?.coins ?? 0;
   },
 
-  // Terrain et banque séparés à l'affichage, mais entraînables tous les deux.
-  // playerBank contient TOUTES les unités possédées ; isInTeam distingue celles
-  // qui sont posées sur le terrain.
+  // Terrain ET banque. IMPORTANT : `playerUnits` (terrain) et `playerBank`
+  // (banque) sont DISJOINTS. Une unité posée sort de la banque, donc filtrer
+  // la banque pour trouver le terrain ne renvoyait jamais rien.
   _groups() {
     const state = getRunState(this._registry) ?? {};
+    const field = (this._registry?.get?.('playerUnits') ?? []).filter(Boolean);
     const bank  = (state.playerBank ?? []).filter(Boolean);
-    const field = this._registry?.get?.('playerUnits') ?? [];
-
+    // Sécurité : si une unité figurait dans les deux, on ne la compte qu'une fois
     const onField = new Set(field.map(u => u?.uid).filter(Boolean));
-    const isField = u => onField.has(u.uid) || u.isInTeam === true;
-
-    return {
-      field: bank.filter(isField),
-      bench: bank.filter(u => !isField(u)),
-    };
+    return { field, bench: bank.filter(u => !onField.has(u.uid)) };
   },
 
   // Liste à plat, dans l'ordre d'affichage (terrain puis banque)

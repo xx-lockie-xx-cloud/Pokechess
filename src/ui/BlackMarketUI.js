@@ -45,15 +45,16 @@ export const BlackMarketUI = {
     this._render();
   },
 
-  // Terrain ET banque : sans le terrain, un joueur ayant posé toute son équipe
-  // n'aurait rien à échanger et le nœud serait un cul-de-sac.
+  // Terrain ET banque. IMPORTANT : `playerUnits` (terrain) et `playerBank`
+  // (banque) sont DISJOINTS. Une unité posée sort de la banque, donc filtrer
+  // la banque pour trouver le terrain ne renvoyait jamais rien.
   _groups() {
     const state = getRunState(this._registry) ?? {};
+    const field = (this._registry?.get?.('playerUnits') ?? []).filter(Boolean);
     const bank  = (state.playerBank ?? []).filter(Boolean);
-    const field = this._registry?.get?.('playerUnits') ?? [];
+    // Sécurité : si une unité figurait dans les deux, on ne la compte qu'une fois
     const onField = new Set(field.map(u => u?.uid).filter(Boolean));
-    const isField = u => onField.has(u.uid) || u.isInTeam === true;
-    return { field: bank.filter(isField), bench: bank.filter(u => !isField(u)) };
+    return { field, bench: bank.filter(u => !onField.has(u.uid)) };
   },
 
   // Liste à plat dans l'ordre d'affichage (terrain puis banque)
@@ -62,10 +63,15 @@ export const BlackMarketUI = {
     return [...g.field, ...g.bench];
   },
 
-  // Index dans playerBank, la liste affichée étant réordonnée
-  _bankIndexOf(unit) {
+  // Où se trouve réellement l'unité : sur le terrain (playerUnits) ou en
+  // banque (playerBank). Les deux listes sont disjointes.
+  _locate(unit) {
+    const field = this._registry?.get?.('playerUnits') ?? [];
+    const fi = field.findIndex(u => u && u.uid === unit.uid);
+    if (fi >= 0) return { where: 'field', index: fi };
     const bank = getRunState(this._registry)?.playerBank ?? [];
-    return bank.findIndex(u => u && u.uid === unit.uid);
+    const bi = bank.findIndex(u => u && u.uid === unit.uid);
+    return bi >= 0 ? { where: 'bank', index: bi } : null;
   },
 
   // Candidats : tier SUPÉRIEUR (plafonné T4), au moins un type commun, espèce
@@ -156,13 +162,12 @@ export const BlackMarketUI = {
   async _trade() {
     if (this._sel == null) return;
     const state = getRunState(this._registry) ?? {};
-    const bank  = [...(state.playerBank ?? [])];
     // L'index affiché suit l'ordre terrain-puis-banque : on repasse par l'uid
-    // pour retrouver la vraie position dans playerBank.
-    const src   = this._team()[this._sel];
+    // pour savoir dans QUELLE liste se trouve réellement l'unité.
+    const src = this._team()[this._sel];
     if (!src) return;
-    const bankIdx = this._bankIndexOf(src);
-    if (bankIdx < 0) return;
+    const loc = this._locate(src);
+    if (!loc) return;
 
     const from = Math.min(getBSTTier(src), MAX_TIER);
     const cost = tradeCost(from);
@@ -184,16 +189,16 @@ export const BlackMarketUI = {
       heldItem: src.heldItem ?? null,
       corners:  assignCorners(pick),
     };
-    bank[bankIdx] = replacement;
-    setRunState(this._registry, { playerBank: bank });
-
-    // Si le Pokémon cédé était POSÉ, le remplaçant prend sa case sur le terrain
-    const field = this._registry?.get?.('playerUnits') ?? [];
-    const fIdx  = field.findIndex(u => u && u.uid === src.uid);
-    if (fIdx >= 0) {
-      const nf = [...field];
-      nf[fIdx] = replacement;
+    // Le remplaçant prend exactement la place de celui qu'il remplace,
+    // sur le terrain comme en banque.
+    if (loc.where === 'field') {
+      const nf = [...(this._registry.get('playerUnits') ?? [])];
+      nf[loc.index] = replacement;
       this._registry.set('playerUnits', nf);
+    } else {
+      const nb = [...(state.playerBank ?? [])];
+      nb[loc.index] = replacement;
+      setRunState(this._registry, { playerBank: nb });
     }
 
     this._sel = null;
