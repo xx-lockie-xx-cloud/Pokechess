@@ -6,8 +6,20 @@
 // getEffectiveStats(unit, meta?) — stats avec bonus niveau + bonus objet.
 // Chaîne : base → ×niveau → ×objet
 // ─────────────────────────────────────────────────────────────────────────────
+// Objet réellement porté, TOUJOURS relu depuis ITEMS via son id.
+// `heldItem` est sérialisé en entier dans la sauvegarde : sans cette
+// résolution, une partie en cours garderait la version de l'objet telle
+// qu'elle était au moment de l'équipement, et tout rééquilibrage ultérieur
+// serait ignoré (c'est ce qui rendait le Super Bonbon inopérant).
+export function resolveHeldItem(heldItem) {
+  if (!heldItem) return null;
+  const id = typeof heldItem === 'string' ? heldItem : heldItem.id;
+  return ITEMS[id] ?? heldItem;
+}
+
 export function getEffectiveStats(unit, meta = null) {
   const base = { ...(unit.stats ?? {}) };
+  const held = resolveHeldItem(unit.heldItem);
 
   // Bonus de niveau (persistant entre les runs), plus les niveaux TEMPORAIRES
   // accordés par un objet (Super Bonbon). Ces derniers ne sont pas sauvegardés
@@ -18,7 +30,7 @@ export function getEffectiveStats(unit, meta = null) {
   // appliqué dans SaveManager.gainPokemonLevel. Un Pokémon niveau 90 équipé
   // affiche donc 110 tout en pouvant encore progresser jusqu'à 100.
   const baseLevel = meta?.pokemonLevels?.[unit.id] ?? unit.level ?? 1;
-  const itemLevel = unit.heldItem?.levelBonus ?? 0;
+  const itemLevel = held?.levelBonus ?? 0;
   const level     = baseLevel + itemLevel;
   const levelMult = level > 1 ? 1 + (level - 1) * 0.005 : 1;
   const withLevel = {};
@@ -26,7 +38,7 @@ export function getEffectiveStats(unit, meta = null) {
     withLevel[k] = level > 1 ? Math.round(v * levelMult) : v;
   }
 
-  const item = unit.heldItem;
+  const item = held;
   if (!item?.statBonus) return withLevel;
 
   if (item.typeFilter) {
@@ -163,7 +175,7 @@ export const ITEMS = {
     setsWeather: 'rain',
   },
   roche_lisse: {
-    id: 'roche_lisse', name: 'Roche Lisse', emoji: '🏜️', price: 6,
+    id: 'roche_lisse', name: 'Roche Lisse', emoji: '🌪️', price: 6,
     type: 'equippable',
     description: 'Déclenche Tempête de sable au début du combat (10 tours).',
     setsWeather: 'sandstorm',
@@ -344,8 +356,9 @@ export function getTeamAuras(fieldUnits = []) {
   const seen  = new Set();
   const auras = {};
   (fieldUnits ?? []).forEach(u => {
-    const aura = u?.heldItem?.teamAura;
-    const id   = u?.heldItem?.id;
+    const it   = resolveHeldItem(u?.heldItem);
+    const aura = it?.teamAura;
+    const id   = it?.id;
     if (!aura || !id || seen.has(id)) return;
     seen.add(id);
     Object.entries(aura).forEach(([stat, mult]) => {

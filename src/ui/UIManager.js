@@ -742,10 +742,23 @@ class UIManagerClass {
       const addConn = (n) => (n?.connections ?? []).forEach(id => {
         if (!visitedSet.has(id)) availSet.add(id);
       });
-      if (nodeData.startNode?.visited) addConn(nodeData.startNode);
-      (nodeData.mapNodes ?? []).forEach(col =>
-        col.forEach(n => { if (visitedSet.has(n.id)) addConn(n); })
+
+      // Seul le FRONT d'avancement ouvre des chemins : les connexions des
+      // nœuds visités de la colonne la plus avancée. Prendre celles de TOUS
+      // les nœuds visités (départ compris) laissait disponibles les nœuds non
+      // choisis des colonnes précédentes, et la reprise proposait des chemins
+      // que le joueur avait déjà dépassés.
+      const visitedNodes = [];
+      (nodeData.mapNodes ?? []).forEach(colArr =>
+        colArr.forEach(n => { if (visitedSet.has(n.id)) visitedNodes.push(n); })
       );
+
+      if (visitedNodes.length) {
+        const maxCol = Math.max(...visitedNodes.map(n => n.col ?? 0));
+        visitedNodes.filter(n => (n.col ?? 0) === maxCol).forEach(addConn);
+      } else if (nodeData.startNode?.visited) {
+        addConn(nodeData.startNode);
+      }
       // Colonne du dernier nœud réellement terminé (celle d'avant le clic)
       const colStr = curId ? String(curId).split('_')[0] : '0';
       const colNum = isNaN(parseInt(colStr, 10)) ? 0 : parseInt(colStr, 10);

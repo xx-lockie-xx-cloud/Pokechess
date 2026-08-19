@@ -140,14 +140,18 @@ export const CasinoUI = {
     await this._animateReels(outcome);
     await this._applyOutcome(outcome);
 
-    this._spinning = false;
+    this._spinning  = false;
+    this._lastCoins = getRunState(this._registry)?.coins ?? 0;
     this._render();
   },
 
   // Animation : le résultat est déjà décidé, les rouleaux ne font que l'illustrer
   _animateReels(outcome) {
     return new Promise(resolve => {
-      const reels = document.querySelectorAll('#casino-reels .reel');
+      // Les éléments sont relus à CHAQUE image : si le DOM était reconstruit
+      // entre-temps, l'animation continuerait sinon sur des nœuds détachés,
+      // donc invisibles, ce qui donnait l'impression de saccades.
+      const getReels = () => document.querySelectorAll('#casino-reels .reel');
       const FINAL = {
         jackpot: ['7️⃣', '7️⃣', '7️⃣'],
         item:    ['💎', '💎', '🍋'],
@@ -158,6 +162,8 @@ export const CasinoUI = {
       let ticks = 0;
       const timer = setInterval(() => {
         ticks++;
+        const reels = getReels();
+        if (!reels.length) { clearInterval(timer); resolve(); return; }
         reels.forEach((r, i) => {
           if (ticks > 10 + i * 5) { r.textContent = FINAL[i]; r.classList.add('locked'); }
           else r.textContent = REELS[Math.floor(Math.random() * REELS.length)];
@@ -318,8 +324,12 @@ export const CasinoUI = {
   // lu à l'arrivée sur le nœud.
   _startCoinWatch() {
     this._stopCoinWatch();
-    this._lastCoins = this._coins?.() ?? getRunState(this._registry)?.coins ?? 0;
+    this._lastCoins = getRunState(this._registry)?.coins ?? 0;
     this._coinTimer = setInterval(() => {
+      // Ne JAMAIS re-rendre pendant une animation : `_render()` remplace le
+      // HTML des rouleaux, ce qui détache les éléments que l'animation fait
+      // tourner. C'était la cause des saccades pendant le tirage.
+      if (this._spinning) return;
       const now = getRunState(this._registry)?.coins ?? 0;
       if (now !== this._lastCoins) { this._lastCoins = now; this._render(); }
     }, 400);

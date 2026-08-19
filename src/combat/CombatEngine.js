@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getTypeMultiplier }           from '../data/typeChart.js';
+import { resolveHeldItem }             from '../data/items.js';
 import { weatherStatMult, weatherDotRate,
          WEATHERS, WEATHER_TURNS, WEATHER_REPOST_EVERY } from '../data/weather.js';
 import { MOVES, POKEMON_MOVES, getMove } from '../data/moves.js';
@@ -68,7 +69,9 @@ export class CombatEngine {
       atk, spa, def, spd_def,
       spd: unit.stats?.spd ?? unit.spd ?? 1,
       attributes:  unit.attributes  ?? [],
-      heldItem:    unit.heldItem    ?? null,
+      // Objet relu depuis ITEMS : la sauvegarde en conserve une copie figée,
+      // qui ignorerait tout rééquilibrage ultérieur de l'objet.
+      heldItem:    resolveHeldItem(unit.heldItem),
       // Mana
       mana: 0,
       // Statuts : array de { type, turnsLeft (-1=permanent) }
@@ -300,6 +303,7 @@ export class CombatEngine {
         // Météo : décomptée à CHAQUE action (un tour = une action de Pokémon),
         // contrairement aux statuts qui suivent le cycle de 8 actions.
         this._tickWeather();
+        this._tickIntervalDots(actionCount);
 
         if (actionCount % 8 === 0) {
           this._applyRockShield();   // synergie Roche : renouvelle le bouclier
@@ -1489,6 +1493,27 @@ export class CombatEngine {
         if (t.hp <= 0) this._handleFaint(t);
       }
       return false;
+    });
+  }
+
+  // Dégâts périodiques à intervalle LIBRE, exprimé en actions (et non en
+  // cycles de 8 comme les effets de fin de tour). Permet des cadences comme
+  // « 2% toutes les 10 actions », impossibles avec le hook ON_PERIODIC.
+  _tickIntervalDots(actionCount) {
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      const d = u._intervalDot;
+      if (!d || u.hp <= 0) return;
+      if (actionCount % d.every !== 0) return;
+      const foes = u.side === 'player' ? this.enemyUnits : this.playerUnits;
+      foes.filter(e => e.hp > 0).forEach(e => {
+        const dmg = Math.max(1, Math.ceil(e.maxHp * d.rate));
+        e.hp = Math.max(0, e.hp - dmg);
+        this.log.push({ type:'attack', effect:'passive_dot', label:`🩸 ${d.name}`,
+          attackerId:u.uid, attackerSide:u.side,
+          targetId:e.uid, targetName:e.name, targetSide:e.side,
+          damage:dmg, targetHpLeft:e.hp, targetMaxHp:e.maxHp });
+        if (e.hp <= 0) this._handleFaint(e);
+      });
     });
   }
 

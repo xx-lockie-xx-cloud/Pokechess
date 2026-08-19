@@ -1537,8 +1537,8 @@ export const POKEMON_PASSIVES = {
   227: {
     35: { id:'armure_vivante_227', name:'Armure Vivante', desc:'-20% dégâts reçus',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'_dmgReduction', mult:0.80 }] } },
-    70: { id:'piege_de_roc_227', name:'Piège de Roc', desc:'Blesse les ennemis 4% PV/tour',
-      hooks:{ ON_PERIODIC: [{ type:'dot_enemies', rate:0.04 }] } },
+    70: { id:'piege_de_roc_227', name:'Piège de Roc', desc:'Blesse les ennemis de 2% PV toutes les 10 actions',
+      hooks:{ ON_SETUP: [{ type:'interval_dot', rate:0.02, every:10 }] } },
   },
   228: {
     35: { id:'flamme_228', name:'Flamme', desc:'+30% SPA si PV<33%',

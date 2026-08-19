@@ -521,7 +521,25 @@ export const PassiveEngine = {
         break;
       }
 
+      case 'interval_dot': {
+        // Pose un saignement à cadence libre, résolu par le moteur à chaque
+        // action (voir CombatEngine._tickIntervalDots).
+        unit._intervalDot = {
+          rate:  action.rate  ?? 0.02,
+          every: action.every ?? 10,
+          name:  passive.name,
+        };
+        break;
+      }
+
       case 'dot_enemies': {
+        // `every` espace les déclenchements : le hook périodique tourne toutes
+        // les 8 actions, donc `every: 10` revient à une salve tous les 10 tours.
+        if (action.every && action.every > 1) {
+          const k = `_dot_${passive.id}`;
+          unit[k] = (unit[k] ?? 0) + 1;
+          if (unit[k] % action.every !== 0) break;
+        }
         enemies.filter(en => en.hp > 0).forEach(en => {
           const dmg = Math.max(1, Math.ceil(en.maxHp * action.rate));
           en.hp = Math.max(0, en.hp - dmg);

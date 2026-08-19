@@ -84,12 +84,12 @@ export const WEATHERS = {
     color: '#d4a373',
     short: 'Sol et Roche déchaînés. Blesse les autres types.',
     desc:  'Sol et Roche : ATK, ATK.SPÉ et VIT +25%. '
-         + 'Blesse 3% des PV max par tour, sauf Roche, Sol et Acier.',
+         + 'Blesse 2% des PV max par tour, sauf Roche, Sol et Acier.',
     typeBonus: {
       'Sol':   { atk: 1.25, spa: 1.25, spd: 1.25 },
       'Roche': { atk: 1.25, spa: 1.25, spd: 1.25 },
     },
-    dot: { rate: 0.03, immuneTypes: ['Roche', 'Sol', 'Acier'], extra: {} },
+    dot: { rate: 0.02, immuneTypes: ['Roche', 'Sol', 'Acier'], extra: {} },
   },
 
   darkness: {
