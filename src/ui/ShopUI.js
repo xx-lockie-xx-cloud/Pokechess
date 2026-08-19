@@ -2,7 +2,7 @@
 // ShopUI.js — Boutique (sans pokéballs, achat direct en pièces dans WildUI)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { ITEMS }                          from '../data/items.js';
+import { ITEMS, pickEquippableItems }      from '../data/items.js';
 import { RelicEngine }                    from '../combat/RelicEngine.js';
 import { getRunState, removeCoins,
          addToInventory }                 from '../data/runState.js';
@@ -25,10 +25,12 @@ export const ShopUI = {
   _generateCatalog() {
     // La pokéball n'est plus vendue en boutique — achat direct dans les rencontres
     const mandatory = ['rappel', 'restes'];
-    const optional  = Object.keys(ITEMS)
-      .filter(id => !mandatory.includes(id) && ITEMS[id].type === 'equippable')
-      .sort(() => Math.random() - 0.5)
-      .slice(0, RelicEngine.shopSlots(getRunState(this._registry)?.relic?.id));
+    const state     = getRunState(this._registry);
+    const slots     = RelicEngine.shopSlots(state?.relic?.id);
+    // Tirage pondéré : privilégie les objets utiles à l'équipe du joueur
+    const optional  = pickEquippableItems(slots, state?.playerBank ?? [],
+                                          { exclude: mandatory })
+                        .map(i => i.id);
     return [...mandatory, ...optional];
   },
 
@@ -67,12 +69,19 @@ export const ShopUI = {
     if (info) info.textContent = `💰 ${coins} disponibles`;
   },
 
-  _buy(item) {
+  async _buy(item) {
     const state = getRunState(this._registry);
     if ((state.coins ?? 0) < item.price) return;
 
-    // Fenêtre de confirmation avant achat
-    const ok = confirm(`Acheter ${item.emoji} ${item.name} pour ${item.price} 💰 ?`);
+    // Fenêtre de confirmation aux couleurs du jeu
+    const ok = await (window.UIManager?.confirm?.({
+      icon:    item.emoji ?? '🛒',
+      title:   `Acheter ${item.name} ?`,
+      message: `Cet achat coûte <strong>${item.price} 💰</strong>.<br>
+                Il te restera <strong>${(state.coins ?? 0) - item.price} 💰</strong>.`,
+      yesLabel: 'Acheter',
+      noLabel:  'Annuler',
+    }) ?? Promise.resolve(confirm(`Acheter ${item.name} pour ${item.price} 💰 ?`)));
     if (!ok) return;
 
     removeCoins(this._registry, item.price);

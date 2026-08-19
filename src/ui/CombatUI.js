@@ -6,15 +6,18 @@ import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { TYPE_COLORS } from '../data/pokemons.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
-import { addCoins, getEnemyMultiplier, getRunState, addSeenPokemon, saveMapProgress } from '../data/runState.js';
+import { addCoins, getEnemyMultiplier, getRunState, addSeenPokemon, saveMapProgress, getRunRegion, setRunState } from '../data/runState.js';
 import { RelicEngine }                                 from '../combat/RelicEngine.js';
 import { SaveManager }                     from '../SaveManager.js';
 import { getEffectiveStats }               from '../data/items.js';
 import { getActiveSynergies, getFullStats } from '../data/synergies.js';
+import { getActiveTalentEffects }           from '../data/levelSystem.js';
 
 // Multiplicateur de stats ennemies par difficulté (source unique — voir aussi
 // DIFF_BUDGETS dans MapGenerator.js : les deux se composent, cf. réglage √ratio)
 const DIFF_STAT_MULTS = { easy: 0.8, normal: 1.0, hard: 1.118, expert: 1.225 };
+import { WEATHERS, weatherTooltip } from '../data/weather.js';
+import { blessingStatMult, blessingFlags, blessingBonus } from '../data/blessings.js';
 import { getArenaForMap }                   from '../data/arenas.js';
 
 const DELAY_TURN_START = 100;
@@ -67,7 +70,11 @@ export const CombatUI = {
     if (this._atbRaf) { cancelAnimationFrame(this._atbRaf); this._atbRaf = null; }
 
     // Lit toujours depuis le registre (priorité sur data.playerUnits)
-    this._playerUnits = _applyAnom(registry.get('playerUnits') ?? data.playerUnits ?? []);
+    // En DUEL, seul le champion désigné combat : on ignore le registre, qui
+    // contient toute l'équipe. Sans cela, le 1vs1 devient un combat complet.
+    this._playerUnits = _applyAnom(
+      data.isDuel ? (data.playerUnits ?? [])
+                  : (registry.get('playerUnits') ?? data.playerUnits ?? []));
 
     this._render();
     this._bindTeamListener();
@@ -82,7 +89,9 @@ export const CombatUI = {
       // Seulement si le combat n'a pas encore démarré
       const btn = document.getElementById('btn-start-combat');
       if (!btn || btn.disabled) return;
-      this._playerUnits = this._registry.get('playerUnits') ?? this._playerUnits;
+      if (!this._data?.isDuel) {
+        this._playerUnits = this._registry.get('playerUnits') ?? this._playerUnits;
+      }
       this._refreshPlayerField();
     };
 
@@ -147,10 +156,26 @@ export const CombatUI = {
     enemyField.appendChild(this._buildRow(this._enemyUnits, 0, 'enemy'));
     wrapper.appendChild(enemyField);
 
-    // Séparateur
+    // Séparateur + bandeau d'effets (météo globale, bonus personnels)
     const sep = document.createElement('div');
-    sep.className   = 'combat-separator';
-    sep.textContent = '— VS —';
+    // Réinitialise l'état d'effets : sans cela, la météo d'un combat
+    // précédent resterait affichée au combat suivant.
+    this._weather     = null;
+    // Zone droite du bandeau : bénédictions actives du Sanctuaire
+    this._playerBuffs = (getRunState(this._registry)?.blessings ?? []).map(b => ({
+      emoji: b.emoji, color: b.color,
+      desc:  `${b.name} : ${b.desc} (${b.left} combat${b.left > 1 ? 's' : ''})`,
+    }));
+    sep.className = 'combat-separator';
+    sep.innerHTML = `
+      <span class="fx-zone fx-zone-global" id="fx-global"></span>
+      <span class="vs-label">VS</span>
+      <span class="fx-zone fx-zone-player" id="fx-player"></span>
+      <span class="turn-counter" id="turn-counter" title="Tours écoulés">
+        <span class="tc-ico">⏱</span><span class="tc-val">0</span>
+      </span>
+    `;
+    this._turnCount = 0;
     wrapper.appendChild(sep);
 
     // Terrain joueur (rangée 0 en haut, rangée 1 en bas)
@@ -312,7 +337,15 @@ export const CombatUI = {
     hpFill.style.width      = '100%';
     hpFill.style.background = 'var(--color-green)';
 
+    // Barre de BOUCLIER, superposée à la barre de PV. Elle part de la gauche
+    // comme les PV, en bleu clair, et n'apparaît que si des points existent.
+    const shFill = document.createElement('div');
+    shFill.className   = 'combat-shield-fill';
+    shFill.id          = `shield-${hpId.replace(/^hp-/, '')}`;
+    shFill.style.width = '0%';
+
     hpBar.appendChild(hpFill);
+    hpBar.appendChild(shFill);
     hpWrapper.appendChild(hpBar);
 
     // Label HP numérique sous la barre (PV effectifs, bonus inclus)
@@ -397,7 +430,15 @@ export const CombatUI = {
   // ─────────────────────────────────────────────────────────────────────────
   // Info pokémon au clic (stats effectives, buffs, debuffs, passifs)
   // ─────────────────────────────────────────────────────────────────────────
-  _showUnitInfo(unit, side) {
+  // Rafraîchit la carte ouverte, s'il y en a une (appelé à chaque action)
+  _refreshOpenCard() {
+    const open = this._openCard;
+    if (!open || !document.getElementById('cinfo-panel')) return;
+    this._showUnitInfo(open.unit, open.side, true);
+  },
+
+  _showUnitInfo(unit, side, isRefresh = false) {
+    this._openCard = { unit, side };
     const liveUnits = side === 'player' ? this._livePlayerUnits : this._liveEnemyUnits;
     const uid       = unit.uid ?? `${unit.id}_${unit.col}_${unit.row}`;
     const live      = liveUnits?.find(u => u.uid === uid) ?? unit;
@@ -414,13 +455,13 @@ export const CombatUI = {
 
     const tc = TYPE_COLS[live.types?.[0]] ?? '#888';
 
-    // Stats effectives (base + tempMods + rageStack)
+    // Stats affichées : instantané du moment courant de l'animation, fourni par
+    // le moteur (météo, tempMods, rage, passifs... déjà appliqués). L'ancien
+    // calcul local lisait les objets mutés, donc les valeurs de FIN de combat.
+    const snap = this._liveStats?.[uid] ?? null;
     const effStats = ['hp','atk','spa','def','spd_def','spd'].map(s => {
-      const base = live[s] ?? 0;
-      let val    = base;
-      (live.tempMods ?? []).filter(m => m.stat === s).forEach(m => { val = Math.round(val * m.mult); });
-      if (live.rageStack?.stat === s && live.rageStack.count > 0)
-        val = Math.round(val * Math.pow(live.rageStack.mult, live.rageStack.count));
+      const base = live._baseStats?.[s] ?? live[s] ?? 0;
+      const val  = snap?.[s] ?? base;
       return { s, base, val, up: val > base, down: val < base };
     });
 
@@ -430,7 +471,7 @@ export const CombatUI = {
 
     const passives  = (live._passives ?? (live._passive ? [live._passive] : []));
     const passHtml  = passives.length
-      ? passives.map(p => `<div class="cinfo-passive"><b>✨ ${p.name}</b> — ${p.desc}</div>`).join('')
+      ? passives.map(p => `<div class="cinfo-passive"><b>✨ ${p.name}</b> : ${p.desc}</div>`).join('')
       : '<span class="cinfo-none">Aucun</span>';
 
     const mods      = (live.tempMods ?? []).filter(m => m.mult !== 1);
@@ -490,13 +531,42 @@ export const CombatUI = {
       <div class="cinfo-passives-list">${passHtml}</div>
     `;
 
-    panel.querySelector('.cinfo-close')?.addEventListener('click', () => panel.remove());
-    // Ferme aussi si on clique en dehors
-    setTimeout(() => {
-      const close = (e) => { if (!panel.contains(e.target)) { panel.remove(); document.removeEventListener('click', close); } };
-      document.addEventListener('click', close);
-    }, 100);
+    // id : permet au rafraîchissement périodique de savoir si la carte est ouverte
+    panel.id = 'cinfo-panel';
+
+    // Fermeture centralisée : retire le panneau ET l'écouteur global. Sans ce
+    // retrait, un écouteur orphelin subsistait après chaque fermeture et
+    // détruisait aussitôt la carte suivante (elle semblait ne plus s'ouvrir).
+    const dismiss = () => {
+      document.getElementById('cinfo-panel')?.remove();
+      this._openCard = null;
+      if (this._cardCloseHandler) {
+        document.removeEventListener('click', this._cardCloseHandler);
+        this._cardCloseHandler = null;
+      }
+    };
+    panel.querySelector('.cinfo-close')?.addEventListener('click', dismiss);
+
+    // Remplace la carte précédente plutôt que d'en empiler une seconde
+    document.getElementById('cinfo-panel')?.remove();
     overlay?.appendChild(panel);
+
+    // Clic à l'extérieur : un SEUL écouteur à la fois, reposé si nécessaire.
+    // Les rafraîchissements réutilisent celui déjà en place.
+    if (!isRefresh) {
+      if (this._cardCloseHandler) {
+        document.removeEventListener('click', this._cardCloseHandler);
+      }
+      this._cardCloseHandler = (e) => {
+        const cur = document.getElementById('cinfo-panel');
+        if (cur && !cur.contains(e.target)) dismiss();
+      };
+      setTimeout(() => {
+        if (this._cardCloseHandler) {
+          document.addEventListener('click', this._cardCloseHandler);
+        }
+      }, 100);
+    }
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -509,7 +579,9 @@ export const CombatUI = {
       if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
 
       // Relit les unités joueur depuis le registre au dernier instant
-      this._playerUnits = this._registry.get('playerUnits') ?? this._playerUnits;
+      if (!this._data?.isDuel) {
+        this._playerUnits = this._registry.get('playerUnits') ?? this._playerUnits;
+      }
 
       btn.disabled    = true;
       btn.textContent = 'Combat en cours...';
@@ -569,9 +641,25 @@ export const CombatUI = {
       if (topE) topE._doubleSynergyBonus = true;
     }
 
+    // Bénédictions du Sanctuaire : multiplicateurs d'équipe et drapeaux,
+    // actifs pour un nombre limité de combats.
+    const blessings = getRunState(this._registry)?.blessings ?? [];
+    const blFlags   = blessingFlags(blessings);
+
     const playerForEngine = this._playerUnits.map(u => {
-      const full = getFullStats(u, this._playerUnits, meta, relicId);
-      return { ...u, attributes: u.attributes ?? [], stats: full.withSynergy };
+      const full  = getFullStats(u, this._playerUnits, meta, relicId);
+      const stats = { ...full.withSynergy };
+      Object.keys(stats).forEach(k => {
+        const m = blessingStatMult(blessings, k);
+        if (m !== 1) stats[k] = Math.round(stats[k] * m);
+      });
+      return {
+        ...u,
+        attributes: u.attributes ?? [],
+        stats,
+        // Drapeaux transmis au moteur (bouclier, immunité, résurrection, rage)
+        _blessFlags: blFlags,
+      };
     });
 
     // ── Ennemi : stats de base en facile/normal, mult seulement en hard/expert
@@ -622,17 +710,26 @@ export const CombatUI = {
     this._livePlayerUnits = engine.playerUnits;
     this._liveEnemyUnits  = engine.enemyUnits;
 
-    // Resynchronise les barres/labels avec les PV EXACTS du moteur (inclut les
-    // passifs ON_SETUP), pour qu'aucune valeur ne "saute" au premier dégât.
+    // Resynchronise les barres/labels avec les PV EXACTS de DÉPART du moteur
+    // (instantané pris après le setup : inclut talents et passifs ON_SETUP, sans
+    // l'érosion du combat). Sans ça, on afficherait les PV de fin de combat.
+    // Stats de départ : mêmes valeurs que celles vues en préparation, avant
+    // toute érosion ou modificateur de combat.
+    this._liveStats = engine.initialStats ?? null;
+    this._weather   = engine.initialWeather ?? null;
+    this._renderFxBanner();
+
+    const initMax = engine.initialMaxHp ?? {};
     [...engine.playerUnits, ...engine.enemyUnits].forEach(u => {
       const mapKey = `${u.side}_${u.uid}`;
       if (!this._slots[mapKey]) return;
-      this._hpState[mapKey] = { current: u.maxHp, max: u.maxHp };
+      const maxHp = initMax[mapKey] ?? u.maxHp;
+      this._hpState[mapKey] = { current: maxHp, max: maxHp };
       const fill  = document.getElementById(`hp-${mapKey.replace(/_/g, '-')}`)
         ?.querySelector('.combat-hp-fill');
       if (fill) fill.style.width = '100%';
       const label = document.getElementById(`hplabel-${mapKey.replace(/_/g, '-')}`);
-      if (label) label.textContent = `${u.maxHp}/${u.maxHp}`;
+      if (label) label.textContent = `${maxHp}/${maxHp}`;
     });
 
     // ── Issue connue dès le calcul (combat pré-simulé) ────────────────────────
@@ -646,26 +743,50 @@ export const CombatUI = {
       });
     }
 
-    if (winner !== 'player') {
+    if (winner !== 'player' && !this._data?.isDuel) {
       // Anti-exploit : défaite SCELLÉE immédiatement.
       // Quitter en cours de lecture d'un combat perdant ne permet plus de reprendre.
+      //
+      // EXCEPTION : le duel du 1vs1 Boulevard. Perdre n'y coûte que la mise,
+      // l'épopée continue. Sceller la partie y détruisait la sauvegarde et
+      // faisait disparaître le bouton Continuer au retour au menu.
       this._registry?.sealRun?.();   // bloque tout autosave ultérieur
       SaveManager.deleteSave?.();    // efface la sauvegarde de run existante
-    } else if (this._registry) {
+    } else if (winner === 'player' && this._registry) {
       // ── Récompenses ATOMIQUES avec le commit de progression ────────────────
       // Exp et pièces sont accordées DÈS la victoire calculée : un F5 pendant la
       // lecture valide le nœud AVEC ses gains. L'animation ne fait qu'afficher.
-      const playerUnits = this._registry.get('playerUnits') ?? [];
+      const playerUnits = this._data?.isDuel
+        ? (this._playerUnits ?? [])
+        : (this._registry.get('playerUnits') ?? []);
+      // Bénédictions actives : niveaux et pièces supplémentaires
+      const blessNow    = getRunState(this._registry)?.blessings ?? [];
+      const extraLevels = blessingBonus(blessNow, 'bonusLevels');
+      const extraCoins  = blessingBonus(blessNow, 'bonusCoins');
+
       playerUnits.forEach(u => {
         if (!u.id) return;
-        const result = SaveManager.gainPokemonLevel(u.id);
+        let result = SaveManager.gainPokemonLevel(u.id);
+        // Niveaux supplémentaires accordés par la Bénédiction du Savoir
+        for (let i = 0; i < extraLevels; i++) {
+          const r = SaveManager.gainPokemonLevel(u.id);
+          if (r.gained) result = r;
+        }
         if (result.gained) {
           this._pendingLevelUps.push({ name: u.name, level: result.newLevel, id: u.id });
         }
       });
       const bonusCoins = RelicEngine.winCoins(getRunState(this._registry)?.relic?.id);
-      this._grantedCoins = 3 + (bonusCoins > 0 ? bonusCoins : 0);
+      this._grantedCoins = 3 + (bonusCoins > 0 ? bonusCoins : 0) + extraCoins;
       addCoins(this._registry, this._grantedCoins);
+
+      // Décompte : une bénédiction consommée par combat, retirée à zéro
+      if (blessNow.length) {
+        const left = blessNow
+          .map(b => ({ ...b, left: (b.left ?? 1) - 1 }))
+          .filter(b => b.left > 0);
+        setRunState(this._registry, { blessings: left });
+      }
 
       // ── Commit de la progression POST-combat dès la victoire calculée ──────
       // (la save au clic est PRÉ-combat ; actualiser pendant la lecture d'une
@@ -813,6 +934,27 @@ export const CombatUI = {
 
     switch (event.type) {
       case 'turn_start': {
+        // Suivi en temps réel : on rejoue l'instantané pris à cet instant du
+        // combat, plutôt que de lire les objets déjà mutés par la simulation.
+        if (event.stats) {
+          this._liveStats = event.stats;
+          // Synchronise les barres de bouclier avec l'instantané du moment
+          Object.entries(event.stats).forEach(([uid, st]) => {
+            ['player', 'enemy'].forEach(side => {
+              const k = `${side}_${uid}`;
+              if (this._slots?.[k]) this._updateShieldBar(k, st.shield ?? 0, st.maxHp);
+            });
+          });
+        }
+        // Compteur de tours : une action de Pokémon = un tour
+        this._turnCount = (this._turnCount ?? 0) + 1;
+        const tc = document.getElementById('turn-counter')?.querySelector('.tc-val');
+        if (tc) tc.textContent = this._turnCount;
+        if (event.weather !== undefined) {
+          this._weather = event.weather;
+          this._renderFxBanner();
+        }
+        this._refreshOpenCard();
         // La barre de l'acteur est déjà à 100% (gérée par _fillATBUntil / RAF).
         // On ne touche plus la barre ici : elle sera reset après l'action.
         this._appendLog(`<span class="log-turn">⚡ ${event.unitName ?? 'Pokémon'} attaque :</span>`);
@@ -927,6 +1069,28 @@ export const CombatUI = {
         return 120;
       }
 
+      case 'weather_set': {
+        this._weather = { id: event.weather, turnsLeft: event.turns };
+        this._renderFxBanner();
+        this._appendLog(`<span class="log-weather">${event.label} ${event.name}` +
+          (event.sourceName ? ` (${event.sourceName})` : '') + `</span>`);
+        return 260;
+      }
+
+      case 'weather_end': {
+        this._weather = null;
+        this._renderFxBanner();
+        this._appendLog(`<span class="log-weather">${event.label} ${event.name} se dissipe</span>`);
+        return 160;
+      }
+
+      case 'shield_absorb': {
+        const k = this._buildKey(event.targetSide, event.targetId);
+        this._updateShieldBar(k, event.shieldLeft, event.targetMaxHp);
+        this._floatRiseIcons(k, '🛡', { color: '#7ec8ff', count: 2 });
+        return 90;
+      }
+
       case 'effect_heal': {
         const targetKey = this._buildKey(event.targetSide, event.targetId);
         this._updateHpBar(targetKey, event.targetHpLeft, event.targetMaxHp);
@@ -975,11 +1139,12 @@ export const CombatUI = {
     try {
       const relicId = this._registry?.get?.('runState')?.relic?.id ?? null;
       if (side === 'player') {
+        // Chaîne IDENTIQUE à PrepUI (toile d'araignée), pour un affichage cohérent :
+        //   getActiveTalentEffects(meta) → getFullStats(...) → withTalent
         const meta    = window.SaveManager?.loadMeta?.() ?? null;
-        const talents = window.SaveManager
-          ? (this._getActiveTalentEffects?.(meta, this._playerUnits) ?? [])
-          : [];
-        const full = getFullStats(unit, this._playerUnits, meta, relicId, talents);
+        const talents = getActiveTalentEffects(meta);
+        const field   = (this._playerUnits ?? []).filter(Boolean);
+        const full    = getFullStats(unit, field, meta, relicId, talents);
         let hp = full.withTalent?.hp ?? full.withSynergy?.hp ?? baseHp;
         // Modificateur de relique (Pacte de Sang, Bénédiction, Contrat Maudit…)
         const probe = { ...unit, stats: { ...(unit.stats ?? {}), hp } };
@@ -995,6 +1160,31 @@ export const CombatUI = {
       return Math.max(1, Math.round(baseHp * mult));
     } catch {
       return baseHp;
+    }
+  },
+
+  // ── Bandeau d'effets (météo globale + bonus personnels) ───────────────────
+  // Zone gauche : effets GLOBAUX, actifs pour les deux camps (météo).
+  // Zone droite : effets PERSONNELS du joueur (bénédictions, à venir).
+  _renderFxBanner() {
+    const g = document.getElementById('fx-global');
+    if (g) {
+      const w = this._weather ? WEATHERS[this._weather.id] : null;
+      g.innerHTML = w
+        ? `<span class="fx-chip" style="--fx:${w.color}"
+                 title="${weatherTooltip(this._weather.id, this._weather.turnsLeft)}">
+             <span class="fx-ico">${w.emoji}</span>
+             <span class="fx-turns">${this._weather.turnsLeft}</span>
+           </span>`
+        : '';
+    }
+    const p = document.getElementById('fx-player');
+    if (p) {
+      const buffs = this._playerBuffs ?? [];
+      p.innerHTML = buffs.map(b =>
+        `<span class="fx-chip" style="--fx:${b.color ?? '#7ee787'}" title="${b.desc ?? ''}">
+           <span class="fx-ico">${b.emoji ?? '✨'}</span>
+         </span>`).join('');
     }
   },
 
@@ -1263,26 +1453,46 @@ export const CombatUI = {
     fill.style.background = color;
     this._hpState[key] = { current: hpLeft, max: maxHp };
 
-    // Label numérique
+    // Label numérique, avec les points de bouclier en bleu clair s'il y en a
     const labelEl = document.getElementById(`hplabel-${key.replace(/_/g, '-')}`);
-    if (labelEl) labelEl.textContent = `${Math.max(0, hpLeft)}/${maxHp}`;
+    if (labelEl) {
+      const sh = this._shieldState?.[key]?.current ?? 0;
+      labelEl.innerHTML = `${Math.max(0, hpLeft)}/${maxHp}`
+        + (sh > 0 ? ` <span class="hp-shield-add">(+${sh})</span>` : '');
+    }
+  },
+
+  // ── Barre de bouclier ─────────────────────────────────────────────────────
+  // Superposée à la barre de PV, sa largeur est proportionnelle aux points
+  // restants rapportés aux PV MAX (et non au bouclier max) : ainsi un bouclier
+  // de 20% des PV occupe visuellement un cinquième de la barre.
+  _updateShieldBar(key, shieldLeft, maxHp) {
+    (this._shieldState ??= {})[key] = { current: shieldLeft, max: maxHp };
+    const hpId = `hp-${key.replace(/_/g, '-')}`;
+    const el   = document.getElementById(`shield-${hpId.replace(/^hp-/, '')}`);
+    if (!el) return;
+    const ratio = maxHp > 0 ? Math.max(0, Math.min(1, shieldLeft / maxHp)) : 0;
+    el.style.width   = `${(ratio * 100).toFixed(1)}%`;
+    el.style.opacity = shieldLeft > 0 ? '1' : '0';
+
+    // Rafraîchit le label pour afficher ou retirer le (+xxx)
+    const st = this._hpState?.[key];
+    if (st) {
+      const labelEl = document.getElementById(`hplabel-${key.replace(/_/g, '-')}`);
+      if (labelEl) {
+        labelEl.innerHTML = `${Math.max(0, st.current)}/${st.max}`
+          + (shieldLeft > 0 ? ` <span class="hp-shield-add">(+${shieldLeft})</span>` : '');
+      }
+    }
   },
 
   // Calcule les effets de talents actifs selon la meta et l'équipe
   _getActiveTalentEffects(meta, playerUnits) {
-    if (!meta?.talentTree) return [];
-    const effects = [];
-    // Importe dynamiquement (synchrone ici car déjà chargé)
-    const TALENT_TREES = window.__TALENT_TREES__;
-    if (!TALENT_TREES) return [];  // fallback si pas encore chargé
-    Object.entries(meta.talentTree).forEach(([type, unlockedArr]) => {
-      const tree = TALENT_TREES[type];
-      if (!tree) return;
-      tree.forEach((node, i) => {
-        if (unlockedArr[i]) effects.push({ ...node.effect, _name: node.name });
-      });
-    });
-    return effects;
+    // Source unique : le helper de levelSystem.js (même chaîne que PrepUI).
+    // L'ancienne version dépendait de window.__TALENT_TREES__, défini uniquement
+    // après ouverture de l'écran des talents : les talents étaient donc ignorés
+    // tant que le joueur n'y était pas passé.
+    return getActiveTalentEffects(meta);
   },
 
   // Met à jour la barre ATB — dorée si c'est le prochain à jouer, mauve sinon
@@ -1572,6 +1782,9 @@ export const CombatUI = {
           trainerName:  this._data.trainerName  ?? null,
           leagueSprite: this._data.leagueSprite ?? null,
           isLeague:     this._data.isLeague     ?? false,
+          // Duel 1vs1 : le pari est réglé par UIManager, la défaite n'est pas fatale
+          isDuel:       this._data.isDuel        ?? false,
+          duelWager:    this._data.duelWager     ?? 0,
           // Équipe sur le terrain au moment de la victoire (pour la photo de classe)
           fieldTeam:    (this._registry?.get?.('playerUnits') ?? this._playerUnits ?? [])
                           .filter(Boolean).map(u => ({ id: u.id, name: u.name, spriteUrl: u.spriteUrl })),
@@ -1807,7 +2020,8 @@ export const CombatUI = {
     if (this._data.nodeType === 'boss') {
       // Ligue : sprite du Maître (archétype) ; sinon sprite du champion d'arène
       if (this._data.leagueSprite) return this._data.leagueSprite;
-      const arena = getArenaForMap(this._data.mapIndex ?? 0);
+      const regionId = getRunRegion(this._registry);
+      const arena = getArenaForMap(this._data.mapIndex ?? 0, regionId);
       return arena?.championSpriteCombat ?? null;
     }
     if (this._data.trainerArchetypeId) {

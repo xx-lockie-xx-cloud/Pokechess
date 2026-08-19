@@ -29,7 +29,8 @@ import { getBSTTier, getRunState, setRunState, applyAnomalyToUnits,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
 import { ITEMS }                         from '../data/items.js';
 import { getActiveSynergies, getFullStats, assignCorners, ensureCorners }  from '../data/synergies.js';
-import { getLevelBadgeHTML, getLevelBonus, getActiveTalentEffects }  from '../data/levelSystem.js';
+import { getLevelBadgeHTML, getLevelBonus, getActiveTalentEffects,
+         getLevelBadgeHTMLFor, getEffectiveLevel } from '../data/levelSystem.js';
 import { EFFECT_LABELS_SHORT }              from '../data/statusConstants.js';
 import { getPokemonPassive }                 from '../data/passiveHooks.js';
 import { getMove }                           from '../data/moves.js';
@@ -250,7 +251,13 @@ export const PrepUI = {
         <img src="${unit.spriteUrl}" alt="${unit.name}"
              onerror="this.src='assets/placeholder.png'" />
         <span class="slot-name">${unit.name}</span>
-        ${unitLevel > 1 ? getLevelBadgeHTML(unitLevel) : ''}
+        ${(() => {
+          // Badge tenant compte des niveaux temporaires d'un objet (Super
+          // Bonbon) : affiche « Nv.60 +20 » plutôt que le seul niveau acquis.
+          const m = window.SaveManager?.loadMeta?.() ?? null;
+          const { level } = getEffectiveLevel(unit, m);
+          return level > 1 ? getLevelBadgeHTMLFor(unit, m) : '';
+        })()}
         ${(() => {
           const rid = getRunState(this._registry)?.relic?.id;
           const INFO = { 'pacte_de_sang':'💀 HP-20%', 'benediction':'🩹 HP+30%', 'contrat_maudit':'🩸 HP-10%' };
@@ -265,7 +272,7 @@ export const PrepUI = {
           const allUnits = this._getAllFieldUnits();
           const bst = u => (u.stats?.hp??0)+(u.stats?.atk??0)+(u.stats?.spa??0)+(u.stats?.def??0)+(u.stats?.spd_def??0)+(u.stats?.spd??0);
           const topId = allUnits.sort((a,b) => bst(b)-bst(a))[0]?.id;
-          return topId === unit.id ? '<span class="slot-crown" title="👑 Couronne — synergies ×2">👑</span>' : '';
+          return topId === unit.id ? '<span class="slot-crown" title="👑 Couronne : synergies ×2">👑</span>' : '';
         })()}
         ${itemHtml}
       `;
@@ -775,7 +782,7 @@ export const PrepUI = {
 
       const slot = document.createElement('div');
       slot.className = `inventory-slot${this._selectedItem?._invIdx === i ? ' selected' : ''}`;
-      slot.title     = `${item.name} — ${item.description}`;
+      slot.title     = `${item.name} : ${item.description}`;
       slot.textContent = item.emoji;
       slot.draggable   = true;   // ← draggable
 

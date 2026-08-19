@@ -2,8 +2,8 @@
 // ItemUI.js — Remplace ItemScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { ITEMS }               from '../data/items.js';
-import { addToInventory }      from '../data/runState.js';
+import { ITEMS, pickEquippableItems } from '../data/items.js';
+import { addToInventory, getRunState } from '../data/runState.js';
 
 export const ItemUI = {
   _data:     null,
@@ -18,11 +18,9 @@ export const ItemUI = {
     this._onDone   = onDone;
     this._selected = null;
 
-    // 3 objets équipables aléatoires
-    this._offered = Object.values(ITEMS)
-      .filter(i => i.type === 'equippable')
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
+    // 3 objets équipables, tirage pondéré selon les types de l'équipe
+    const bank = getRunState(this._registry)?.playerBank ?? [];
+    this._offered = pickEquippableItems(3, bank);
 
     this._render();
     this._bindButtons();

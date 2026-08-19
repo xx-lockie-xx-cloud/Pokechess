@@ -192,7 +192,14 @@ img {
   width: 100%;
 }
 
-.screen-content.centered { justify-content: center; }
+/* Centrage vertical SANS rognage.
+   `justify-content: center` sur un conteneur scrollable rend le début et la fin
+   du contenu inatteignables dès qu'il dépasse la hauteur disponible. La marge
+   auto sur les enfants extrêmes centre quand il y a de la place, et laisse le
+   scroll complet quand il n'y en a plus. Compatible tous navigateurs. */
+.screen-content.centered { justify-content: flex-start; }
+.screen-content.centered > *:first-child { margin-top: auto; }
+.screen-content.centered > *:last-child  { margin-bottom: auto; }
 
 /* ── Titres ───────────────────────────────────────────────────────────────── */
 h1, h2, h3 {
@@ -1455,15 +1462,96 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 /* ── Séparateur VS ────────────────────────────────────────────────────────── */
 .combat-separator {
+  /* Trois zones : effets globaux | VS | effets du joueur.
+     Les zones latérales ont la même largeur pour que "VS" reste centré.
+     Le compteur de tours est positionné en absolu à droite, pour ne pas
+     déséquilibrer ce centrage. */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   font-size: 11px;
   color: var(--text-muted);
   letter-spacing: 2px;
-  padding: 2px 0;
+  padding: 3px 4px;
   border-top: 1px solid var(--border-default);
   border-bottom: 1px solid var(--border-default);
   width: 100%;
-  text-align: center;
+  min-height: 26px;
 }
+.vs-label { flex: 0 0 auto; }
+
+.fx-zone {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.fx-zone-global { justify-content: flex-end; }
+.fx-zone-player { justify-content: flex-start; }
+
+/* Pastille d'effet : icône + compteur de tours */
+.fx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fx) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fx) 55%, transparent);
+  line-height: 1;
+  letter-spacing: 0;
+  cursor: help;
+  animation: fx-pop 0.25s ease-out;
+}
+.fx-ico   { font-size: 14px; }
+.fx-turns {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--fx);
+}
+@keyframes fx-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* Mobile : on garde l'icône lisible, on masque le compteur si l'espace manque */
+@media (max-width: 420px) {
+  .combat-separator { gap: 5px; padding: 2px; }
+  .fx-chip { padding: 1px 4px; gap: 2px; }
+  .fx-ico  { font-size: 13px; }
+  .fx-turns { font-size: 9px; }
+}
+@media (max-width: 330px) {
+  .fx-turns { display: none; }
+}
+
+/* Compteur de tours, calé à droite du bandeau */
+.turn-counter {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.tc-ico { font-size: 11px; opacity: 0.75; }
+.tc-val { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 420px) {
+  .turn-counter { right: 3px; gap: 2px; }
+  .tc-ico, .tc-val { font-size: 10px; }
+  /* Réserve la place du compteur pour éviter tout chevauchement */
+  .fx-zone-player { padding-right: 30px; }
+}
+
+.log-weather { color: #7ec8ff; font-style: italic; }
 
 /* ── Terrains ─────────────────────────────────────────────────────────────── */
 .combat-field {
@@ -1518,6 +1606,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   background: #1a1a2e;
   border-radius: 5px;
   overflow: hidden;
+  position: relative;   /* ancre la barre de bouclier superposée */
   border: 1px solid rgba(255,255,255,0.08);
 }
 
@@ -4825,3 +4914,533 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .ui-confirm-actions button:active { transform: translateY(1px); }
 .ui-confirm-yes { background: linear-gradient(160deg, #2ecc71, #21a25a); }
 .ui-confirm-no  { background: linear-gradient(160deg, #e74c3c, #c0392b); }
+
+/* ── Sélecteur de région (menu) ────────────────────────────────────────────── */
+.region-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.btn-region {
+  flex: 1 1 0;
+  min-width: 120px;
+  max-width: 170px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 7px 8px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.btn-region:hover:not(.locked) { background: var(--bg-elevated); transform: translateY(-1px); }
+.btn-region.active {
+  border-color: var(--color-gold);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 14px rgba(255,215,0,0.22);
+}
+.btn-region.locked { opacity: 0.5; cursor: not-allowed; }
+
+/* Visuel : image de région, repli sur l'emoji si le PNG est absent */
+.region-visual {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.region-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: filter 0.15s, transform 0.15s;
+}
+.btn-region:hover:not(.locked) .region-img { transform: scale(1.04); }
+.btn-region.locked .region-img { filter: grayscale(1) brightness(0.5); }
+.region-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+}
+.region-emoji { font-size: 26px; line-height: 1; }
+.region-name  { font-size: 14px; font-weight: 800; color: var(--text-primary); }
+.btn-region.active .region-name { color: var(--color-gold); }
+.region-sub   {
+  font-size: 9px;
+  line-height: 1.25;
+  color: var(--text-muted);
+  text-align: center;
+  /* Deux lignes maximum : évite qu'un indice long n'allonge la carte.
+     La version préfixée reste nécessaire (support historique), la version
+     standard est ajoutée pour la compatibilité future. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Icône du champion devant le nom du badge (écran de victoire d'arène) */
+.badge-champ-icon {
+  width: 28px;
+  height: 28px;
+  image-rendering: pixelated;
+  vertical-align: middle;
+  margin-right: 6px;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
+}
+
+/* Badge « épopée en cours » sur la carte de région concernée */
+.region-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-gold);
+  background: rgba(255, 215, 0, 0.14);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 999px;
+  padding: 1px 6px;
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+/* ── Nœud Casino ──────────────────────────────────────────────────────────── */
+.casino-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 16px;
+  max-width: 380px;
+  margin: 0 auto;
+}
+.casino-title { margin: 0; font-size: 22px; color: var(--color-gold); }
+.casino-sub   { margin: 0; font-size: 12px; color: var(--text-muted); }
+
+.casino-reels {
+  display: flex;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--bg-deep);
+  border: 2px solid var(--color-gold);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 18px rgba(246,185,59,0.15);
+}
+.casino-reels .reel {
+  font-size: 34px;
+  line-height: 1;
+  min-width: 44px;
+  text-align: center;
+  transition: transform 0.08s;
+}
+.casino-reels .reel.locked { transform: scale(1.12); }
+
+.casino-result { min-height: 44px; display: flex; align-items: center; }
+.casino-msg {
+  font-size: 14px;
+  text-align: center;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+}
+.casino-msg.win     { color: #7ee787; }
+.casino-msg.jackpot { color: var(--color-gold); font-size: 16px; font-weight: 800; }
+.casino-msg.neutral { color: var(--text-secondary); }
+.casino-msg.lose    { color: var(--text-muted); }
+.casino-pity        { display: block; font-size: 11px; color: #f6b93b; margin-top: 3px; }
+
+.casino-odds {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 10px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.casino-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.casino-coins   { font-size: 13px; color: var(--text-secondary); font-weight: 700; }
+
+/* ── Casino : fenêtre de gain ─────────────────────────────────────────────── */
+.casino-win-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0,0,0,0.78);
+  animation: cw-fade 0.25s ease-out;
+}
+@keyframes cw-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.casino-win-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 26px 24px 20px;
+  max-width: 320px;
+  width: 100%;
+  text-align: center;
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  animation: cw-pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.casino-win-overlay.jackpot .casino-win-box {
+  border-color: var(--color-gold);
+  box-shadow: 0 0 40px rgba(255,215,0,0.35);
+}
+@keyframes cw-pop {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.cw-title  { margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
+.cw-visual { display: flex; align-items: center; justify-content: center; min-height: 96px; }
+.cw-emoji  { font-size: 68px; line-height: 1; filter: drop-shadow(0 3px 8px rgba(0,0,0,0.5)); }
+.cw-sprite {
+  width: 108px; height: 108px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.55));
+  animation: cw-bob 1.6s ease-in-out infinite;
+}
+@keyframes cw-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+.cw-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.casino-win-overlay.jackpot .cw-name {
+  color: var(--color-gold);
+  text-shadow: 0 0 16px rgba(255,215,0,0.5);
+}
+.cw-ok { margin-top: 6px; }
+
+/* Rayons derrière le sprite du jackpot */
+.cw-rays {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background: conic-gradient(from 0deg,
+    rgba(255,215,0,0.16) 0deg 12deg, transparent 12deg 30deg);
+  animation: cw-spin 9s linear infinite;
+  border-radius: 50%;
+}
+@keyframes cw-spin { to { transform: rotate(360deg); } }
+
+/* Particules de feu d'artifice */
+.cw-spark {
+  position: fixed;
+  z-index: 100002;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: cw-burst 1.1s ease-out forwards;
+}
+@keyframes cw-burst {
+  0%   { transform: translate(0, 0) scale(1);      opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; }
+}
+
+@media (max-width: 420px) {
+  .casino-win-box { padding: 20px 16px 16px; }
+  .cw-sprite { width: 92px; height: 92px; }
+  .cw-emoji  { font-size: 58px; }
+  .cw-name   { font-size: 18px; }
+}
+
+/* Objet offert par la Pochette Surprise lors d'une capture */
+.wild-bonus {
+  display: inline-block;
+  margin: 0 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255,215,0,0.16);
+  border: 1px solid rgba(255,215,0,0.45);
+  color: var(--color-gold);
+  font-weight: 700;
+  font-size: 0.92em;
+}
+
+/* ── Nœuds : Entraînement, Marché Noir, 1vs1 ─────────────────────────────── */
+.node-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 14px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.node-title { margin: 0; font-size: 21px; color: var(--color-gold); }
+.node-sub   { margin: 0; font-size: 12px; color: var(--text-muted); text-align: center; line-height: 1.5; }
+.node-empty { font-size: 13px; color: var(--text-muted); }
+.node-info  { min-height: 20px; margin: 0; font-size: 13px; text-align: center; }
+.node-ok    { color: #7ee787; font-weight: 700; }
+.node-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.node-coins { font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+
+.training-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+}
+.training-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 92px;
+  padding: 8px 6px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.training-card:hover:not(.disabled) { transform: translateY(-2px); }
+.training-card.active   { border-color: var(--color-gold); box-shadow: 0 0 12px rgba(255,215,0,0.25); }
+.training-card.disabled { opacity: 0.45; cursor: not-allowed; }
+.tr-sprite { width: 52px; height: 52px; image-rendering: pixelated; }
+.tr-name   { font-size: 11px; font-weight: 700; color: var(--text-primary); text-align: center; }
+.tr-lv     { font-size: 9.5px; color: var(--text-secondary); }
+.tr-cost   { font-size: 9.5px; color: var(--color-gold); }
+
+/* Duel */
+.duel-foe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 20px;
+  background: var(--bg-deep);
+  border: 2px solid #e84393;
+  border-radius: var(--radius-md);
+}
+.duel-label  { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.duel-sprite { width: 84px; height: 84px; image-rendering: pixelated; }
+.duel-name   { font-size: 16px; font-weight: 800; color: var(--text-primary); }
+.duel-types  { font-size: 11px; color: var(--text-secondary); }
+.duel-wager  { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; max-width: 260px; font-size: 13px; }
+.duel-wager input { width: 100%; }
+.duel-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--color-gold);
+  font-weight: 700;
+  text-align: center;
+}
+
+@media (max-width: 420px) {
+  .training-card { width: 80px; padding: 6px 4px; }
+  .tr-sprite     { width: 44px; height: 44px; }
+  .duel-sprite   { width: 70px; height: 70px; }
+}
+
+/* ── 1vs1 Boulevard : plateau de terrain ─────────────────────────────────── */
+.duel-board {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-deep);
+  border-radius: var(--radius-md);
+}
+.duel-row { display: flex; gap: 6px; justify-content: center; }
+
+.duel-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 76px;
+  height: 76px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.duel-cell:hover:not([disabled]) { transform: translateY(-2px); }
+.duel-cell.empty  { opacity: 0.35; cursor: not-allowed; }
+.duel-cell.active {
+  border-color: var(--color-gold);
+  box-shadow: 0 0 14px rgba(255,215,0,0.35);
+  animation: duel-pulse 1.8s ease-in-out infinite;
+}
+@keyframes duel-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255,215,0,0.28); }
+  50%      { box-shadow: 0 0 20px rgba(255,215,0,0.55); }
+}
+
+/* Épées sur le champion DÉSIGNÉ (et non sur une case imposée) */
+.duel-flag {
+  position: absolute;
+  top: -8px; right: -6px;
+  font-size: 15px;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
+}
+.duel-empty { font-size: 20px; color: var(--text-muted); }
+.duel-cell .tr-sprite { width: 44px; height: 44px; }
+.duel-cell .tr-name   { font-size: 9px; }
+.duel-note {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+}
+
+@media (max-width: 420px) {
+  .duel-cell { width: 62px; height: 62px; }
+  .duel-cell .tr-sprite { width: 36px; height: 36px; }
+  .duel-cell .tr-name   { font-size: 8px; }
+}
+
+/* Marché Noir : fenêtre de résultat */
+.bm-box  { border-color: #636e72; }
+.bm-tier { margin: 0; font-size: 12px; color: var(--text-secondary); }
+
+/* Sections Terrain / Banque dans l'entraînement */
+.node-section {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ── Sanctuaire : bénédictions ───────────────────────────────────────────── */
+.bless-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 340px;
+}
+.bless-card {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--bg-card);
+  border: 2px solid var(--border-default);
+  border-left: 4px solid var(--bl, var(--color-gold));
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s, background 0.15s;
+}
+.bless-card:hover:not([disabled]) {
+  transform: translateX(3px);
+  background: var(--bg-elevated);
+  border-color: var(--bl, var(--color-gold));
+}
+.bless-card[disabled] { opacity: 0.4; cursor: default; }
+.bless-ico  { grid-row: 1 / 3; font-size: 28px; text-align: center; }
+.bless-name { font-size: 13px; font-weight: 800; color: var(--bl, var(--text-primary)); }
+.bless-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.35; }
+
+.bless-active { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.bless-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border-default);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 420px) {
+  .bless-card { grid-template-columns: 34px 1fr; padding: 8px 10px; }
+  .bless-ico  { font-size: 24px; }
+  .bless-name { font-size: 12px; }
+  .bless-desc { font-size: 10px; }
+}
+
+/* Niveaux temporaires accordés par un objet (Super Bonbon) */
+.level-bonus {
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(255,215,0,0.18);
+  border: 1px solid rgba(255,215,0,0.5);
+  color: var(--color-gold);
+  font-size: 0.72em;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+/* Bandeau d'invite lors de l'ouverture de la banque depuis le Casino */
+.prep-room-note {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 9px 14px;
+  background: rgba(255,215,0,0.14);
+  border-bottom: 2px solid var(--color-gold);
+  color: var(--color-gold);
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* ── Barre de bouclier ────────────────────────────────────────────────────── */
+/* Superposée à la barre de PV, elle démarre au même point et se lit comme une
+   surcouche : les PV restent visibles dessous là où le bouclier s'arrête. */
+.combat-shield-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(180deg, #b8e4ff 0%, #6cc4ff 55%, #3aa8f0 100%);
+  border-right: 1px solid rgba(255,255,255,0.55);
+  box-shadow: 0 0 6px rgba(108,196,255,0.6);
+  border-radius: 5px 0 0 5px;
+  transition: width 0.22s ease-out, opacity 0.2s;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Points de bouclier affichés à côté des PV */
+.hp-shield-add {
+  color: #6cc4ff;
+  font-weight: 800;
+  text-shadow: 0 0 5px rgba(108,196,255,0.45);
+}

@@ -3,11 +3,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getTypeMultiplier }           from '../data/typeChart.js';
+import { resolveHeldItem }             from '../data/items.js';
+import { weatherStatMult, weatherDotRate,
+         WEATHERS, WEATHER_TURNS, WEATHER_REPOST_EVERY } from '../data/weather.js';
 import { MOVES, POKEMON_MOVES, getMove } from '../data/moves.js';
 import { TALENT_TREES }                   from '../data/levelSystem.js';
 import { STATUS_VALUES }                  from '../data/statusConstants.js';
 import { PassiveEngine }                 from './PassiveEngine.js';
 import { RelicEngine }                   from './RelicEngine.js';
+
+// Synergie Roche : part des PV max accordée en bouclier, au tour 0 puis
+// toutes les 8 actions.
+const ROCK_SHIELD_RATE = 0.05;
 
 // ── Multiplicateur AoE selon le nombre de cibles ─────────────────────────────
 function aoeMult(targetCount) {
@@ -62,7 +69,9 @@ export class CombatEngine {
       atk, spa, def, spd_def,
       spd: unit.stats?.spd ?? unit.spd ?? 1,
       attributes:  unit.attributes  ?? [],
-      heldItem:    unit.heldItem    ?? null,
+      // Objet relu depuis ITEMS : la sauvegarde en conserve une copie figée,
+      // qui ignorerait tout rééquilibrage ultérieur de l'objet.
+      heldItem:    resolveHeldItem(unit.heldItem),
       // Mana
       mana: 0,
       // Statuts : array de { type, turnsLeft (-1=permanent) }
@@ -71,8 +80,12 @@ export class CombatEngine {
       tempMods: [],
       // Rage stacks { stat, mult, count, maxStacks }
       rageStack: null,
-      // Bouclier armure
+      // Bouclier armure (booléen : bloque un coup entier)
       armorShield: false,
+      // Bouclier à POINTS (bénédictions, capacités) : absorbe avant les PV
+      shield: 0, maxShield: 0,
+      // Drapeaux des bénédictions du Sanctuaire, lus au setup
+      _blessFlags: unit._blessFlags ?? null,
       // Intouchable (Tunnel, Téléport)
       untargetable: 0,
       // Skip prochain tour (Ultralaser)
@@ -132,6 +145,16 @@ export class CombatEngine {
   // ─────────────────────────────────────────────────────────────────────────
   _getStat(unit, stat) {
     let val = unit[stat] ?? 0;
+    // Météo : bonus/malus par type, dynamiques. Appliqués ici plutôt que par
+    // mutation des stats, pour qu'ils disparaissent d'eux-mêmes à l'expiration.
+    if (this.weather) {
+      val *= weatherStatMult(this.weather.id, unit.types, stat);
+      // Passif conditionnel à la météo (Chlorophylle, Capteur Solaire...)
+      const wb = unit._weatherBoost;
+      if (wb && wb.weather === this.weather.id && wb.stats.includes(stat)) {
+        val *= wb.mult;
+      }
+    }
     unit.tempMods.filter(m => m.stat === stat).forEach(m => { val *= m.mult; });
     if (unit.rageStack?.stat === stat && unit.rageStack.count > 0) {
       val *= Math.pow(unit.rageStack.mult, unit.rageStack.count);
@@ -156,10 +179,56 @@ export class CombatEngine {
   resolve() {
     this._setupPreCombat();
 
+    // Instantané des PV max APRÈS le setup (synergies, talents, passifs ON_SETUP,
+    // reliques) mais AVANT le combat. L'UI s'en sert pour afficher les barres de
+    // départ : lire maxHp après resolve() donnerait la valeur finale, déjà rongée
+    // par l'érosion.
+    // Météo globale : { id, turnsLeft } ou null. Affecte les DEUX camps.
+    this.weather = this.weather ?? null;
+
+    // Bénédictions du Sanctuaire : les drapeaux réutilisent les mécanismes
+    // déjà en place (bouclier, immunité, résurrection, rage à la mort d'un
+    // allié), donc aucun nouveau code de combat n'est nécessaire.
+    this.playerUnits.forEach(u => {
+      const f = u._blessFlags;
+      if (!f) return;
+      if (f.shieldRate) {
+        u.shield    = (u.shield ?? 0) + Math.round(u.maxHp * f.shieldRate);
+        u.maxShield = Math.max(u.maxShield ?? 0, u.shield);
+      }
+      if (f.statusImmune) {
+        u._statusImmuneList = [...(u._statusImmuneList ?? []),
+          'burn','poison','paralyze','freeze','confuse','sleep'];
+      }
+      if (f.reviveRate)  u._reviveRate = Math.max(u._reviveRate ?? 0, f.reviveRate);
+      if (f.atkOnAllyKo) {
+        u._flags = u._flags ?? {};
+        u._flags.atkOnAllyKo = { boost: f.atkOnAllyKo };
+      }
+    });
+
+    // Roches météo : un objet porté peut poser la météo d'ouverture.
+    // Si plusieurs sont présentes, la dernière lue l'emporte (une seule météo).
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      const w = u.heldItem?.setsWeather;
+      if (w) this._setWeather(w, WEATHER_TURNS, u);
+    });
+
+    this.initialMaxHp = {};
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      this.initialMaxHp[`${u.side}_${u.uid}`] = u.maxHp;
+    });
+
+    // Instantané de DÉPART : ce que l'UI doit afficher avant la première action
+    // (inclut synergies, talents, passifs ON_SETUP, objets et météo d'ouverture).
+    this.initialStats = this._snapshotStats();
+    this.initialWeather = this.weather
+      ? { id: this.weather.id, turnsLeft: this.weather.turnsLeft } : null;
+
     let actionCount   = 0;    // nombre total d'actions (pour les effets périodiques)
     let globalActions = 0;    // sécurité anti-boucle infinie
     let winner        = null; // gagnant (peut être fixé par le Sablier)
-    const MAX_ACTIONS = 500;
+    const MAX_ACTIONS = 1000;
 
     // Taille du tick : chaque tick avance les barres de (speed/10) points
     // → barres moins saturées, différences de vitesse plus lisibles
@@ -201,7 +270,16 @@ export class CombatEngine {
 
         // Log de l'action
         actionCount++;
-        this.log.push({ type: 'turn_start', turn: actionCount, unitId: unit.uid, unitName: unit.name, unitSide: unit.side });
+        this.log.push({ type: 'turn_start', turn: actionCount, unitId: unit.uid,
+                        unitName: unit.name, unitSide: unit.side,
+                        // Instantané des stats EFFECTIVES de toutes les unités.
+                        // Le combat étant pré-simulé, l'UI ne peut pas lire les
+                        // objets (déjà mutés) : elle rejoue ces instantanés au
+                        // rythme de l'animation.
+                        stats: this._snapshotStats(),
+                        weather: this.weather
+                          ? { id: this.weather.id, turnsLeft: this.weather.turnsLeft }
+                          : null });
 
         // Bâillement → sommeil (décrémenté à chaque action de l'unité)
         const delay = unit.statusEffects.find(s => s.type === 'delayed_sleep');
@@ -222,8 +300,16 @@ export class CombatEngine {
 
         // ── Effets de fin d'action (burn, poison, regen) ──────────────────
         // Déclenchés toutes les 8 actions globales (≈ 1 tour complet)
+        // Météo : décomptée à CHAQUE action (un tour = une action de Pokémon),
+        // contrairement aux statuts qui suivent le cycle de 8 actions.
+        this._tickWeather();
+        this._tickIntervalDots(actionCount);
+
         if (actionCount % 8 === 0) {
+          this._applyRockShield();   // synergie Roche : renouvelle le bouclier
           this._resolveEndOfTurn();
+          this._tickTraps();
+          this._resolveFutureAttacks();
           this._decrementMods();
         }
       }
@@ -285,13 +371,26 @@ export class CombatEngine {
     }
     this._applyPreEffects('player', this.playerFx, this.enemyUnits, this.playerUnits);
     this._applyPreEffects('enemy',  this.enemyFx,  this.playerUnits, this.enemyUnits);
-    // Armure Roche
-    ['player','enemy'].forEach(side => {
+    // Synergie Roche : bouclier d'équipe posé au tour 0, puis renouvelé
+    // périodiquement (voir _tickRockShield). Il profite à TOUTE l'équipe, et
+    // plus seulement aux Pokémon de type Roche.
+    this._applyRockShield();
+  }
+
+  // Bouclier de la synergie Roche : ROCK_SHIELD_RATE des PV max à tous les
+  // alliés du camp concerné. Cumulatif avec les autres boucliers.
+  _applyRockShield() {
+    ['player', 'enemy'].forEach(side => {
       const fx = this._fx(side);
+      if (!fx.has('armor')) return;
       const allies = side === 'player' ? this.playerUnits : this.enemyUnits;
-      if (fx.has('armor')) {
-        allies.filter(u => u.types.includes('Roche')).forEach(u => { u.armorShield = true; });
-      }
+      allies.filter(u => u.hp > 0).forEach(u => {
+        const pts = Math.max(1, Math.round(u.maxHp * ROCK_SHIELD_RATE));
+        u.shield    = (u.shield ?? 0) + pts;
+        u.maxShield = Math.max(u.maxShield ?? 0, u.shield);
+      });
+      this.log.push({ type: 'pre_combat', effect: 'shield', label: '🪨 Armure Roche',
+        targetSide: side });
     });
   }
 
@@ -505,6 +604,10 @@ export class CombatEngine {
     // Adaptabilité (talent Normal) : immunisé aux malus de stats
     if (mult < 1 && unit._noStatMalus) return;
     unit[stat] = Math.round(unit[stat] * mult);
+    // hp et maxHp sont deux champs distincts : sans cette synchro, un talent
+    // qui booste les PV augmenterait les PV courants sans lever le plafond
+    // (barre incohérente et bonus en partie perdu).
+    if (stat === 'hp') unit.maxHp = unit.hp;
   }
 
   // _resolveTurn() supprimé — remplacé par le moteur ATB dans resolve()
@@ -733,7 +836,8 @@ export class CombatEngine {
 
     // Effets avant dégâts (status appliqués à priori, buffs self)
     const preEffects = ['untargetable','stat','skip_next','shield','rage_stack',
-                        'random_stat_boost','copy_enemy','trigger_ally','coins'];
+                        'random_stat_boost','copy_enemy','trigger_ally','coins',
+                        'weather'];
     (move.effects ?? []).forEach(eff => {
       if (preEffects.includes(eff.kind)) this._applyEffect(eff, attacker, targets, move);
     });
@@ -755,7 +859,9 @@ export class CombatEngine {
           return;
         }
         // Armure
-        if (target.armorShield && !move.ignoreArmor) {
+        const piercesArmor = move.ignoreArmor
+          || (move.effects ?? []).some(e => e.kind === 'ignore_armor');
+        if (target.armorShield && !piercesArmor) {
           target.armorShield = false;
           this.log.push({ type:'attack_blocked', reason:'armor', label:'🛡 Armure !',
             attackerId:attacker.uid, attackerSide:attacker.side,
@@ -835,7 +941,8 @@ export class CombatEngine {
     }
 
     // Effets après dégâts (status sur cibles, heal, push_back, clear_buffs, sacrifice)
-    const postEffects = ['status','heal','push_back','clear_buffs','sacrifice','delayed_sleep','ignore_type'];
+    const postEffects = ['status','heal','push_back','clear_buffs','sacrifice','delayed_sleep','ignore_type',
+                         'future_attack','counter_burst','pain_split','splash_adj','trap'];
     (move.effects ?? []).forEach(eff => {
       if (postEffects.includes(eff.kind)) this._applyEffect(eff, attacker, targets, move);
     });
@@ -984,15 +1091,112 @@ export class CombatEngine {
           ? [attacker, ...this._alliesOf(attacker)]
           : [attacker];
         units.filter(u => u.hp > 0).forEach(u => {
-          u.armorShield = true;
+          if (eff.rate) {
+            // Bouclier à points. La base est les PV max par défaut, mais peut
+            // être une autre stat (`fromStat`) : indispensable pour les profils
+            // coquille comme Caratroc, dont les 20 PV rendraient un pourcentage
+            // de PV dérisoire face à ses 230 de défense.
+            const base = eff.fromStat
+              ? this._getStat(u, eff.fromStat)
+              : u.maxHp;
+            const pts  = Math.max(1, Math.round(base * eff.rate));
+            // CUMULATIF : un bouclier existant n'est pas remplacé
+            u.shield    = (u.shield ?? 0) + pts;
+            u.maxShield = Math.max(u.maxShield ?? 0, u.shield);
+          } else {
+            u.armorShield = true;   // bouclier historique : bloque un coup
+          }
           this.log.push({ type:'pre_combat', effect:'shield', label:'🛡 Bouclier !',
-            targetId:u.uid, targetSide:u.side });
+            targetId:u.uid, targetSide:u.side,
+            shieldLeft:u.shield ?? 0, maxShield:u.maxShield ?? 0 });
         });
         break;
       }
 
       case 'push_back':
         targets.forEach(t => { if (t.hp > 0) t.row = 1; });
+        break;
+
+      case 'future_attack': {
+        // Prescience : les dégâts sont calculés MAINTENANT mais frappent dans
+        // N tours. Ils touchent même si le lanceur est tombé entre-temps, ce
+        // qui est tout l'intérêt de la capacité.
+        const t = targets.find(x => x.hp > 0) ?? targets[0];
+        if (t) {
+          const bp  = (move.bp ?? 60) * (move.powerMult ?? 1);
+          const dmg = this._calcDamageMove(attacker, t, bp, move);
+          (this._pendingFuture ??= []).push({
+            targetUid: t.uid, side: t.side, damage: dmg,
+            turnsLeft: eff.turns ?? 2, sourceName: attacker.name,
+          });
+          this.log.push({ type: 'status_applied', status: 'future', label: '🔮',
+            targetId: t.uid, targetName: t.name, targetSide: t.side });
+        }
+        break;
+      }
+
+      case 'counter_burst': {
+        // Renvoie un multiple des DERNIERS dégâts subis. Sans dégâts reçus,
+        // la capacité ne fait rien plutôt que d'infliger un minimum arbitraire.
+        const base = attacker._lastDamageTaken ?? 0;
+        if (base > 0) {
+          const dmg = Math.max(1, Math.round(base * (eff.mult ?? 1.5)));
+          targets.filter(t => t.hp > 0).forEach(t => {
+            this._dealDamage(attacker, t, dmg);
+          });
+        }
+        break;
+      }
+
+      case 'pain_split': {
+        // Égalise les PV du lanceur et de la cible (moyenne des deux), sans
+        // dépasser leurs maximums respectifs.
+        const t = targets.find(x => x.hp > 0);
+        if (t) {
+          const avg = Math.round((attacker.hp + t.hp) / 2);
+          const before = { a: attacker.hp, t: t.hp };
+          attacker.hp = Math.min(attacker.maxHp, avg);
+          t.hp        = Math.min(t.maxHp, avg);
+          this.log.push({ type: 'effect_heal', effect: 'pain_split', label: '⚖️ Partage',
+            targetId: t.uid, targetName: t.name, targetSide: t.side,
+            heal: t.hp - before.t, targetHpLeft: t.hp, targetMaxHp: t.maxHp });
+          if (t.hp <= 0) this._handleFaint(t);
+        }
+        break;
+      }
+
+      case 'splash_adj': {
+        // Éclaboussure : une fraction des dégâts touche les voisins immédiats
+        // de la cible principale (cases orthogonales).
+        const prim = targets[0];
+        if (prim) {
+          const rate = eff.rate ?? 0.20;
+          const base = prim._lastHitDamage ?? 0;
+          if (base > 0) {
+            this._enemiesOf(attacker)
+              .filter(u => u.hp > 0 && u !== prim &&
+                Math.abs(u.col - prim.col) + Math.abs(u.row - prim.row) === 1)
+              .forEach(u => this._dealDamage(attacker, u,
+                Math.max(1, Math.round(base * rate))));
+          }
+        }
+        break;
+      }
+
+      case 'trap': {
+        // Piège : la cible ne peut plus esquiver et subit des dégâts résiduels.
+        targets.filter(t => t.hp > 0).forEach(t => {
+          t._trapped = { turns: eff.turns ?? 3, rate: eff.rate ?? 0.04, by: attacker.uid };
+          t.evasion = 0;
+          this.log.push({ type: 'status_applied', status: 'trap', label: '🕸️',
+            targetId: t.uid, targetName: t.name, targetSide: t.side });
+        });
+        break;
+      }
+
+      case 'weather':
+        // Pose une météo globale (les deux camps sont affectés)
+        this._setWeather(eff.weather, eff.turns ?? WEATHER_TURNS, attacker);
         break;
 
       case 'clear_buffs':
@@ -1003,11 +1207,18 @@ export class CombatEngine {
         });
         break;
 
-      case 'sacrifice':
-        attacker.hp = 0;
-        this.log.push({ type:'unit_fainted', unitId:attacker.uid,
-          unitName:attacker.name, unitSide:attacker.side });
+      case 'sacrifice': {
+        // Le lanceur ne meurt plus : il perd une part de ses PV COURANTS.
+        // Se tuer pour une explosion coûtait une unité entière, un prix trop
+        // élevé pour être jamais rentable. Il survit désormais à 1 PV minimum.
+        const rate  = eff.rate ?? 0.60;
+        const lost  = Math.max(1, Math.round(attacker.hp * rate));
+        attacker.hp = Math.max(1, attacker.hp - lost);
+        this.log.push({ type:'effect_damage', effect:'sacrifice', label:'💥 Contrecoup',
+          targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side,
+          damage:lost, targetHpLeft:attacker.hp, targetMaxHp:attacker.maxHp });
         break;
+      }
 
       case 'skip_next':
         attacker.skipNextTurn = true;
@@ -1136,6 +1347,19 @@ export class CombatEngine {
       damage = Math.max(1, Math.round(damage * target._dmgReduction));
     }
 
+    // Bouclier à POINTS : absorbe les dégâts avant les PV. Distinct de
+    // armorShield (booléen, bloque un coup entier). Le surplus passe aux PV.
+    if (target.shield > 0 && damage > 0) {
+      const absorbed = Math.min(target.shield, damage);
+      target.shield -= absorbed;
+      damage        -= absorbed;
+      this.log.push({ type:'shield_absorb', label:'🛡',
+        targetId:target.uid, targetName:target.name, targetSide:target.side,
+        absorbed, shieldLeft:target.shield, maxShield:target.maxShield ?? 0,
+        targetHpLeft:target.hp, targetMaxHp:target.maxHp });
+      if (damage <= 0) return;
+    }
+
     const hpBefore = target.hp;
     target.hp = Math.max(0, target.hp - damage);
     // Mana reçue = % HP perdus (ex: -20% HP → +20 mana)
@@ -1181,7 +1405,165 @@ export class CombatEngine {
       r.acc = Math.min((r.acc ?? 0) + r.rate, r.max);
     }
 
+    // Mémorisation pour counter_burst (Contre) et splash_adj (Éclaboussure)
+    if (damage > 0) {
+      target._lastDamageTaken = damage;
+      target._lastHitDamage   = damage;
+    }
+
+    // Baie de secours (Baie Sitrus) : soigne une fois en passant sous le seuil.
+    // Vérifié ici car _dealDamage est le point central de perte de PV.
+    this._checkEmergencyBerry(target);
+
     if (target.hp <= 0) this._handleFaint(target);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // MÉTÉO — globale, affecte les deux camps
+  // ─────────────────────────────────────────────────────────────────────────
+  _setWeather(weatherId, turns = WEATHER_TURNS, source = null) {
+    const w = WEATHERS[weatherId];
+    if (!w) return;
+    const replacing = this.weather && this.weather.id !== weatherId;
+    this.weather = { id: weatherId, turnsLeft: turns };
+    this.log.push({
+      type: 'weather_set', weather: weatherId, label: w.emoji,
+      name: w.name, desc: w.desc, turns,
+      sourceName: source?.name ?? null, replacing,
+    });
+  }
+
+  // Repose la météo des unités qui en portent une (passif weather_setter),
+  // tant qu'elles sont en vie. Cadence : tous les WEATHER_REPOST_EVERY tours.
+  _repostWeather() {
+    this._weatherTick = (this._weatherTick ?? 0) + 1;
+    if (this._weatherTick % WEATHER_REPOST_EVERY !== 0) return;
+    const setters = [...this.playerUnits, ...this.enemyUnits]
+      .filter(u => u.hp > 0 && u._weatherSetter);
+    if (!setters.length) return;
+    // Le dernier à agir impose sa météo (une seule peut être active)
+    const u = setters[setters.length - 1];
+    if (this.weather?.id === u._weatherSetter && this.weather.turnsLeft >= WEATHER_TURNS) return;
+    this._setWeather(u._weatherSetter, WEATHER_TURNS, u);
+  }
+
+  _tickWeather() {
+    this._repostWeather();
+    if (!this.weather) return;
+    const w = WEATHERS[this.weather.id];
+
+    // Dégâts résiduels (tempête de sable, grêle) sur les deux camps
+    if (w?.dot) {
+      [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+        if (u.hp <= 0) return;
+        const rate = weatherDotRate(this.weather.id, u.types ?? []);
+        if (rate <= 0) return;
+        const dmg = Math.max(1, Math.ceil(u.maxHp * rate));
+        u.hp = Math.max(0, u.hp - dmg);
+        this.log.push({
+          type: 'effect_damage', effect: 'weather', label: w.emoji,
+          targetId: u.uid, targetName: u.name, targetSide: u.side,
+          damage: dmg, targetHpLeft: u.hp, targetMaxHp: u.maxHp,
+        });
+        if (u.hp <= 0) this._handleFaint(u);
+      });
+    }
+
+    this.weather.turnsLeft -= 1;
+    if (this.weather.turnsLeft <= 0) {
+      this.log.push({ type: 'weather_end', weather: this.weather.id,
+                      label: w?.emoji ?? '', name: w?.name ?? '' });
+      this.weather = null;
+    }
+  }
+
+  // Attaques différées (Prescience) : décompte puis application
+  _resolveFutureAttacks() {
+    if (!this._pendingFuture?.length) return;
+    const all = [...this.playerUnits, ...this.enemyUnits];
+    this._pendingFuture = this._pendingFuture.filter(f => {
+      f.turnsLeft -= 1;
+      if (f.turnsLeft > 0) return true;
+      const t = all.find(u => u.uid === f.targetUid);
+      if (t && t.hp > 0) {
+        t.hp = Math.max(0, t.hp - f.damage);
+        this.log.push({ type: 'effect_damage', effect: 'future', label: '🔮 Prescience',
+          targetId: t.uid, targetName: t.name, targetSide: t.side,
+          damage: f.damage, targetHpLeft: t.hp, targetMaxHp: t.maxHp });
+        if (t.hp <= 0) this._handleFaint(t);
+      }
+      return false;
+    });
+  }
+
+  // Dégâts périodiques à intervalle LIBRE, exprimé en actions (et non en
+  // cycles de 8 comme les effets de fin de tour). Permet des cadences comme
+  // « 2% toutes les 10 actions », impossibles avec le hook ON_PERIODIC.
+  _tickIntervalDots(actionCount) {
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      const d = u._intervalDot;
+      if (!d || u.hp <= 0) return;
+      if (actionCount % d.every !== 0) return;
+      const foes = u.side === 'player' ? this.enemyUnits : this.playerUnits;
+      foes.filter(e => e.hp > 0).forEach(e => {
+        const dmg = Math.max(1, Math.ceil(e.maxHp * d.rate));
+        e.hp = Math.max(0, e.hp - dmg);
+        this.log.push({ type:'attack', effect:'passive_dot', label:`🩸 ${d.name}`,
+          attackerId:u.uid, attackerSide:u.side,
+          targetId:e.uid, targetName:e.name, targetSide:e.side,
+          damage:dmg, targetHpLeft:e.hp, targetMaxHp:e.maxHp });
+        if (e.hp <= 0) this._handleFaint(e);
+      });
+    });
+  }
+
+  // Piège (trap) : dégâts résiduels et décompte de la durée
+  _tickTraps() {
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      const tr = u._trapped;
+      if (!tr || u.hp <= 0) return;
+      const dmg = Math.max(1, Math.ceil(u.maxHp * tr.rate));
+      u.hp = Math.max(0, u.hp - dmg);
+      this.log.push({ type: 'effect_damage', effect: 'trap', label: '🕸️',
+        targetId: u.uid, targetName: u.name, targetSide: u.side,
+        damage: dmg, targetHpLeft: u.hp, targetMaxHp: u.maxHp });
+      if (u.hp <= 0) { this._handleFaint(u); return; }
+      tr.turns -= 1;
+      if (tr.turns <= 0) u._trapped = null;
+    });
+  }
+
+  // Instantané compact des stats effectives (météo, tempMods, rage... inclus),
+  // indexé par uid. Utilisé par l'UI pour un suivi en temps réel.
+  _snapshotStats() {
+    const snap = {};
+    [...this.playerUnits, ...this.enemyUnits].forEach(u => {
+      snap[u.uid] = {
+        hp: u.hp, maxHp: u.maxHp,
+        shield: u.shield ?? 0, maxShield: u.maxShield ?? 0,
+        atk:     this._getStat(u, 'atk'),
+        spa:     this._getStat(u, 'spa'),
+        def:     this._getStat(u, 'def'),
+        spd_def: this._getStat(u, 'spd_def'),
+        spd:     this._getStat(u, 'spd'),
+        statuses: (u.statusEffects ?? []).map(st => ({ type: st.type, stacks: st.stacks ?? 1 })),
+      };
+    });
+    return snap;
+  }
+
+  // Objet à effet de secours : { emergencyHeal: { threshold, rate } }
+  _checkEmergencyBerry(unit) {
+    const berry = unit?.heldItem?.emergencyHeal;
+    if (!berry || unit._berryUsed || unit.hp <= 0) return;
+    if ((unit.hp / unit.maxHp) >= (berry.threshold ?? 0.50)) return;
+    unit._berryUsed = true;
+    const heal = Math.max(1, Math.ceil(unit.maxHp * (berry.rate ?? 0.25)));
+    unit.hp = Math.min(unit.maxHp, unit.hp + heal);
+    this.log.push({ type:'effect_heal', effect:'item_berry',
+      label:`🍊 ${unit.heldItem.name}`,
+      targetId:unit.uid, targetName:unit.name, targetSide:unit.side,
+      heal, targetHpLeft:unit.hp, targetMaxHp:unit.maxHp });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1239,8 +1621,9 @@ export class CombatEngine {
 
     // Ultime : utilise le type 1 du pokémon (override move.type)
     const ultimateType = attacker.types[0];
+    const effType  = move.isUltimate ? ultimateType : (move.type ?? attacker.types[0]);
     const typeMult = move.ignoreType ? 1
-      : getTypeMultiplier(move.isUltimate ? ultimateType : (move.type ?? attacker.types[0]), target.types);
+      : getTypeMultiplier(effType, target.types);
     const isCrit   = (move.effects ?? []).some(e => e.kind === 'guaranteed_crit');
     const random   = (85 + Math.random() * 15) / 100;
 
@@ -1265,7 +1648,22 @@ export class CombatEngine {
     const critFlag  = attacker._flags?.critBoost;
 
 
-    damage = damage * 1.1 * typeMult * random * bonusMult * firstHitMult;
+    // ramp_damage : dégâts croissants tant que la MÊME capacité est réutilisée
+    // sur des tours consécutifs. Plafonné (×2 par défaut) pour éviter qu'un
+    // troisième tour ne devienne un one-shot.
+    let rampMult = 1;
+    const ramp = (move.effects ?? []).find(e => e.kind === 'ramp_damage');
+    if (ramp) {
+      const st = attacker._rampDmg;
+      if (st && st.move === move.name) st.stacks += 1;
+      else attacker._rampDmg = { move: move.name, stacks: 0 };
+      const stacks = attacker._rampDmg.stacks;
+      rampMult = Math.min(Math.pow(2, stacks), ramp.max ?? 2.0);
+    } else if (attacker._rampDmg) {
+      attacker._rampDmg = null;   // une autre capacité brise la série
+    }
+
+    damage = damage * 1.1 * typeMult * random * bonusMult * firstHitMult * rampMult;
     if (isCrit || isCritPassive) damage *= 1.5;
 
     return Math.max(1, Math.round(damage));
@@ -1569,7 +1967,25 @@ export class CombatEngine {
   _enemiesOf(u)    { return u.side === 'player' ? this.enemyUnits  : this.playerUnits; }
   _alliesOf(u)     { return u.side === 'player' ? this.playerUnits : this.enemyUnits; }
   _isOver()        { return !this.playerUnits.some(u => u.hp > 0) || !this.enemyUnits.some(u => u.hp > 0); }
-  _winner()        { return this.playerUnits.some(u => u.hp > 0) ? 'player' : 'enemy'; }
+  // Vainqueur. Si UN SEUL camp a des survivants, il gagne.
+  // Si les DEUX en ont (limite d'actions atteinte), on départage aux PV
+  // restants en pourcentage : déclarer le joueur vainqueur par défaut, comme
+  // avant, offrait une victoire gratuite à qui savait faire traîner un combat.
+  _winner() {
+    const alive = arr => arr.filter(u => u.hp > 0);
+    const p = alive(this.playerUnits);
+    const e = alive(this.enemyUnits);
+    if (!p.length) return 'enemy';
+    if (!e.length) return 'player';
+
+    const ratio = arr => arr.reduce((a, u) => a + (u.hp / Math.max(1, u.maxHp)), 0) / arr.length;
+    const rp = ratio(p);
+    const re = ratio(e);
+    if (rp !== re) return rp > re ? 'player' : 'enemy';
+    // Égalité parfaite : on départage au nombre d'unités debout
+    if (p.length !== e.length) return p.length > e.length ? 'player' : 'enemy';
+    return 'player';   // ex aequo absolu : bénéfice du doute au joueur
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

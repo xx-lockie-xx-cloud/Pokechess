@@ -1,16 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // TrainingUI.js — Nœud Entraînement 🏋️
 //
-// Le joueur paie pour faire monter un Pokémon. Le coût est FIXE, quel que soit
-// le niveau : un tarif croissant décourageait de terminer une montée en cours
-// et rendait le nœud illisible.
+// Le joueur paie pour faire monter un Pokémon : 1 pièce accorde 2 niveaux.
+// Le coût est FIXE, quel que soit le niveau atteint : un tarif croissant
+// décourageait de terminer une montée en cours et rendait le nœud illisible.
 //
 // Sont entraînables les Pokémon du TERRAIN comme ceux de la BANQUE.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getRunState, removeCoins } from '../data/runState.js';
 
-export const TRAIN_COST = 1;
+export const TRAIN_COST   = 1;   // pièces par achat
+export const LEVELS_PER_BUY = 2; // niveaux obtenus par achat
 
 export const TrainingUI = {
   _registry: null,
@@ -91,7 +92,7 @@ export const TrainingUI = {
       <div class="node-wrap">
         <h2 class="node-title">🏋️ Entraînement</h2>
         <p class="node-sub">Choisissez un Pokémon à entraîner, sur le terrain ou en banque.
-          ${TRAIN_COST} pièces pour 2 niveaux.</p>
+          ${TRAIN_COST} pièce pour ${LEVELS_PER_BUY} niveaux.</p>
 
         ${team.length
           ? this._renderGroup('Sur le terrain', this._groups().field, 0, coins)
@@ -102,7 +103,7 @@ export const TrainingUI = {
 
         <div class="node-actions">
           <button id="training-buy" class="btn-primary" ${this._sel == null ? 'disabled' : ''}>
-            🏋️ Entraîner (+1 niveau)
+            🏋️ Entraîner (+${LEVELS_PER_BUY} niveaux)
           </button>
           <button id="training-leave" class="btn-secondary">Quitter</button>
         </div>
@@ -130,8 +131,9 @@ export const TrainingUI = {
     if ((state.coins ?? 0) < cost || lv >= 100) return;
 
     removeCoins(this._registry, cost);
-    window.SaveManager?.gainPokemonLevel?.(p.id);
-    window.SaveManager?.gainPokemonLevel?.(p.id);
+    for (let i = 0; i < LEVELS_PER_BUY; i++) {
+      window.SaveManager?.gainPokemonLevel?.(p.id);
+    }
 
     this._render();
     const info = document.getElementById('training-info');

@@ -34,11 +34,11 @@ export const RELICS = {
 
   pochette_surprise: {
     id: 'pochette_surprise', name: 'Pochette Surprise', icon: '🎰',
-    desc: 'Reçois un objet aléatoire gratuit au début de la run.',
+    desc: 'Les pokémons rencontrés sont cachés mais vous offrirons une surprise.',
     category: 'economy',
     unlockAchievement: 'coup_de_chance',
-    apply: { kind: 'start_random_item' },
-    hooks: { RUN_START_ITEM: true, DISPLAY_MASK_WILD: true },
+    apply: { kind: 'typed_item_on_catch' },
+    hooks: { ITEM_ON_CATCH: true, DISPLAY_MASK_WILD: true },
   },
 
   // ── Combat Symétrique ──────────────────────────────────────────────────────

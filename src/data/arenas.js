@@ -7,63 +7,70 @@
 import { POKEMONS }    from './pokemons.js';
 import { getBSTTier }  from './runState.js';
 import { TRAINER_ARCHETYPES, TRAINER_ARCHETYPES_EXTRA, generateEnemyTeam } from './trainers.js';
+import { getRegionArenas, isPokemonAllowed, DEFAULT_REGION,
+         ARENAS_KANTO, REGIONS, GEN_RANGES } from './regions.js';
 
 // ── Métadonnées des 8 arènes (sans équipes statiques) ────────────────────────
-export const ARENAS = [
-  { id: 1, city: 'Argenta',        champion: 'Pierre',   type: 'Roche',
-    badgeName: 'Badge Pierre',    badgeEmoji: '🪨',
-    badgeSprite: 'assets/badges/pierre_b.png',
-    championSprite: 'assets/trainers/map/champions/pierre.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/pierre_c.png' },
-  { id: 2, city: 'Azuria',         champion: 'Ondine',   type: 'Eau',
-    badgeName: 'Badge Cascade',   badgeEmoji: '💧',
-    badgeSprite: 'assets/badges/misty_b.png',
-    championSprite: 'assets/trainers/map/champions/misty.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/misty_c.png' },
-  { id: 3, city: 'Carmin sur Mer', champion: 'Lt. Surge', type: 'Électrik',
-    badgeName: 'Badge Foudre',    badgeEmoji: '⚡',
-    badgeSprite: 'assets/badges/surge_b.png',
-    championSprite: 'assets/trainers/map/champions/surge.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/surge_c.png' },
-  { id: 4, city: 'Céladopole',    champion: 'Erika',    type: 'Plante',
-    badgeName: 'Badge Arc-en-Ciel', badgeEmoji: '🌿',
-    badgeSprite: 'assets/badges/erika_b.png',
-    championSprite: 'assets/trainers/map/champions/erika.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/erika_c.png' },
-  { id: 5, city: 'Parmanie',       champion: 'Koga',     type: 'Poison',
-    badgeName: 'Badge Âme',       badgeEmoji: '☠️',
-    badgeSprite: 'assets/badges/koga_b.png',
-    championSprite: 'assets/trainers/map/champions/koga.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/koga_c.png' },
-  { id: 6, city: 'Safrania',       champion: 'Sabrina',  type: 'Psy',
-    badgeName: 'Badge Marbre',    badgeEmoji: '🔮',
-    badgeSprite: 'assets/badges/sabrina_b.png',
-    championSprite: 'assets/trainers/map/champions/sabrina.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/sabrina_c.png' },
-  { id: 7, city: 'Cramois\'île',   champion: 'Auguste',  type: 'Feu',
-    badgeName: 'Badge Volcan',    badgeEmoji: '🔥',
-    badgeSprite: 'assets/badges/auguste_b.png',
-    championSprite: 'assets/trainers/map/champions/auguste.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/auguste_c.png' },
-  { id: 8, city: 'Jadielle',       champion: 'Giovanni', type: 'Sol',
-    badgeName: 'Badge Terre',     badgeEmoji: '🏔',
-    badgeSprite: 'assets/badges/giovanni_b.png',
-    championSprite: 'assets/trainers/map/champions/giovanni.png',
-    championSpriteCombat: 'assets/trainers/combat/champions/giovanni_c.png' },
-];
+// Compatibilité : ARENAS désigne les arènes de Kanto (région par défaut).
+// La source de vérité est arenaKanto.js / arenaJohto.js via regions.js.
+// Préférer getArenas(regionId) pour du code conscient des régions.
+export const ARENAS = ARENAS_KANTO;
+
+// ── Légendaires ──────────────────────────────────────────────────────────────
+// VRAIS légendaires : jamais dans une équipe ennemie.
+export const LEGENDARIES = new Set([
+  144, 145, 146, 150, 151,           // Artikodin, Électhor, Sulfura, Mewtwo, Mew
+  243, 244, 245, 249, 250, 251,      // Raikou, Entei, Suicune, Lugia, Ho-Oh, Celebi
+]);
+
+// PSEUDO-légendaires : écartés par défaut (trop puissants), mais réintégrés
+// quand le pool d'un type devient trop maigre (voir generateArenaTeam).
+export const PSEUDO_LEGENDARIES = new Set([
+  147, 148, 149,                     // Minidraco, Draco, Dracolosse
+  246, 247, 248,                     // Embrylex, Ymphect, Tyranocif
+]);
+
+const MIN_ARENA_POOL = 4;
+
+// Nombre maximum d'exemplaires d'un même Pokémon dans une équipe de champion
+const MAX_SAME = 2;
+
+// ── Bonus de STATUT (indépendant de la difficulté) ───────────────────────────
+// Un champion d'arène et un maître de ligue sont plus forts qu'un dresseur
+// ordinaire à budget égal. La DIFFICULTÉ est appliquée séparément par
+// DIFF_STAT_MULTS (CombatUI) et par les budgets (MapGenerator) : ne pas la
+// remettre ici, sous peine d'empiler trois fois le même effet.
+export const ARENA_MULT  = 1.1;   // champions d'arène
+export const MASTER_MULT = 1.2;   // maître de la Ligue
+
+// Une équipe FIXE (Red) ne traverse aucune courbe de budget : à difficulté
+// croissante, elle ne gagnerait ni unités ni Pokémon plus coûteux. Ce facteur
+// reproduit l'effet du budget ET calibre le niveau absolu de l'équipe.
+//
+// Les valeurs sont inférieures à 1 parce que l'équipe de Red est composée de
+// Pokémon à très haut BST (Ronflex, Florizarre, Tortank, Dracaufeu, Lokhlass)
+// sur six emplacements toujours remplis : sans correction, elle dépassait
+// largement le reste du jeu. La progression reste croissante (×2.46 de Facile
+// à Expert) et la marche finale se creuse : ×1.05 en Facile, ×1.21 en Expert.
+export const FIXED_TEAM_DIFF = { easy: 0.618, normal: 0.816, hard: 0.934, expert: 0.99 };
 
 // ── Génère l'équipe du champion selon difficulté et mapIndex ─────────────────
 // L'équipe est composée de 6 pokémons partageant tous le type de l'arène
 // Budget calibré sur la courbe de difficulté générale
 // budget   : somme de stats cible (passé depuis MapGenerator)
 // maxUnits : nombre max de pokémons (aligné sur les slots joueur)
-export function generateArenaTeam(arena, mapIndex = 0, budget = 800, maxUnits = 3, rng = Math.random.bind(Math)) {
+export function generateArenaTeam(arena, mapIndex = 0, budget = 800, maxUnits = 3,
+                                  rng = Math.random.bind(Math),
+                                  regionId = DEFAULT_REGION, meta = null) {
   const type = arena.type;
 
   // Pool : tous les pokémons non-légendaires du type de l'arène
-  const LEGENDARIES = new Set([144, 145, 146, 147, 148, 149, 150, 151]);
+  // Le pool respecte les générations débloquées : pas de gen 2 chez un champion
+  // tant que le joueur ne l'a pas débloquée.
   const pool = POKEMONS.filter(p =>
-    !LEGENDARIES.has(p.id) && p.types.includes(type)
+    !LEGENDARIES.has(p.id) &&
+    p.types.includes(type) &&
+    isPokemonAllowed(p.id, regionId, meta)
   );
   if (!pool.length) return [];
 
@@ -95,15 +102,15 @@ export function generateArenaTeam(arena, mapIndex = 0, budget = 800, maxUnits = 
   }
 
   // Tirage pondéré par tier
-  function weightedPick(remaining) {
+  function weightedPick(remaining, fromPool = pool) {
     const rates = RATES[Math.min(mapIndex, 7)];
     // Filtre aussi par budget restant
-    const weighted = pool
+    const weighted = fromPool
       .map(p => ({ p, w: rates[pokemonTier(p) - 1] ?? 0 }))
       .filter(x => x.w > 0 && pokemonBST(x.p) <= remaining + 50);
-    // Si rien d'abordable → prend le moins cher du pool
+    // Si rien d'abordable → prend le moins cher du sous-pool
     if (!weighted.length) {
-      const cheapest = pool.slice().sort((a, b) => pokemonBST(a) - pokemonBST(b));
+      const cheapest = fromPool.slice().sort((a, b) => pokemonBST(a) - pokemonBST(b));
       return cheapest[0];
     }
     const total = weighted.reduce((s, x) => s + x.w, 0);
@@ -113,9 +120,10 @@ export function generateArenaTeam(arena, mapIndex = 0, budget = 800, maxUnits = 
   }
 
   // Génère l'équipe dans la limite de maxUnits et du budget
-  const team  = [];
-  let   spent = 0;
-  const cells = [];
+  const team   = [];
+  const counts = {};          // occurrences par id, pour le plafond de doublons
+  let   spent  = 0;
+  const cells  = [];
   for (let col = 0; col < 3; col++)
     for (let row = 0; row < 2; row++)
       cells.push({ col, row });
@@ -126,12 +134,52 @@ export function generateArenaTeam(arena, mapIndex = 0, budget = 800, maxUnits = 
     [cells[i], cells[j]] = [cells[j], cells[i]];
   }
 
+  // Identité régionale : dans une région dont la génération signature est la 2
+  // (Johto), le PREMIER Pokémon du champion est garanti gen 2. Sans cela, les
+  // tirages au budget favorisent les valeurs sûres de la gen 1 et la région
+  // paraît identique à Kanto.
+  const signatureGen  = REGIONS[regionId]?.signatureGen ?? null;
+  const signaturePool = signatureGen
+    ? pool.filter(p => {
+        const r = GEN_RANGES[signatureGen];
+        return r && p.id >= r[0] && p.id <= r[1];
+      })
+    : [];
+
   for (let i = 0; i < maxUnits && spent < budget; i++) {
     const remaining = budget - spent;
-    const pick      = weightedPick(remaining);
+    // Premier tirage : puise dans le pool de la génération signature si elle
+    // offre un choix abordable, sinon retombe sur le pool complet.
+    const useSignature = i === 0 && signaturePool.length > 0;
+    let   basePool     = useSignature ? signaturePool : pool;
+
+    // Plafond de doublons : au maximum MAX_SAME exemplaires d'un même Pokémon.
+    // Les pools étroits (Dragon, Acier, Spectre) produisaient sinon des équipes
+    // du genre "Feuforêve, Feuforêve, Feuforêve".
+    const saturated = new Set(
+      Object.entries(counts).filter(([, n]) => n >= MAX_SAME).map(([id]) => Number(id))
+    );
+    if (saturated.size) {
+      const filtered = basePool.filter(p => !saturated.has(p.id));
+      // On ne filtre que s'il reste de quoi choisir, sinon le doublon est toléré
+      if (filtered.length) basePool = filtered;
+    }
+
+    const pick      = weightedPick(remaining, basePool);
+    if (!pick) break;
     const bst       = pokemonBST(pick);
     spent += bst;
-    team.push({ ...pick, col: cells[i].col, row: cells[i].row, attributes: [] });
+    counts[pick.id] = (counts[pick.id] ?? 0) + 1;
+
+    // Bonus de statut "Champion" appliqué aux stats (le budget, lui, reste
+    // calculé sur le BST de base : le champion est plus fort à budget égal).
+    const boosted = {};
+    Object.entries(pick.stats ?? {}).forEach(([k, v]) => {
+      boosted[k] = Math.round(v * ARENA_MULT);
+    });
+
+    team.push({ ...pick, stats: boosted, col: cells[i].col, row: cells[i].row,
+                attributes: [], _champion: true });
   }
 
   return team;
@@ -155,12 +203,20 @@ export function calculateSynergyBudget(team) {
 
 // ── Génère l'équipe de la ligue : type aléatoire + synergie 3★ garantie ──────
 // 6 pokémons partageant TOUS un type commun → synergie 3★ (4 même type) assurée
-export function generateLeagueTeam(mapIndex = 7, difficultyMult = 1.0, rng = Math.random.bind(Math)) {
-  const LEGENDARIES = new Set([144, 145, 146, 147, 148, 149, 150, 151]);
+export function generateLeagueTeam(mapIndex = 7, difficultyMult = 1.0,
+                                   rng = Math.random.bind(Math),
+                                   regionId = DEFAULT_REGION, meta = null) {
+  const LEGENDARIES = new Set([
+    144, 145, 146, 147, 148, 149, 150, 151,          // gen 1
+    243, 244, 245, 246, 247, 248, 249, 250, 251,     // gen 2
+  ]);
 
   // Liste des types disponibles (ceux ayant au moins 6 pokémons non-légendaires)
   const typePool = {};
-  POKEMONS.filter(p => !LEGENDARIES.has(p.id)).forEach(p => {
+  POKEMONS
+    .filter(p => !LEGENDARIES.has(p.id) && !PSEUDO_LEGENDARIES.has(p.id)
+                 && isPokemonAllowed(p.id, regionId, meta))
+    .forEach(p => {
     p.types.forEach(t => {
       typePool[t] = (typePool[t] ?? []);
       typePool[t].push(p);
@@ -229,27 +285,49 @@ export function generateLeagueTeam(mapIndex = 7, difficultyMult = 1.0, rng = Mat
 // ── Génère le MAÎTRE de la ligue : archétype aléatoire en version "Maître" ───
 // Pioche un archétype connu, construit son équipe (boost de stats lié à la
 // difficulté), et renvoie nom/sprite/couleur correspondant à l'archétype.
-export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal', rng = Math.random.bind(Math)) {
-  // Boost de stats "Maître" selon la difficulté
-  const MASTER_MULT = { easy: 1.15, normal: 1.30, hard: 1.38, expert: 1.46 };
-  const mult = MASTER_MULT[difficulty] ?? 1.20;
+export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
+                                     rng = Math.random.bind(Math),
+                                     regionId = DEFAULT_REGION, meta = null,
+                                     budgetOverride = null) {
+  // Bonus de statut "Maître". Pour une équipe générée, la difficulté agit via
+  // le budget ; pour une équipe fixe, on la réintroduit ici avec FIXED_TEAM_DIFF.
+  const hasFixedTeam = !!REGIONS[regionId]?.masterTeam;
+  const mult = MASTER_MULT * (hasFixedTeam ? (FIXED_TEAM_DIFF[difficulty] ?? 1) : 1);
 
   // Pool d'archétypes : base + extra (avec un pool exploitable)
   const archetypes = [...TRAINER_ARCHETYPES, ...TRAINER_ARCHETYPES_EXTRA]
     .filter(a => Array.isArray(a.pool) && a.pool.length >= 4);
   const arch = archetypes[Math.floor(rng() * archetypes.length)];
 
-  // Budget élevé pour la ligue (courbe + difficulté)
-  const BASE_BUDGET = 1000;
-  const MAX_BUDGET  = 2600;
-  const ratio       = Math.min(mapIndex / 8, 1);
-  const curved      = Math.pow(ratio, 1.2);
-  const budget      = Math.round(
-    (BASE_BUDGET + (MAX_BUDGET - BASE_BUDGET) * curved) * mult
-  );
+  // Johto : le maître est FIXE (Red au Mont Argenté), pas un archétype tiré au
+  // sort. Son équipe est libre en type, contrairement aux champions d'arène.
+  const master = REGIONS[regionId]?.master ?? null;
+  const isFixedMaster = regionId !== DEFAULT_REGION && master;
 
-  // Construit l'équipe depuis le pool de l'archétype (6 unités max)
-  const rawTeam = generateEnemyTeam(arch, budget, 6, Math.min(mapIndex, 8), rng);
+  // Budget : fourni par MapGenerator (issu de DIFF_BUDGETS, donc cohérent avec
+  // les champions). Sans lui, on retombe sur une courbe interne, mais celle-ci
+  // ne suit PAS la difficulté : elle ne sert que de garde-fou hors partie.
+  const budget = budgetOverride != null
+    ? budgetOverride
+    : Math.round((1000 + 1600 * Math.pow(Math.min(mapIndex / 8, 1), 1.2)) * mult);
+
+  // Équipe FIXE si la région en déclare une (Red à Johto), sinon tirage depuis
+  // le pool de l'archétype (6 unités max).
+  const fixedTeam = REGIONS[regionId]?.masterTeam ?? null;
+  const rawTeam = fixedTeam
+    ? fixedTeam.map(slot => {
+        const base = POKEMONS.find(p => p.id === slot.id);
+        if (!base) return null;
+        return {
+          id: base.id, name: base.name, types: base.types,
+          col: slot.col, row: slot.row,
+          stats: { ...base.stats },
+          attributes: [],
+          spriteUrl: base.spriteUrl,
+        };
+      }).filter(Boolean)
+    : generateEnemyTeam(arch, budget, 6, Math.min(mapIndex, 8), rng,
+                        isPokemonAllowed(152, regionId, meta));
 
   // Applique le boost "Maître" aux stats de chaque pokémon
   const team = rawTeam.map(u => {
@@ -259,6 +337,18 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal', rng = 
     });
     return { ...u, stats: boosted, _master: true };
   });
+
+  if (isFixedMaster) {
+    return {
+      team,
+      name:         master.name,
+      type:         null,
+      color:        0xff3b30,
+      spriteCombat: master.spriteCombat ?? null,
+      spriteMap:    master.sprite ?? null,
+      archetypeId:  null,
+    };
+  }
 
   return {
     team,
@@ -272,10 +362,26 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal', rng = 
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-export function getArenaForMap(mapIndex) {
-  return ARENAS[Math.min(mapIndex, ARENAS.length - 1)] ?? null;
+export function getArenaForMap(mapIndex, regionId = DEFAULT_REGION) {
+  const list = getRegionArenas(regionId);
+  return list[Math.min(mapIndex, list.length - 1)] ?? null;
 }
 
-export function getArenaById(id) {
-  return ARENAS.find(a => a.id === id) ?? null;
+export function getArenaById(id, regionId = DEFAULT_REGION) {
+  return getRegionArenas(regionId).find(a => a.id === id) ?? null;
+}
+
+// Liste des arènes d'une région (badges, écran de victoire, carte...)
+export function getArenas(regionId = DEFAULT_REGION) {
+  return getRegionArenas(regionId);
+}
+
+// ── Nom de la destination d'une map ──────────────────────────────────────────
+// Les maps 0 à 7 mènent aux 8 arènes de la région ; la map 8 mène au maître
+// (Plateau Indigo pour Kanto, Mont Argenté pour Johto). Au-delà, mode endless.
+export function getDestinationName(mapIndex, regionId = DEFAULT_REGION) {
+  const list = getRegionArenas(regionId);
+  if (mapIndex < list.length) return list[mapIndex]?.city ?? `Route ${mapIndex + 1}`;
+  const master = REGIONS[regionId]?.master;
+  return master?.city ?? 'Plateau Indigo';
 }

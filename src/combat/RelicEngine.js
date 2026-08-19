@@ -89,9 +89,15 @@ export const RelicEngine = {
     return getHook(relicId, 'RUN_START_COINS') ?? 0;
   },
 
-  // True si la relique donne un objet aléatoire au départ (pochette_surprise)
+  // True si la relique donne un objet aléatoire au départ
   givesStartItem(relicId) {
     return getHook(relicId, 'RUN_START_ITEM') === true;
+  },
+
+  // True si la relique offre un objet TYPÉ à chaque Pokémon capturé
+  // (pochette_surprise) : l'objet correspond à un type du Pokémon obtenu.
+  givesItemOnCatch(relicId) {
+    return getHook(relicId, 'ITEM_ON_CATCH') === true;
   },
 
   // True si la relique randomise les types (anomalie)

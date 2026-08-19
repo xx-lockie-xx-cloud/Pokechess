@@ -12,14 +12,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { POKEMONS, TYPE_COLORS as TC } from '../data/pokemons.js';
+import { isPokemonAllowed, DEFAULT_REGION } from '../data/regions.js';
 import { getBSTTier }                  from '../data/runState.js';
 import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
 import {
-  getRunState, addToBank, removeCoins, addCoins,
+  getRunState, addToBank, removeCoins, addCoins, addToInventory,
   weightedWildDraw, BANK_MAX_SIZE,
   addSeenPokemon, applyAnomalyToUnits
 } from '../data/runState.js';
+import { ITEMS } from '../data/items.js';
 import { assignCorners } from '../data/synergies.js';
 import { RelicEngine } from '../combat/RelicEngine.js';
 
@@ -186,9 +188,15 @@ export const WildUI = {
     // Aimant : 4 pokémons au lieu de 3
     const wildCount = RelicEngine.wildSlots(getRunState(this._registry)?.relic?.id);
 
+    // Pool restreint aux générations débloquées : la gen 2 n'apparaît qu'une
+    // fois Johto accessible (Ligue de Kanto terminée en Normal ou plus).
+    const meta      = window.SaveManager?.loadMeta?.() ?? {};
+    const regionId  = meta.region ?? DEFAULT_REGION;
+    const allowed   = POKEMONS.filter(p => isPokemonAllowed(p.id, regionId, meta));
+
     while (offered.length < wildCount && tries < 40) {
       tries++;
-      const p = weightedWildDraw(this._registry, POKEMONS);
+      const p = weightedWildDraw(this._registry, allowed);
       if (p && !usedIds.has(p.id)) {
         offered.push(p);
         usedIds.add(p.id);
@@ -196,7 +204,7 @@ export const WildUI = {
     }
 
     if (offered.length < wildCount) {
-      const fallback = [...POKEMONS]
+      const fallback = [...allowed]
         .filter(p => !usedIds.has(p.id))
         .sort(() => Math.random() - 0.5);
       while (offered.length < wildCount && fallback.length) {
@@ -417,6 +425,16 @@ export const WildUI = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Objet correspondant à l'un des types du Pokémon (Pochette Surprise).
+  // Si plusieurs types, l'un d'eux est tiré au sort.
+  _typedItemFor(pokemon) {
+    const types = pokemon?.types ?? [];
+    const pool  = Object.values(ITEMS).filter(i =>
+      i.type === 'equippable' && types.includes(i.typeFilter));
+    if (!pool.length) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  },
+
   // _capture()
   // ─────────────────────────────────────────────────────────────────────────
   _capture() {
@@ -464,6 +482,15 @@ export const WildUI = {
       addToBank(this._registry, clone);
     }
 
+    // Pochette Surprise : un objet TYPÉ offert à chaque capture, choisi parmi
+    // les types du Pokémon obtenu (Eau Mystique pour un Eau, Charbon pour un
+    // Feu...). C'est ce qui compense le masquage des rencontres.
+    let bonusItem = null;
+    if (RelicEngine.givesItemOnCatch(getRunState(this._registry)?.relic?.id)) {
+      bonusItem = this._typedItemFor(this._selected);
+      if (bonusItem) addToInventory(this._registry, bonusItem.id);
+    }
+
     // Statistiques : enregistre la (les) capture(s)
     window.SaveManager?.recordCapture?.(isDoppel ? 2 : 1);
     // Succès immédiats liés à la capture (Coup de chance : légendaire) et aux
@@ -485,7 +512,9 @@ export const WildUI = {
     if (info) {
       info.style.color = 'var(--color-green)';
       const afterState = getRunState(this._registry);
-      info.textContent = `${capturedName} capturé ! 💰 ${afterState.coins ?? 0} pièces restantes`;
+      info.innerHTML = `${capturedName} capturé !`
+        + (bonusItem ? ` <span class="wild-bonus">🎁 ${bonusItem.emoji} ${bonusItem.name} offert !</span>` : '')
+        + ` 💰 ${afterState.coins ?? 0} pièces restantes`;
     }
 
     this._selected = null;
@@ -525,7 +554,7 @@ export const WildUI = {
         warn = document.createElement('p');
         warn.id        = warnId;
         warn.className = 'wild-warn';
-        warn.textContent = '⚠ Banque pleine — vends un pokémon pour en capturer d\'autres';
+        warn.textContent = '⚠ Banque pleine : vends un pokémon pour en capturer d\'autres';
         host.appendChild(warn);
       }
     } else if (warn) {
@@ -561,10 +590,18 @@ export const WildUI = {
     switch (nodeType) {
       case 'shop':   nextScreen = 'shop';   break;
       case 'item':   nextScreen = 'item';   break;
+      case 'casino':   nextScreen = 'casino';   break;
+      case 'training': nextScreen = 'training'; break;
+      case 'duel':     nextScreen = 'duel';     break;
+      case 'market':    nextScreen = 'market';    break;
+      case 'sanctuary': nextScreen = 'sanctuary'; break;
       case 'boss':   nextScreen = 'combat'; break;
       case 'random': {
         const r = Math.random();
-        nextScreen = r < 0.4 ? 'combat' : r < 0.7 ? 'shop' : 'item';
+        nextScreen = r < 0.30 ? 'combat' : r < 0.50 ? 'shop'
+                   : r < 0.70 ? 'item'   : r < 0.80 ? 'casino'
+                   : r < 0.85 ? 'training' : r < 0.91 ? 'market'
+                   : r < 0.96 ? 'sanctuary' : 'duel';
         break;
       }
       default: nextScreen = 'combat';

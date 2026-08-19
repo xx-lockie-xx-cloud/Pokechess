@@ -13,12 +13,12 @@
 import { POKEMONS }                    from '../data/pokemons.js';
 import { getLevelBadgeHTML, getLevelBonus } from '../data/levelSystem.js';
 import { getMove }                     from '../data/moves.js';
-import { initRun, applyAnomalyToUnits, getBSTTier } from '../data/runState.js';
+import { initRun, applyAnomalyToUnits, getBSTTier, getRunRegion } from '../data/runState.js';
 import { assignCorners }               from '../data/synergies.js';
 import { TYPE_COLORS as TC }           from '../data/pokemons.js';
+import { getRegionStarterIds, DEFAULT_REGION } from '../data/regions.js';
 
-// IDs des starters proposés
-const STARTER_IDS = [1, 4, 7, 25, 133];
+// Les starters dépendent de la région jouée (voir regions.js)
 
 // Couleurs hex → CSS rgba (conversion depuis les couleurs Phaser 0xRRGGBB)
 function hexToCSS(hex) {
@@ -97,7 +97,9 @@ export const StarterUI = {
     if (!container) return;
     container.innerHTML = '';
 
-    const rawStarters = STARTER_IDS.map(id => POKEMONS.find(p => p.id === id)).filter(Boolean);
+    const regionId    = getRunRegion(this._registry);
+    const starterIds  = getRegionStarterIds(regionId);
+    const rawStarters = starterIds.map(id => POKEMONS.find(p => p.id === id)).filter(Boolean);
     const starters    = applyAnomalyToUnits(rawStarters, this._registry);
 
     starters.forEach(pokemon => {

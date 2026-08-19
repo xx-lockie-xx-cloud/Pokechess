@@ -42,9 +42,47 @@ export const SaveManager = {
   // ── Run save ───────────────────────────────────────────────────────────────
   save(registry) {
     try {
+      // Synchronise le Pokédex AVANT d'écrire : un Pokémon ayant fait partie de
+      // l'équipe compte comme capturé, y compris après évolution (l'espèce
+      // évoluée n'était jamais enregistrée par addToBank).
+      this.syncPokedexFromRun(registry);
       localStorage.setItem(RUN_KEY, JSON.stringify(serializeRegistry(registry)));
       return true;
     } catch (e) { console.warn('[SaveManager] save failed:', e); return false; }
+  },
+
+  // Reporte dans la META les espèces vues et capturées de l'épopée en cours.
+  // Les listes sont dédupliquées : un Pokémon ne peut compter qu'une fois,
+  // donc le total plafonne à 151 pour la gen 1 et 100 pour la gen 2.
+  syncPokedexFromRun(registry) {
+    try {
+      const state = registry?.get?.('runState');
+      if (!state) return;
+      const meta = this.loadMeta();
+      meta.seenPokemon   = meta.seenPokemon   ?? [];
+      meta.caughtPokemon = meta.caughtPokemon ?? [];
+      let changed = false;
+
+      const addTo = (list, id) => {
+        if (id == null || list.includes(id)) return;
+        list.push(id); changed = true;
+      };
+
+      (state.seenPokemon   ?? []).forEach(id => addTo(meta.seenPokemon, id));
+      (state.caughtPokemon ?? []).forEach(id => {
+        addTo(meta.caughtPokemon, id);
+        addTo(meta.seenPokemon, id);           // capturé implique vu
+      });
+      // Équipe et banque actuelles : couvre les évolutions et les acquisitions
+      // qui ne passent pas par addToBank
+      const owned = [...(state.playerBank ?? []), ...(registry.get?.('playerUnits') ?? [])];
+      owned.forEach(u => {
+        addTo(meta.caughtPokemon, u?.id);
+        addTo(meta.seenPokemon,   u?.id);
+      });
+
+      if (changed) this.saveMeta(meta);
+    } catch (e) { console.warn('[SaveManager] syncPokedex failed:', e); }
   },
 
   load(registry) {
@@ -77,15 +115,15 @@ export const SaveManager = {
             hour:'2-digit', minute:'2-digit',
           })
         : '—';
-      const CITY_NAMES = [
-        'Argenta', 'Azuria', 'Carmin sur Mer', 'Céladopole',
-        'Parmanie', 'Safrania', "Cramois'île", 'Jadielle',
-      ];
+      // Le nom de la ville dépend de la RÉGION DE L'ÉPOPÉE (stockée dans le
+      // run), pas de celle choisie au menu. SaveManager restant sans import,
+      // il expose mapIdx et region ; UIManager résout le nom via arenas.js.
       const mapIdx    = state.currentMap ?? 0;
-      const city      = CITY_NAMES[mapIdx] ?? ('Route ' + (mapIdx + 1));
+      const regionId  = state.region ?? 'kanto';
+      const city      = null;
       const step      = (state.lastNodeCol ?? 0) + 1;
       const totalCols = (3 + Math.floor(mapIdx / 2)) + 2;
-      return { date, map: mapIdx + 1, city, step, totalCols,
+      return { date, map: mapIdx + 1, city, mapIdx, region: regionId, step, totalCols,
                coins: state.coins ?? 0,
                units: (save.data?.playerUnits ?? []).length };
     } catch { return null; }
@@ -263,6 +301,7 @@ export const SaveManager = {
     const m = meta ?? this.loadMeta();
     return m?.runStats ?? {
       leaguesBeaten: 0, leaguesByDiff: { easy:0, normal:0, hard:0, expert:0 },
+      leaguesByRegion: {}, badgesByRegion: {}, playtimeMs: 0,
       totalWins: 0, totalLosses: 0, pokemonCaptured: 0,
       relicsUsed: {}, badges: 0,
     };
@@ -294,18 +333,36 @@ export const SaveManager = {
     const isWin  = winner === 'player';
     const isBoss = nodeType === 'boss';
     const diff   = runState?.difficulty ?? 'easy';
+    const region = runState?.region ?? 'kanto';
     if (isWin) {
       this.bumpStat('totalWins');
       if (isBoss) {
         this.bumpStat('badges');
+        this.bumpStatNested('badgesByRegion', region);
         if ((mapIndex ?? -1) >= 8) {
           this.bumpStat('leaguesBeaten');
           this.bumpStatNested('leaguesByDiff', diff);
+          // Déblocage des régions : c'est CETTE structure que lisent les
+          // helpers de regions.js (isRegionUnlocked, getRegionDifficulties).
+          this.bumpLeagueRegion(region, diff);
         }
       }
     } else {
       this.bumpStat('totalLosses');
     }
+  },
+
+  // Incrément à deux niveaux : runStats.leaguesByRegion[region][difficulty]
+  bumpLeagueRegion(region, difficulty, amount = 1) {
+    const meta  = this.loadMeta();
+    const stats = this.getRunStats(meta);
+    const byReg = { ...(stats.leaguesByRegion ?? {}) };
+    byReg[region] = { ...(byReg[region] ?? {}) };
+    byReg[region][difficulty] = (byReg[region][difficulty] ?? 0) + amount;
+    stats.leaguesByRegion = byReg;
+    meta.runStats = stats;
+    this.saveMeta(meta);
+    return byReg;
   },
 
   // Enregistre la relique choisie au DÉBUT d'une épopée (une seule fois)
@@ -341,8 +398,11 @@ export const SaveManager = {
 
     // Progression
     const badges = runState?.badgesEarned ?? [];
+    const region = runState?.region ?? 'kanto';
     if (badges.length >= 1) unlock('premier_badge');
-    if (isLeague)            unlock('champion_kanto');
+    // Les succès de ligue sont dissociés par région
+    if (isLeague && region === 'kanto') unlock('champion_kanto');
+    if (isLeague && region === 'johto') unlock('ligue_johto');
 
     // Déblocage des difficultés
     if (isLeague) {
@@ -370,8 +430,22 @@ export const SaveManager = {
     // les rencontres/captures de la run comptent immédiatement (pas seulement en fin de run).
     const seenAll = new Set([...(meta.seenPokemon ?? []), ...(runState?.seenPokemon ?? [])]);
     const seen = seenAll.size;
-    if (seen >= 50)  unlock('curieux');
-    if (seen >= 151) unlock('encyclopedie');
+    // Collection : comptée PAR GÉNÉRATION. Les succès de Kanto restent basés
+    // sur les 151 d'origine, ceux de Johto sur les 100 de la gen 2.
+    const seenList   = meta.seenPokemon   ?? [];
+    const caughtList = meta.caughtPokemon ?? [];
+    const inGen = (list, a, b) => list.filter(id => id >= a && id <= b).length;
+    const seenK   = inGen(seenList,   1, 151);
+    const seenJ   = inGen(seenList, 152, 251);
+    const caughtK = inGen(caughtList,   1, 151);
+    const caughtJ = inGen(caughtList, 152, 251);
+
+    if (seenK >= 50)   unlock('curieux');
+    if (seenK >= 151)  unlock('encyclopedie');
+    if (seenJ >= 50)   unlock('curieux_johto');
+    if (seenJ >= 100)  unlock('encyclopedie_johto');
+    if (caughtK >= 151) unlock('dresseur_kanto');
+    if (caughtJ >= 100) unlock('dresseur_johto');
 
     // Vrais légendaires : Artikodin(144), Électhor(145), Sulfura(146), Mewtwo(150), Mew(151)
     const caughtAll = new Set([...(meta.caughtPokemon ?? []), ...(runState?.caughtPokemon ?? [])]);

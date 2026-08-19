@@ -5,6 +5,7 @@
 import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES, generateEnemyTeam } from '../data/trainers.js';
 import { getArenaForMap, generateArenaTeam,
          generateLeagueTeam, generateLeagueMaster } from '../data/arenas.js';
+import { DEFAULT_REGION, getAllowedGens } from '../data/regions.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRNG déterministe — Mulberry32 (rapide, bonne distribution)
@@ -33,7 +34,12 @@ export const NODE_TYPES = {
   SHOP:   'shop',
   ITEM:   'item',
   RANDOM: 'random',
-  BOSS:   'boss',
+  CASINO:   'casino',
+  TRAINING: 'training',
+  DUEL:     'duel',
+  MARKET:    'market',
+  SANCTUARY: 'sanctuary',
+  BOSS:     'boss',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,9 +73,14 @@ function maxUnitsForStep(mapIndex, col, totalCols) {
 
 function nodeTypeFromRNG(rng) {
   const r = rng();
-  if (r < 0.60) return NODE_TYPES.COMBAT;
-  if (r < 0.78) return NODE_TYPES.SHOP;
-  if (r < 0.92) return NODE_TYPES.ITEM;
+  if (r < 0.50) return NODE_TYPES.COMBAT;
+  if (r < 0.64) return NODE_TYPES.SHOP;
+  if (r < 0.75) return NODE_TYPES.ITEM;
+  if (r < 0.80) return NODE_TYPES.CASINO;
+  if (r < 0.85) return NODE_TYPES.TRAINING;
+  if (r < 0.90) return NODE_TYPES.DUEL;
+  if (r < 0.92) return NODE_TYPES.MARKET;
+  if (r < 0.96) return NODE_TYPES.SANCTUARY;
   return NODE_TYPES.RANDOM;
 }
 
@@ -155,6 +166,9 @@ export class MapGenerator {
         }
 
         const difficulty = window.SaveManager?.getDifficulty?.() ?? 'normal';
+        // La gen 2 n'entre dans les pools de dresseurs qu'une fois débloquée
+        const _meta      = window.SaveManager?.loadMeta?.() ?? {};
+        const gen2Allowed = getAllowedGens(_meta.region ?? DEFAULT_REGION, _meta).includes(2);
         const budget    = budgetForStep(mapIndex, col, this.cols, difficulty);
         const maxUnits  = maxUnitsForStep(mapIndex, col, this.cols);
         // Filtre les archétypes selon minMap par difficulté
@@ -174,24 +188,33 @@ export class MapGenerator {
             name:        archetype.name,
             color:       archetype.color,
             archetypeId: archetype.id,
-            units:       generateEnemyTeam(archetype, budget, maxUnits, mapIndex, rng),
+            units:       generateEnemyTeam(archetype, budget, maxUnits, mapIndex, rng,
+                                           gen2Allowed),
           };
         } else if (isBoss) {
-          const arenaData    = getArenaForMap(mapIndex);
+          // Région et méta courantes : conditionnent les champions affrontés ET
+          // les générations de Pokémon autorisées dans leurs équipes.
+          const meta         = window.SaveManager?.loadMeta?.() ?? {};
+          const regionId     = meta.region ?? DEFAULT_REGION;
+          const arenaData    = getArenaForMap(mapIndex, regionId);
           const bossMaxUnits = maxUnitsForStep(mapIndex, col, this.cols);
           const bossBudget   = budgetForStep(mapIndex, col, this.cols, difficulty);
 
           let bossTeam, bossName, bossSprite = null, bossColor = 0xffd700;
           if (mapIndex >= 8) {
             // Map 8+ = Ligue Pokémon → MAÎTRE : archétype aléatoire en version Maître
-            const master = generateLeagueMaster(mapIndex, difficulty, rng);
+            // Même budget que les champions (DIFF_BUDGETS) : le maître se
+            // distingue par MASTER_MULT, pas par un budget qui ignore la difficulté.
+            const master = generateLeagueMaster(mapIndex, difficulty, rng, regionId, meta,
+                                                bossBudget);
             bossTeam   = master.team;
             bossName   = master.name;
             bossSprite = master.spriteCombat;
             bossColor  = master.color;
           } else {
             bossTeam = arenaData
-              ? generateArenaTeam(arenaData, mapIndex, bossBudget, bossMaxUnits, rng)
+              ? generateArenaTeam(arenaData, mapIndex, bossBudget, bossMaxUnits, rng,
+                                  regionId, meta)
               : [];
             bossName = arenaData ? `Champion ${arenaData.champion}` : 'Champion';
           }

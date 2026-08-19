@@ -69,6 +69,25 @@ export const PassiveEngine = {
         break;
       }
 
+      case 'weather_setter': {
+        // Pose la météo au début du combat, puis la REPOSE périodiquement tant
+        // que l'unité est en vie (voir CombatEngine._repostWeather).
+        unit._weatherSetter = action.weather;
+        this._setWeather?.(action.weather, action.turns ?? undefined, unit);
+        break;
+      }
+
+      case 'weather_boost': {
+        // Bonus CONDITIONNEL à la météo, réévalué à chaque lecture de stat
+        // (contrairement à stat_boost, qui mute la valeur une fois pour toutes).
+        unit._weatherBoost = {
+          weather: action.weather,
+          stats:   action.stats ?? [action.stat].filter(Boolean),
+          mult:    action.mult ?? 1.25,
+        };
+        break;
+      }
+
       case 'intimidate': {
         // Débuff permanent ennemis via tempMod (visible dans l'overlay)
         enemies.forEach(en => {
@@ -114,7 +133,21 @@ export const PassiveEngine = {
       }
 
       case 'shield': {
-        unit.armorShield = true;
+        if (action.rate) {
+          // Bouclier à POINTS, cumulatif. `fromStat` permet de le calculer sur
+          // une autre statistique que les PV (voir Caratroc).
+          const base = action.fromStat
+            ? (this._getStat?.(unit, action.fromStat) ?? unit[action.fromStat] ?? 0)
+            : unit.maxHp;
+          const pts  = Math.max(1, Math.round(base * action.rate));
+          unit.shield    = (unit.shield ?? 0) + pts;
+          unit.maxShield = Math.max(unit.maxShield ?? 0, unit.shield);
+          this.log?.push({ type:'pre_combat', effect:'shield',
+            label:`🛡 ${passive.name}`, targetId:unit.uid, targetSide:unit.side,
+            shieldLeft:unit.shield, maxShield:unit.maxShield });
+        } else {
+          unit.armorShield = true;   // bouclier historique : bloque un coup
+        }
         break;
       }
 
@@ -488,7 +521,25 @@ export const PassiveEngine = {
         break;
       }
 
+      case 'interval_dot': {
+        // Pose un saignement à cadence libre, résolu par le moteur à chaque
+        // action (voir CombatEngine._tickIntervalDots).
+        unit._intervalDot = {
+          rate:  action.rate  ?? 0.02,
+          every: action.every ?? 10,
+          name:  passive.name,
+        };
+        break;
+      }
+
       case 'dot_enemies': {
+        // `every` espace les déclenchements : le hook périodique tourne toutes
+        // les 8 actions, donc `every: 10` revient à une salve tous les 10 tours.
+        if (action.every && action.every > 1) {
+          const k = `_dot_${passive.id}`;
+          unit[k] = (unit[k] ?? 0) + 1;
+          if (unit[k] % action.every !== 0) break;
+        }
         enemies.filter(en => en.hp > 0).forEach(en => {
           const dmg = Math.max(1, Math.ceil(en.maxHp * action.rate));
           en.hp = Math.max(0, en.hp - dmg);
