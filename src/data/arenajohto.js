@@ -43,7 +43,7 @@ export const ARENAS_JOHTO = [
     championSprite:       'assets/trainers/map/champions/johto/jasmine.png',
     championSpriteCombat: 'assets/trainers/combat/champions/johto/jasmine_c.png' },
 
-  { id: 7, city: 'Acajou',         champion: 'Frédo',     type: 'Glace',
+  { id: 7, city: 'Mayolia',        champion: 'Frédo',     type: 'Glace',
     badgeName: 'Badge Glacier',     badgeEmoji: '❄️',
     badgeSprite:          'assets/badges/johto/fredo_b.png',
     championSprite:       'assets/trainers/map/champions/johto/fredo.png',

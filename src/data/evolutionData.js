@@ -65,7 +65,7 @@ export const EVOLUTION_CHAIN = {
   109: 110,  // Smogo → Smogogo
   111: 112,  // Rhinocorne → Rhinoféros
   116: 117,  // Hypotrempe → Hypocéan
-  118: 119,  // Poisson-Rouge → Poissoroy
+  118: 119,  // Poissirène → Poissoroy
   120: 121,  // Stari → Staross
   129: 130,  // Magicarpe → Léviator
   133: 134,  // Évoli → Aquali  (par défaut Eau, à tuner)
@@ -75,6 +75,8 @@ export const EVOLUTION_CHAIN = {
   148: 149,  // Draco → Dracolosse
 
   // ── Génération 2 ────────────────────────────────────────────────────────
+  42:  169,
+  113: 242,
   152: 153,
   153: 154,
   155: 156,
@@ -85,6 +87,7 @@ export const EVOLUTION_CHAIN = {
   163: 164,
   165: 166,
   167: 168,
+  170: 171,
   172: 25,
   173: 35,
   174: 39,

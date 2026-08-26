@@ -5,7 +5,8 @@
 import { MapGenerator, NODE_TYPES } from './MapGenerator.js';
 import { getRunState }              from '../data/runState.js';
 import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES } from '../data/trainers.js';
-import { getArenaForMap, ARENAS }   from '../data/arenas.js';
+import { getArenaForMap, getDestinationName } from '../data/arenas.js';
+import { DEFAULT_REGION }           from '../data/regions.js';
 
 // ── Dimensions ───────────────────────────────────────────────────────────────
 const SPRITE_SIZE = 72;   // taille d'affichage des sprites de nœuds
@@ -73,17 +74,21 @@ export class MapScene extends Phaser.Scene {
         this.load.image(key, a.spriteMap);
     });
 
-    const arena = getArenaForMap(this.mapIndex);
+    // La clé de texture DOIT inclure la région : sans cela, Phaser réutilise
+    // le sprite déjà mis en cache pour le même index de map (Pierre s'affichait
+    // à la place d'Albert au premier nœud de Johto).
+    const regionId = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+    const arena = getArenaForMap(this.mapIndex, regionId);
     if (arena?.championSprite) {
-      const key = `champion_map_${this.mapIndex}`;
+      const key = `champion_map_${regionId}_${this.mapIndex}`;
       if (!this.textures.exists(key))
         this.load.image(key, arena.championSprite);
     }
 
     if (this.startNode?.prevArena) {
       const prev     = this.startNode.prevArena;
-      const champKey = `champion_map_${prev.id - 1}`;
-      const badgeKey = `badge_${prev.id}`;
+      const champKey = `champion_map_${regionId}_${prev.id - 1}`;
+      const badgeKey = `badge_${regionId}_${prev.id}`;
       if (prev.championSprite && !this.textures.exists(champKey))
         this.load.image(champKey, prev.championSprite);
       if (prev.badgeSprite && !this.textures.exists(badgeKey))
@@ -101,8 +106,8 @@ export class MapScene extends Phaser.Scene {
       .setOrigin(0).setDepth(-10).setScrollFactor(0);
 
     // Titre — "En Route vers [ville du prochain badge]", centré, scroll-fixe
-    const destArena  = ARENAS[this.mapIndex] ?? null;
-    const destCity   = destArena?.city ?? `Route ${this.mapIndex + 1}`;
+    const rid        = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+    const destCity   = getDestinationName(this.mapIndex, rid);
     const titleText  = `En Route vers ${destCity}`;
 
     this.add.text(W / 2, 10, titleText, {
@@ -329,9 +334,10 @@ export class MapScene extends Phaser.Scene {
       }
     }
 
-    // Sprite champion (boss)
+    // Sprite champion (boss) — clé préfixée par la région (voir preload)
     if (isBoss) {
-      const key = `champion_map_${this.mapIndex}`;
+      const rid = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+      const key = `champion_map_${rid}_${this.mapIndex}`;
       if (this.textures.exists(key)) {
         const img = this.add.image(x, y, key)
           .setDisplaySize(size, size).setDepth(4).setAlpha(alpha);
@@ -343,8 +349,9 @@ export class MapScene extends Phaser.Scene {
     // Nœud de départ avec champion précédent
     if (isStart && node.prevArena) {
       const prev     = node.prevArena;
-      const champKey = `champion_map_${prev.id - 1}`;
-      const badgeKey = `badge_${prev.id}`;
+      const rid      = window.SaveManager?.loadMeta?.()?.region ?? DEFAULT_REGION;
+      const champKey = `champion_map_${rid}_${prev.id - 1}`;
+      const badgeKey = `badge_${rid}_${prev.id}`;
       let mainObj    = null;
 
       if (this.textures.exists(champKey)) {
