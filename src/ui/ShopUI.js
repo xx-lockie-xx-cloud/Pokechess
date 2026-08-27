@@ -1,3 +1,5 @@
+import { rollRarity, RARITY_META } from '../data/rarity.js';
+import { getLuck } from '../data/luck.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // ShopUI.js — Boutique (sans pokéballs, achat direct en pièces dans WildUI)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,7 +33,7 @@ export const ShopUI = {
     const optional  = pickEquippableItems(slots, state?.playerBank ?? [],
                                           { exclude: mandatory })
                         .map(i => i.id);
-    return [...mandatory, ...optional];
+    return [...mandatory, ...optional].map(id => ({ id, rarity: rollRarity(getLuck()) }));
   },
 
   _render() {
@@ -41,25 +43,27 @@ export const ShopUI = {
     if (!container) return;
     container.innerHTML = '';
 
-    this._catalog.forEach(itemId => {
-      const item = ITEMS[itemId];
+    this._catalog.forEach(entry => {
+      const item = ITEMS[entry.id];
       if (!item) return;
+      const rarity = entry.rarity ?? 'normal';
 
       const canAfford = coins >= item.price;
       const card = document.createElement('div');
-      card.className = `poke-card ${canAfford ? '' : 'disabled'}`;
-      card.dataset.itemId = itemId;
+      card.className = `poke-card ${canAfford ? '' : 'disabled'}${rarity !== 'normal' ? ' rarity-' + rarity : ''}`;
+      card.dataset.itemId = entry.id;
 
       card.innerHTML = `
         <span style="font-size:32px;margin-bottom:4px">${item.emoji}</span>
         <span class="card-name">${item.name}</span>
+        ${rarity !== 'normal' ? `<span class="card-rarity" style="color:${RARITY_META[rarity].color}">${RARITY_META[rarity].label}</span>` : ''}
         <span class="card-types" style="text-align:center;font-size:9px;
               color:var(--text-muted);padding:0 4px">${item.description}</span>
         <span class="card-price">${item.price} 💰</span>
       `;
 
       if (canAfford) {
-        card.addEventListener('click', () => this._buy(item));
+        card.addEventListener('click', () => this._buy(entry));
       }
 
       container.appendChild(card);
@@ -69,7 +73,9 @@ export const ShopUI = {
     if (info) info.textContent = `💰 ${coins} disponibles`;
   },
 
-  async _buy(item) {
+  async _buy(entry) {
+    const item  = ITEMS[entry.id];
+    if (!item) return;
     const state = getRunState(this._registry);
     if ((state.coins ?? 0) < item.price) return;
 
@@ -85,7 +91,9 @@ export const ShopUI = {
     if (!ok) return;
 
     removeCoins(this._registry, item.price);
-    addToInventory(this._registry, item.id);
+    addToInventory(this._registry, { id: entry.id, rarity: entry.rarity });
+    // L'objet acheté n'est plus proposé (slot consommé)
+    this._catalog = this._catalog.filter(e => e !== entry);
     // Succès immédiats liés à l'inventaire (ex. Collectionneur : 5 objets différents)
     window.UIManager?.notifyAchievements?.(this._registry);
 

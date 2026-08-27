@@ -26,6 +26,7 @@ import { CombatUI }       from './CombatUI.js';
 import { ArenaVictoryUI } from './ArenaVictoryUI.js';
 import { TutorialUI }      from './TutorialUI.js';
 import { TalentTreeUI }      from './TalentTreeUI.js';
+import { RuneAssignUI }      from './RuneAssignUI.js';
 import { AchievementsUI }      from './AchievementsUI.js';
 import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
@@ -113,6 +114,7 @@ class UIManagerClass {
     RelicUI.init();
     RelicsLibraryUI.init();
     document.getElementById('btn-talent-tree')?.addEventListener('click', () => TalentTreeUI.open());
+    document.getElementById('btn-runes')?.addEventListener('click', () => RuneAssignUI.open());
     document.getElementById('btn-achievements')?.addEventListener('click', () => AchievementsUI.open());
     document.getElementById('btn-stats')?.addEventListener('click', () => this._showStats());
     document.getElementById('btn-relics-library')?.addEventListener('click', () => RelicsLibraryUI.open());

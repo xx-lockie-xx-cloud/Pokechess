@@ -1,3 +1,4 @@
+import { scaleItemByRarity } from './rarity.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // items.js — Catalogue des objets achetables et équipables
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14,7 +15,12 @@
 export function resolveHeldItem(heldItem) {
   if (!heldItem) return null;
   const id = typeof heldItem === 'string' ? heldItem : heldItem.id;
-  return ITEMS[id] ?? heldItem;
+  const def = ITEMS[id];
+  if (!def) return heldItem;
+  // La rareté est portée par l'instance equipee ({ id, rarity }). Absente
+  // (ancienne save, id en chaine) : on retombe sur 'normal', def inchangee.
+  const rarity = (typeof heldItem === 'object' && heldItem.rarity) ? heldItem.rarity : 'normal';
+  return scaleItemByRarity(def, rarity);
 }
 
 export function getEffectiveStats(unit, meta = null) {
@@ -165,32 +171,37 @@ export const ITEMS = {
   roche_chaude: {
     id: 'roche_chaude', name: 'Roche Chaude', emoji: '☀️', price: 6,
     type: 'equippable',
-    description: 'Déclenche Zénith au début du combat (10 tours).',
+    description: 'Déclenche Zénith au début du combat (20 tours de base).',
     setsWeather: 'sun',
+    weatherTurns: 20,
   },
   roche_humide: {
     id: 'roche_humide', name: 'Roche Humide', emoji: '💧', price: 6,
     type: 'equippable',
-    description: 'Déclenche Pluie au début du combat (10 tours).',
+    description: 'Déclenche Pluie au début du combat (20 tours de base).',
     setsWeather: 'rain',
+    weatherTurns: 20,
   },
   roche_lisse: {
     id: 'roche_lisse', name: 'Roche Lisse', emoji: '🌪️', price: 6,
     type: 'equippable',
-    description: 'Déclenche Tempête de sable au début du combat (10 tours).',
+    description: 'Déclenche Tempête de sable au début du combat (20 tours de base).',
     setsWeather: 'sandstorm',
+    weatherTurns: 20,
   },
   roche_glace: {
     id: 'roche_glace', name: 'Roche Glace', emoji: '🧊', price: 6,
     type: 'equippable',
-    description: 'Déclenche Grêle au début du combat (10 tours).',
+    description: 'Déclenche Grêle au début du combat (20 tours de base).',
     setsWeather: 'hail',
+    weatherTurns: 20,
   },
   roche_obscure: {
     id: 'roche_obscure', name: 'Roche Obscure', emoji: '🌑', price: 6,
     type: 'equippable',
-    description: 'Déclenche Nuit Noire au début du combat (10 tours).',
+    description: 'Déclenche Nuit Noire au début du combat (20 tours de base).',
     setsWeather: 'darkness',
+    weatherTurns: 20,
   },
 
   // ── Objets typés complémentaires (uniformisation des 18 types) ──────────

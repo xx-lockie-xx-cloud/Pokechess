@@ -89,23 +89,37 @@ export function tryUnlockSlot(registry, arenaNumber) {
 // ── PokéBalls supprimées — achat direct en pièces (voir WildUI) ───────────
 
 // ── Inventaire ─────────────────────────────────────────────────────────────
-export function addToInventory(registry, itemId) {
+// Une entree d'inventaire est une instance { id, rarity }. Les anciennes
+// sauvegardes peuvent contenir des ids en chaine : normalises en normal.
+function _normalizeEntry(entry) {
+  if (typeof entry === 'string') return { id: entry, rarity: 'normal' };
+  return { id: entry.id, rarity: entry.rarity ?? 'normal' };
+}
+export function addToInventory(registry, entry) {
   const state = getRunState(registry);
   const inv   = [...(state.inventory ?? [])];
-  inv.push(itemId);
+  inv.push(_normalizeEntry(entry));
   setRunState(registry, { inventory: inv });
 }
-export function removeFromInventory(registry, itemId) {
-  const state = getRunState(registry);
-  const inv   = [...(state.inventory ?? [])];
-  const idx   = inv.indexOf(itemId);
+// Retire UNE copie correspondant a l'id (et a la rarete si precisee).
+export function removeFromInventory(registry, id, rarity = null) {
+  const state  = getRunState(registry);
+  const inv    = [...(state.inventory ?? [])];
+  const wantId = typeof id === 'string' ? id : id?.id;
+  const idx = inv.findIndex(e => {
+    const ei = typeof e === 'string' ? e : e.id;
+    if (ei !== wantId) return false;
+    if (rarity == null) return true;
+    const er = typeof e === 'string' ? 'normal' : (e.rarity ?? 'normal');
+    return er === rarity;
+  });
   if (idx === -1) return false;
   inv.splice(idx, 1);
   setRunState(registry, { inventory: inv });
   return true;
 }
 export function getInventory(registry) {
-  return getRunState(registry).inventory ?? [];
+  return (getRunState(registry).inventory ?? []).map(_normalizeEntry);
 }
 
 // ── Coins ──────────────────────────────────────────────────────────────────

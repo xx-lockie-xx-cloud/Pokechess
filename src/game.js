@@ -7,6 +7,7 @@ console.log('[game.js] module chargé');
 
 import { UIManager }   from './ui/UIManager.js';
 import { SaveManager } from './SaveManager.js';
+import { RuneManager } from './combat/RuneManager.js';
 
 window.UIManager   = UIManager;
 window.SaveManager = SaveManager;
@@ -15,6 +16,27 @@ window.SaveManager = SaveManager;
 //   window.previewLeagueVictory()            → écran normal (difficulté courante)
 //   window.previewLeagueVictory('expert')    → force l'écran d'honneur Expert
 //   window.previewLeagueVictory('expert', true) → rejoue l'écran Expert (reset du flag)
+// Debug runes : window.giveRune('vampire', 'legendaire', 0)
+// Octroie une rune au pool et l'assigne au i-ieme pokemon de terrain.
+window.giveRune = (type = null, rarity = 'legendaire', idx = 0) => {
+  const registry = window.__registry;
+  if (!registry) { console.warn('Lance le jeu d\'abord.'); return; }
+  const diffByRarity = { normal:'easy', rare:'normal', epique:'hard', legendaire:'expert' };
+  const rune  = RuneManager.grantRune(diffByRarity[rarity] ?? 'expert', type);
+  const units = (registry.get('playerUnits') ?? []).filter(Boolean);
+  const u = units[idx];
+  if (!u) { console.warn('Aucun pokemon de terrain a l\'index', idx); return; }
+  RuneManager.assign(u.id, rune.uid);
+  console.info(`[rune] ${rune.type} (${rune.rarity}) assignee a ${u.name ?? u.id}`);
+  return rune;
+};
+
+// Debug chance : window.setLuck(5)
+window.setLuck = (n = 0) => {
+  const m = SaveManager.loadMeta(); m.luck = Math.max(0, +n || 0); SaveManager.saveMeta(m);
+  console.info('[luck] chance =', m.luck); return m.luck;
+};
+
 window.previewLeagueVictory = (difficulty = null, replay = true) => {
   const registry = window.__registry;
   if (!registry) { console.warn('Registre indisponible — lance le jeu d\'abord.'); return; }

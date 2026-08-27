@@ -238,7 +238,7 @@ export const PrepUI = {
 
       // Objet équipé
       const itemHtml = unit.heldItem
-        ? `<span class="slot-item">${unit.heldItem.emoji}</span>` : '';
+        ? `<span class="slot-item rarity-${unit.heldItem.rarity ?? 'normal'}">${unit.heldItem.emoji}</span>` : '';
 
       const meta      = window.SaveManager?.loadMeta() ?? null;
       const unitLevel = meta?.pokemonLevels?.[unit.id] ?? 1;
@@ -558,12 +558,12 @@ export const PrepUI = {
     if (!unit) return;
 
     // Remet l'ancien objet dans l'inventaire
-    if (unit.heldItem) addToInventory(this._registry, unit.heldItem.id);
+    if (unit.heldItem) addToInventory(this._registry, { id: unit.heldItem.id, rarity: unit.heldItem.rarity ?? 'normal' });
 
     // Retire le nouvel objet de l'inventaire
-    removeFromInventory(this._registry, item.id);
+    removeFromInventory(this._registry, item.id, item.rarity ?? 'normal');
 
-    const updated = { ...unit, heldItem: item };
+    const updated = { ...unit, heldItem: { ...ITEMS[item.id], rarity: item.rarity ?? 'normal' } };
     if (source === 'field') this._field[col][row] = updated;
     else this._bank[idx] = updated;
 
@@ -581,7 +581,7 @@ export const PrepUI = {
     const price = this._sellPrice(pokemon);
 
     // Remet l'objet équipé dans l'inventaire
-    if (pokemon.heldItem) addToInventory(this._registry, pokemon.heldItem.id);
+    if (pokemon.heldItem) addToInventory(this._registry, { id: pokemon.heldItem.id, rarity: pokemon.heldItem.rarity ?? 'normal' });
 
     if (source === 'field') this._field[col][row] = null;
     else this._bank[idx] = null;
@@ -599,7 +599,7 @@ export const PrepUI = {
     const { pokemon, source, col, row, idx } = this._selectedCard;
     if (!pokemon.heldItem) return;
 
-    addToInventory(this._registry, pokemon.heldItem.id);
+    addToInventory(this._registry, { id: pokemon.heldItem.id, rarity: pokemon.heldItem.rarity ?? 'normal' });
     const updated = { ...pokemon, heldItem: null };
 
     if (source === 'field') {
@@ -776,13 +776,14 @@ export const PrepUI = {
       return;
     }
 
-    inv.forEach((itemId, i) => {
-      const item = ITEMS[itemId];
+    inv.forEach((entry, i) => {
+      const item   = ITEMS[entry.id];
       if (!item) return;
+      const rarity = entry.rarity ?? 'normal';
 
       const slot = document.createElement('div');
-      slot.className = `inventory-slot${this._selectedItem?._invIdx === i ? ' selected' : ''}`;
-      slot.title     = `${item.name} : ${item.description}`;
+      slot.className = `inventory-slot rarity-${rarity}${this._selectedItem?._invIdx === i ? ' selected' : ''}`;
+      slot.title     = `${item.name} (${rarity}) : ${item.description}`;
       slot.textContent = item.emoji;
       slot.draggable   = true;   // ← draggable
 
@@ -791,7 +792,7 @@ export const PrepUI = {
         if (this._selectedItem?._invIdx === i) {
           this._selectedItem = null;
         } else {
-          this._selectedItem = { ...item, _invIdx: i };
+          this._selectedItem = { ...item, id: entry.id, rarity, _invIdx: i };
           this._selectedCard = null;
         }
         this._renderAll();
@@ -800,7 +801,7 @@ export const PrepUI = {
       // Drag start → mémorise l'objet draggé
       slot.addEventListener('dragstart', (e) => {
         e.dataTransfer.effectAllowed = 'move';
-        this._draggedItem = { ...item, _invIdx: i };
+        this._draggedItem = { ...item, id: entry.id, rarity, _invIdx: i };
       });
 
       slot.addEventListener('dragend', () => {
@@ -1352,7 +1353,7 @@ export const PrepUI = {
             replaced = true;
           } else {
             // Remet l'objet du 2e exemplaire dans l'inventaire
-            if (u.heldItem) addToInventory(this._registry, u.heldItem.id);
+            if (u.heldItem) addToInventory(this._registry, { id: u.heldItem.id, rarity: u.heldItem.rarity ?? 'normal' });
             this._field[c][r] = null;
           }
         }

@@ -114,6 +114,12 @@ export const EVOLUTION_CHAIN = {
   240: 126,
   246: 247,
   247: 248,
+
+  // Evolutions Gen 2 inter-generationnelles (ajouts)
+  117: 230,  // Hypocean -> Hyporoi
+  95:  208,  // Onix -> Steelix
+  123: 212,  // Insecateur -> Cizayox
+  137: 233,  // Porygon -> Porygon2
 };
 
 // Vérifie si un pokémon peut évoluer

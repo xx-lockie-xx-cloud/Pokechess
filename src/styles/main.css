@@ -5444,3 +5444,152 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   font-weight: 800;
   text-shadow: 0 0 5px rgba(108,196,255,0.45);
 }
+/* ── Rareté des objets : liseré + halo + pips (indice non-coloré) ──────────── */
+/* Palette alignée sur les variables du jeu : bleu / mauve / or.                */
+.rarity-rare,
+.rarity-epique,
+.rarity-legendaire { position: relative; }
+
+.rarity-rare       { outline: 2px solid var(--color-blue);   outline-offset: -2px; }
+.rarity-epique     { outline: 2px solid var(--color-purple); outline-offset: -2px;
+                     box-shadow: 0 0 6px rgba(155,89,182,0.50); }
+.rarity-legendaire { outline: 2px solid var(--color-gold);   outline-offset: -2px;
+                     box-shadow: 0 0 8px rgba(255,215,0,0.55); }
+
+/* Pips : rappel non-coloré du palier (lisible sans distinguer la couleur). */
+.inventory-slot.rarity-rare::after,
+.inventory-slot.rarity-epique::after,
+.inventory-slot.rarity-legendaire::after {
+  position: absolute; right: 2px; bottom: 1px;
+  line-height: 1; font-size: 7px; letter-spacing: -1px;
+  pointer-events: none; text-shadow: 0 0 2px rgba(0,0,0,0.7);
+}
+.inventory-slot.rarity-rare::after       { content: '\2022\2022';           color: var(--color-blue);   }
+.inventory-slot.rarity-epique::after     { content: '\2022\2022\2022';      color: var(--color-purple); }
+.inventory-slot.rarity-legendaire::after { content: '\2022\2022\2022\2022'; color: var(--color-gold);   }
+
+/* Eclat anime du legendaire, neutralise si l'utilisateur reduit les animations. */
+@media (prefers-reduced-motion: no-preference) {
+  .rarity-legendaire { animation: rarity-glow 1.9s ease-in-out infinite; }
+  @keyframes rarity-glow {
+    0%, 100% { box-shadow: 0 0 6px  rgba(255,215,0,0.45); }
+    50%      { box-shadow: 0 0 13px rgba(255,215,0,0.85); }
+  }
+}
+
+/* Libelle de rarete sur les cartes d'offre (shop, noeud objet) : couleur inline
+   depuis RARITY_META, texte lui-meme non-colore comme indice redondant. */
+.card-rarity {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 1px 0 2px;
+  text-shadow: 0 0 4px rgba(0,0,0,0.35);
+}
+
+/* Objet équipé : le badge de rareté doit être un petit carré arrondi (comme le
+   sac), pas un rectangle qui épouse l'emoji. On lui donne une taille fixe, un
+   fond de panneau et le même rayon que les slots d'inventaire. */
+.slot .slot-item.rarity-rare,
+.slot .slot-item.rarity-epique,
+.slot .slot-item.rarity-legendaire {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  font-size: 13px;
+}
+
+/* ── Révélation de rune obtenue (overlay, calqué sur la modale confirm) ────── */
+.rune-reveal-box { text-align: center; min-width: 260px; }
+.rune-reveal-head {
+  font-size: 13px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;
+}
+.rune-reveal-icon {
+  width: 72px; height: 72px; margin: 4px auto 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; border-radius: var(--radius-sm); background: var(--bg-panel);
+}
+.rune-reveal-name { font-size: 20px; font-weight: 800; margin-bottom: 2px; }
+.rune-reveal-rarity {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.05em;
+  text-transform: uppercase; margin-bottom: 6px;
+}
+.rune-reveal-trigger {
+  display: inline-block; font-size: 10px; font-weight: 700; color: var(--text-muted);
+  border: 1px solid var(--border-default); border-radius: 999px;
+  padding: 2px 10px; margin-bottom: 10px;
+}
+.rune-reveal-effect { font-size: 13px; margin-bottom: 14px; line-height: 1.4; }
+
+/* ── UI d'attribution des runes (overlay plein écran) ─────────────────────── */
+.rune-assign-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.62); backdrop-filter: blur(2px);
+}
+.rune-assign-overlay.hidden { display: none; }
+.rune-assign-panel {
+  width: min(560px, 94vw); max-height: 88vh;
+  display: flex; flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.rune-assign-topbar {
+  display: grid; grid-template-columns: 32px 1fr 32px; align-items: center;
+  padding: 10px 12px; border-bottom: 1px solid var(--border-default);
+}
+.rune-assign-title { text-align: center; font-weight: 800; font-size: 16px; }
+.rune-assign-back  { font-size: 22px; line-height: 1; padding: 0; }
+.rune-assign-body  { padding: 12px; overflow-y: auto; }
+.rune-assign-empty { text-align: center; color: var(--text-muted); padding: 32px 12px; line-height: 1.6; }
+
+.rune-pool-list { display: flex; flex-direction: column; gap: 10px; }
+.rune-card {
+  display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: center;
+  padding: 10px; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-default); border-radius: var(--radius-md);
+}
+.rune-card-icon {
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  font-size: 24px; border-radius: var(--radius-sm); background: var(--bg-panel);
+}
+.rune-card-name    { font-weight: 800; font-size: 14px; }
+.rune-card-rarity  { font-size: 10px; font-weight: 800; text-transform: uppercase; margin-left: 6px; }
+.rune-card-trigger { font-size: 10px; color: var(--text-muted); }
+.rune-card-effect  { font-size: 12px; margin-top: 2px; }
+.rune-card-holder  { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.rune-card-actions { display: flex; flex-direction: column; gap: 6px; }
+.rune-card-actions button { font-size: 12px; padding: 5px 10px; white-space: nowrap; }
+
+.rune-search {
+  width: 100%; box-sizing: border-box; margin-bottom: 12px;
+  padding: 9px 12px; font-size: 14px;
+  background: var(--bg-panel); color: inherit;
+  border: 1px solid var(--border-default); border-radius: var(--radius-sm);
+}
+.rune-search:focus { outline: none; border-color: var(--color-blue); }
+.rune-pick-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px;
+}
+.rune-pick-cell {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 4px; cursor: pointer;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-default); border-radius: var(--radius-md);
+  transition: all var(--transition, 0.15s);
+}
+.rune-pick-cell:hover { border-color: var(--color-blue); transform: translateY(-2px); }
+.rune-pick-cell img   { width: 48px; height: 48px; object-fit: contain; }
+.rune-pick-name       { font-size: 10px; text-align: center; line-height: 1.1; }
+.rune-pick-worn {
+  position: absolute; top: 3px; right: 3px; font-size: 12px;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.8));
+}

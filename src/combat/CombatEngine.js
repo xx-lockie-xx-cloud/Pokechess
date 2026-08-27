@@ -84,6 +84,8 @@ export class CombatEngine {
       armorShield: false,
       // Bouclier à POINTS (bénédictions, capacités) : absorbe avant les PV
       shield: 0, maxShield: 0,
+      // Rune assignée (résolue + scalée par RuneManager en amont), ou null
+      _rune: unit.rune ?? null,
       // Drapeaux des bénédictions du Sanctuaire, lus au setup
       _blessFlags: unit._blessFlags ?? null,
       // Intouchable (Tunnel, Téléport)
@@ -119,7 +121,7 @@ export class CombatEngine {
     const existing = unit.statusEffects.find(s => s.type === type);
     // Poison et Brûlure : stackables
     if ((type === 'poison' || type === 'burn') && existing) {
-      const maxStacks = type === 'poison' ? 5 : 3;
+      const maxStacks = type === 'poison' ? 10 : 5;   // poison 10, brûlure 5
       existing.stacks = Math.min((existing.stacks ?? 1) + 1, maxStacks);
       const icon = type === 'poison' ? '☠️' : '🔥';
       const name = type === 'poison' ? 'Poison' : 'Brûlure';
@@ -211,7 +213,7 @@ export class CombatEngine {
     // Si plusieurs sont présentes, la dernière lue l'emporte (une seule météo).
     [...this.playerUnits, ...this.enemyUnits].forEach(u => {
       const w = u.heldItem?.setsWeather;
-      if (w) this._setWeather(w, WEATHER_TURNS, u);
+      if (w) this._setWeather(w, u.heldItem.weatherTurns ?? WEATHER_TURNS, u);
     });
 
     this.initialMaxHp = {};
@@ -616,6 +618,7 @@ export class CombatEngine {
   // Action d'une unité
   // ─────────────────────────────────────────────────────────────────────────
   _takeTurn(unit) {
+    this._runeReplayed = false;   // reset anti-chaîne du rejeu (rune Violent)
     // ── Passifs ON_ACTION ────────────────────────────────────────────────────
     const allies_  = unit.side === 'player' ? this.playerUnits : this.enemyUnits;
     const enemies_ = unit.side === 'player' ? this.enemyUnits  : this.playerUnits;
@@ -786,6 +789,7 @@ export class CombatEngine {
   _performNormalAttack(attacker, targets, isSwarm = false) {
     const sideFx       = this._fx(attacker.side);
     const aoeReduction = aoeMult(targets.length);
+    let _dealtTotal = 0;
 
     targets.forEach(({ unit: target, mult }) => {
       if (target.hp <= 0) return;
@@ -820,11 +824,122 @@ export class CombatEngine {
       if (sideFx.has('rage') && attacker.types.includes('Dragon') && rageCount > 0)
         dmg = Math.round(dmg * (1 + rageCount * 0.10));
 
+      const _hpBefore = target.hp;
       this._dealDamage(attacker, target, dmg, mult, isSwarm);
+      _dealtTotal += Math.max(0, _hpBefore - target.hp);
     });
     // Mana une seule fois par attaque, indépendamment du nombre de cibles
     if (targets.length > 0) {
       attacker.mana = Math.min(MANA_MAX, attacker.mana + MANA_ON_HIT);
+    }
+    // Rune onAttack : une fois par attaque
+    this._fireAttackRune(attacker, targets[0]?.unit ?? null, _dealtTotal);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RUNES : bouclier depuis stat, déclencheurs onAttack et onHitReceived
+  // ─────────────────────────────────────────────────────────────────────────
+  _runeShieldValue(unit, fromStat, mag) {
+    let base = 0;
+    if (fromStat === 'hp')       base = unit.maxHp;
+    else if (fromStat === 'atk') base = Math.max(this._getStat(unit, 'atk'), this._getStat(unit, 'spa'));
+    else if (fromStat === 'def') base = Math.max(this._getStat(unit, 'def'), this._getStat(unit, 'spd_def'));
+    return Math.round(base * mag);
+  }
+
+  _fireAttackRune(attacker, target, dealtTotal) {
+    const r = attacker?._rune;
+    if (!r || r.trigger !== 'onAttack' || attacker.hp <= 0) return;
+    const e = r.effect;
+    switch (e.kind) {
+      case 'lifesteal':
+        if (dealtTotal > 0) {
+          const heal = Math.max(1, Math.round(dealtTotal * e.mag));
+          attacker.hp = Math.min(attacker.maxHp, attacker.hp + heal);
+          this.log.push({ type:'effect_heal', effect:'rune_vampire', label:`🩸 ${attacker.name}`,
+            targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side,
+            heal, targetHpLeft:attacker.hp, targetMaxHp:attacker.maxHp });
+        }
+        break;
+      case 'stun':
+        if (target && target.hp > 0 && Math.random() < e.mag) {
+          this._addStatus(target, 'freeze', 1);
+          this.log.push({ type:'passive_trigger', effect:'rune_effroi', label:`😱 ${target.name}`,
+            targetId:target.uid, targetName:target.name, targetSide:target.side });
+        }
+        break;
+      case 'shield': {
+        const val = this._runeShieldValue(attacker, e.fromStat, e.mag);
+        if (val > 0) {
+          attacker.shield    = Math.max(attacker.shield ?? 0, val);   // recharge à la valeur, ne stacke pas
+          attacker.maxShield = Math.max(attacker.maxShield ?? 0, attacker.shield);
+          this.log.push({ type:'passive_trigger', effect:'rune_rempart', label:`🛡 ${attacker.name}`,
+            targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side,
+            shieldLeft:attacker.shield, maxShield:attacker.maxShield });
+        }
+        break;
+      }
+      case 'heal_most_wounded': {
+        const allies = this._alliesOf(attacker).filter(u => u.hp > 0);
+        if (allies.length) {
+          const w = allies.reduce((a, b) => (b.hp / b.maxHp < a.hp / a.maxHp ? b : a));
+          const heal = Math.max(1, Math.round(w.maxHp * e.mag));
+          w.hp = Math.min(w.maxHp, w.hp + heal);
+          this.log.push({ type:'effect_heal', effect:'rune_panacee', label:`💊 ${w.name}`,
+            targetId:w.uid, targetName:w.name, targetSide:w.side,
+            heal, targetHpLeft:w.hp, targetMaxHp:w.maxHp });
+        }
+        break;
+      }
+      case 'replay':
+        if (!this._runeReplayed && Math.random() < e.mag) {
+          this._runeReplayed = true;
+          const t2 = this._getTargets(attacker);
+          if (t2.length) {
+            this.log.push({ type:'passive_trigger', effect:'rune_violent', label:`⚡ ${attacker.name} rejoue !`,
+              targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side });
+            this._performNormalAttack(attacker, t2);
+          }
+        }
+        break;
+    }
+  }
+
+  _fireReceiveRune(attacker, target, damage) {
+    const r = target?._rune;
+    if (!r || r.trigger !== 'onHitReceived') return;
+    if (this._inRuneRetaliation) return;   // une riposte/un renvoi ne se contre pas
+    if (target.hp <= 0 || damage <= 0 || attacker.hp <= 0) return;
+    const e = r.effect;
+    switch (e.kind) {
+      case 'counter':
+        if (Math.random() < e.mag) {
+          const cdmg = Math.max(1, Math.round(this._calcDamage(target, attacker, 1, 50)));
+          this._inRuneRetaliation = true;
+          this.log.push({ type:'passive_trigger', effect:'rune_revanche', label:`⚔️ ${target.name} riposte !`,
+            targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side });
+          this._dealDamage(target, attacker, cdmg, 1, false, { type:target.types[0], ignoreType:true });
+          this._inRuneRetaliation = false;
+        }
+        break;
+      case 'reflect': {
+        const rdmg = Math.max(1, Math.round(damage * e.mag));
+        this._inRuneRetaliation = true;
+        this.log.push({ type:'passive_trigger', effect:'rune_epines', label:`🌵 ${target.name} renvoie !`,
+          targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side });
+        this._dealDamage(target, attacker, rdmg, 1, false, { type:target.types[0], ignoreType:true });
+        this._inRuneRetaliation = false;
+        break;
+      }
+      case 'status':
+        if (Math.random() < e.mag) {
+          const dur    = (e.status === 'poison' || e.status === 'burn') ? -1 : 2;
+          const stacks = e.stacks ?? 1;
+          for (let i = 0; i < stacks; i++) this._addStatus(attacker, e.status, dur);
+          this.log.push({ type:'passive_trigger', effect:'rune_' + e.status, label:`✨ ${attacker.name}`,
+            targetId:attacker.uid, targetName:attacker.name, targetSide:attacker.side });
+        }
+        break;
     }
   }
 
@@ -1398,6 +1513,9 @@ export class CombatEngine {
     // Passifs post-attaque
     this._runHook('ON_ATTACK',  attacker, { target, damage, enemies:this.enemyUnits,  allies:this.playerUnits });
     this._runHook('ON_RECEIVE', target,   { attacker, damage, enemies:this.playerUnits, allies:this.enemyUnits });
+
+    // Rune onHitReceived : riposte / renvoi / statut sur l'attaquant
+    this._fireReceiveRune(attacker, target, damage);
 
     // Adaptabilité (talent Normal) : +X% tous-stats par coup reçu (plafonné)
     if (target._allStatRage && target.hp > 0 && damage > 0) {
