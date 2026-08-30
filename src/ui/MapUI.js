@@ -452,6 +452,17 @@ export const MapUI = {
         image-rendering: pixelated;
         pointer-events: none;
       `;
+      // Les sprites n'ont pas tous la meme resolution source (32x32 pour Kanto
+      // et Johto, 16x21 pour Hoenn). Sans garde, les petits sont etires plus
+      // fort et paraissent plus flous. On plafonne l'agrandissement a la
+      // densite de reference : les petits sprites gardent des marges autour.
+      img.addEventListener('load', () => {
+        const nw = img.naturalWidth, nh = img.naturalHeight;
+        if (!nw || !nh) return;
+        const k = Math.min(SPRITE / nw, SPRITE / nh, BASE_SPRITE / 32 * z);
+        img.style.width  = `${Math.round(nw * k)}px`;
+        img.style.height = `${Math.round(nh * k)}px`;
+      });
       inner.appendChild(img);
     } else {
       const em = document.createElement('span');
