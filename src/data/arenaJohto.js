@@ -61,8 +61,10 @@ export const MASTER_JOHTO = {
   name:         'Red',
   title:        'Dresseur du Mont Argenté',
   city:         'Mont Argenté',
-  sprite:       'assets/trainers/map/champions/johto/red.png',
-  spriteCombat: 'assets/trainers/combat/champions/johto/red_c.png',
+  sprite:               'assets/trainers/map/champions/johto/red.png',
+  spriteCombat:         'assets/trainers/combat/champions/johto/red_c.png',
+  championSprite:       'assets/trainers/map/champions/johto/red.png',
+  championSpriteCombat: 'assets/trainers/combat/champions/johto/red_c.png',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
