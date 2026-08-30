@@ -456,12 +456,23 @@ export const MapUI = {
       // et Johto, 16x21 pour Hoenn). Sans garde, les petits sont etires plus
       // fort et paraissent plus flous. On plafonne l'agrandissement a la
       // densite de reference : les petits sprites gardent des marges autour.
-      img.addEventListener('load', () => {
+      const fitSprite = () => {
         const nw = img.naturalWidth, nh = img.naturalHeight;
         if (!nw || !nh) return;
         const k = Math.min(SPRITE / nw, SPRITE / nh, BASE_SPRITE / 32 * z);
         img.style.width  = `${Math.round(nw * k)}px`;
         img.style.height = `${Math.round(nh * k)}px`;
+      };
+      img.addEventListener('load', fitSprite);
+      if (img.complete) fitSprite();   // image deja en cache : load ne refire pas
+      // Repli : si le sprite est introuvable, on retombe sur l'emoji du noeud
+      // plutot que de laisser une case vide.
+      img.addEventListener('error', () => {
+        img.remove();
+        const em = document.createElement('span');
+        em.textContent   = meta.emoji;
+        em.style.cssText = `font-size: ${SPRITE * 0.55}px; line-height: 1; pointer-events: none;`;
+        inner.appendChild(em);
       });
       inner.appendChild(img);
     } else {
@@ -520,7 +531,9 @@ export const MapUI = {
       // Kanto et affiche Pierre à la place du champion de Johto.
       const rid  = getRunRegion(this._registry);
       // La seed decide du maitre a Hoenn (tire parmi le Conseil 4)
-      const seed = getRunState(this._registry)?.seed ?? this._seed ?? null;
+      // getRunState ne protege pas un registre absent : on lit defensivement,
+      // sinon _buildNode leve et le noeud du champion n'est pas construit.
+      const seed = this._registry?.get?.('runState')?.seed ?? this._seed ?? null;
       const a = getBossForMap(this._mapIdx, rid, seed);
       return a?.championSprite ?? null;
     }
