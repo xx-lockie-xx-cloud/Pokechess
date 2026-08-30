@@ -27,7 +27,7 @@ import { getBSTTier, getRunState, setRunState, applyAnomalyToUnits,
          addCoins, addToInventory,
          removeFromInventory, getInventory,
          BANK_MAX_SIZE, getUnlockedSlots } from '../data/runState.js';
-import { ITEMS }                         from '../data/items.js';
+import { ITEMS, describeItem, resolveHeldItem } from '../data/items.js';
 import { getActiveSynergies, getFullStats, assignCorners, ensureCorners }  from '../data/synergies.js';
 import { getLevelBadgeHTML, getLevelBonus, getActiveTalentEffects,
          getLevelBadgeHTMLFor, getEffectiveLevel } from '../data/levelSystem.js';
@@ -55,6 +55,24 @@ function typeColor(type) {
   };
   return colors[type] ?? '#a0aec0';
 }
+
+// Pokémon à évolutions multiples (le joueur choisit la forme). baseId -> [evoIds].
+// canEvolve reste vrai via l'évolution par défaut de evolutionData ; le choix se
+// gère ici (généralisation du cas Évoli déjà en place).
+const BRANCHING_EVOLUTIONS = {
+  133: [134, 135, 136],   // Évoli    -> Aquali / Voltali / Pyroli
+  236: [106, 107, 237],   // Débugant -> Kicklee / Tygnon / Kapoera
+  79:  [80, 199],         // Ramoloss -> Flagadoss / Roigada
+  61:  [62, 186],         // Têtarte  -> Tartard / Tarpaud
+  44:  [45, 182],         // Ortide   -> Rafflesia / Joliflor
+};
+const _TYPE_VIS = {
+  'Eau': { icon: '💧', color: '#3498db' }, 'Électrik': { icon: '⚡', color: '#f1c40f' },
+  'Feu': { icon: '🔥', color: '#e74c3c' }, 'Combat': { icon: '🥊', color: '#c03028' },
+  'Psy': { icon: '🔮', color: '#a040a0' }, 'Plante': { icon: '🌿', color: '#78c850' },
+  'Poison': { icon: '☠️', color: '#a040a0' },
+};
+const _typeVis = t => _TYPE_VIS[t] ?? { icon: '✨', color: '#ffd700' };
 
 export const PrepUI = {
   _registry:    null,
@@ -365,6 +383,53 @@ export const PrepUI = {
       if (target?.type === 'field')      this._onDrop('field', target.col, target.row);
       else if (target?.type === 'bank')  this._onDrop('bank', target.idx);
       else { this._dragSource = null; this._renderAll(); }  // hors zone → annule
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  },
+
+  // Drag d'un objet d'inventaire par Pointer Events (tactile + souris).
+  // Au lâcher sur un pokémon, l'objet est équipé.
+  _startItemPointerDrag(e, slot, item) {
+    const startX = e.clientX, startY = e.clientY;
+    let dragging = false, ghost = null;
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (!dragging && Math.hypot(dx, dy) < 8) return;
+      if (!dragging) {
+        dragging = true;
+        this._draggedItem = item;
+        slot.classList.add('dragging-source');
+        ghost = slot.cloneNode(true);
+        Object.assign(ghost.style, {
+          position: 'fixed', pointerEvents: 'none', opacity: '0.85',
+          zIndex: '99998', width: `${slot.offsetWidth}px`, height: `${slot.offsetHeight}px`,
+          transform: 'translate(-50%, -50%)', margin: '0',
+        });
+        document.body.appendChild(ghost);
+      }
+      ghost.style.left = `${ev.clientX}px`;
+      ghost.style.top  = `${ev.clientY}px`;
+      this._highlightDropTargetAt(ev.clientX, ev.clientY);
+    };
+
+    const onUp = (ev) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      if (ghost) ghost.remove();
+      slot.classList.remove('dragging-source');
+      this._clearDropHighlight();
+      if (!dragging) return;   // simple tap → le click gère la sélection
+      this._dragJustEnded = true;
+      setTimeout(() => { this._dragJustEnded = false; }, 80);
+      const target = this._dropTargetAt(ev.clientX, ev.clientY);
+      if (target?.type === 'field')     this._equipItem(item, 'field', target.col, target.row, null);
+      else if (target?.type === 'bank') this._equipItem(item, 'bank', null, null, target.idx);
+      this._draggedItem = null;
     };
 
     document.addEventListener('pointermove', onMove);
@@ -783,12 +848,14 @@ export const PrepUI = {
 
       const slot = document.createElement('div');
       slot.className = `inventory-slot rarity-${rarity}${this._selectedItem?._invIdx === i ? ' selected' : ''}`;
-      slot.title     = `${item.name} (${rarity}) : ${item.description}`;
+      slot.title     = `${item.name} (${rarity}) : ${describeItem(resolveHeldItem(entry))}`;
       slot.textContent = item.emoji;
-      slot.draggable   = true;   // ← draggable
+      slot.setAttribute('draggable', 'false');   // drag géré par Pointer Events (tactile)
+      slot.style.touchAction = 'none';
 
       // Clic → sélectionne l'objet (pour équiper via clic sur pokémon)
       slot.addEventListener('click', () => {
+        if (this._dragJustEnded) return;
         if (this._selectedItem?._invIdx === i) {
           this._selectedItem = null;
         } else {
@@ -798,24 +865,25 @@ export const PrepUI = {
         this._renderAll();
       });
 
-      // Drag start → mémorise l'objet draggé
-      slot.addEventListener('dragstart', (e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        this._draggedItem = { ...item, id: entry.id, rarity, _invIdx: i };
-      });
-
-      slot.addEventListener('dragend', () => {
-        this._draggedItem = null;
+      // Drag via Pointer Events → fiable au tactile (comme les pokémons)
+      slot.addEventListener('pointerdown', (e) => {
+        if (e.button && e.button !== 0) return;
+        this._startItemPointerDrag(e, slot, { ...item, id: entry.id, rarity, _invIdx: i });
       });
 
       container.appendChild(slot);
     });
 
     if (this._selectedItem) {
-      const hint = document.createElement('span');
-      hint.style.cssText = 'font-size:10px;color:var(--color-gold);width:100%;margin-top:4px;display:block';
-      hint.textContent   = `${this._selectedItem.emoji} Glissez sur un pokémon ou cliquez-le`;
-      container.appendChild(hint);
+      const sel  = this._selectedItem;
+      const desc = describeItem(resolveHeldItem({ id: sel.id, rarity: sel.rarity }));
+      const box  = document.createElement('div');
+      box.className = 'inventory-desc';
+      box.innerHTML =
+        `<div class="inventory-desc-title">${sel.emoji} <strong>${sel.name}</strong> (${sel.rarity})</div>` +
+        `<div class="inventory-desc-text">${desc}</div>` +
+        `<div class="inventory-desc-hint">Glissez sur un pokémon ou cliquez-le pour équiper</div>`;
+      container.appendChild(box);
     }
   },
 
@@ -1226,9 +1294,9 @@ export const PrepUI = {
   },
 
   _proposeEvolution(baseId) {
-    // Évoli (133) : choix entre Aquali / Voltali / Pyroli
-    if (baseId === 133) {
-      this._proposeEeveeEvolution();
+    // Pokémon à évolutions multiples : popup de choix (Évoli, Débugant, Ramoloss...)
+    if (BRANCHING_EVOLUTIONS[baseId]) {
+      this._proposeBranchingEvolution(baseId, BRANCHING_EVOLUTIONS[baseId]);
       return;
     }
 
@@ -1324,6 +1392,62 @@ export const PrepUI = {
         const evoId = parseInt(btn.dataset.evo);
         popup.remove();
         this._evolve(133, evoId);
+      });
+    });
+    document.getElementById('evo-cancel').addEventListener('click', () => popup.remove());
+  },
+
+  // ── Évolution à choix multiple (généralisée : Évoli, Débugant, Ramoloss...) ──
+  _proposeBranchingEvolution(baseId, evoIds) {
+    const basePok = POKEMONS.find(p => p.id === baseId);
+
+    const popup = document.createElement('div');
+    popup.style.cssText = `
+      position:fixed;inset:0;background:rgba(0,0,0,0.75);
+      display:flex;align-items:center;justify-content:center;z-index:500;padding:16px
+    `;
+
+    const cardsHtml = evoIds.map(eid => {
+      const pok = POKEMONS.find(p => p.id === eid);
+      if (!pok) return '';
+      const vis = _typeVis(pok.types?.[0]);
+      const typeLabel = (pok.types ?? []).join(' / ');
+      return `
+        <button class="evo-choice-card" data-evo="${eid}"
+          style="background:var(--bg-card,#0f3460);border:2px solid ${vis.color};
+                 border-radius:12px;padding:12px 8px;cursor:pointer;display:flex;
+                 flex-direction:column;align-items:center;gap:4px;min-width:90px;
+                 transition:transform 0.12s,box-shadow 0.12s">
+          <img src="${pok.spriteUrl ?? ''}" alt="${pok.name}"
+               style="width:64px;height:64px;image-rendering:pixelated;pointer-events:none"
+               onerror="this.style.display='none'" />
+          <span style="font-weight:700;color:#e2e8f0;font-size:13px;pointer-events:none">${pok.name}</span>
+          <span style="font-size:11px;color:${vis.color};pointer-events:none">${vis.icon} ${typeLabel}</span>
+        </button>`;
+    }).join('');
+
+    popup.innerHTML = `
+      <div style="background:var(--bg-base,#1a1a2e);border:2px solid var(--color-gold,#ffd700);
+                  border-radius:14px;padding:24px 20px;text-align:center;max-width:360px;width:100%">
+        <p style="font-size:18px;color:var(--color-gold,#ffd700);font-weight:700;margin:0 0 4px">
+          ✨ Évolution de ${basePok?.name ?? 'ce pokémon'}
+        </p>
+        <p style="font-size:12px;color:var(--text-muted,#a0aec0);margin:0 0 18px">
+          Choisis la forme d'évolution (les 2 exemplaires fusionnent).
+        </p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          ${cardsHtml}
+        </div>
+        <button id="evo-cancel" class="btn-ghost" style="margin-top:18px">✕ Annuler</button>
+      </div>
+    `;
+    document.body.appendChild(popup);
+
+    popup.querySelectorAll('.evo-choice-card').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const evoId = parseInt(btn.dataset.evo);
+        popup.remove();
+        this._evolve(baseId, evoId);
       });
     });
     document.getElementById('evo-cancel').addEventListener('click', () => popup.remove());

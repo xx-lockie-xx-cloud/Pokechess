@@ -119,7 +119,8 @@ export const RuneAssignUI = {
             <div class="rune-card-trigger">${TRIGGER_LABEL[base.trigger]}</div>
             <div class="rune-card-effect">${effectLine(scaled)}</div>
             <div class="rune-card-holder">${holder != null
-              ? `Sur <strong>${nameOf(holder)}</strong>` : '<em>Non attribuée</em>'}</div>
+              ? `<img class="rune-holder-sprite" src="${spriteOf(holder)}" alt="" onerror="this.style.display='none'"> Sur <strong>${nameOf(holder)}</strong>`
+              : '<em>Non attribuée</em>'}</div>
           </div>
           <div class="rune-card-actions">
             <button class="rune-assign-btn btn-primary" data-uid="${inst.uid}">Attribuer</button>

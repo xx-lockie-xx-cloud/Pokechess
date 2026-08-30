@@ -52,7 +52,7 @@ export const MASTER_MULT = 1.2;   // maître de la Ligue
 // sur six emplacements toujours remplis : sans correction, elle dépassait
 // largement le reste du jeu. La progression reste croissante (×2.46 de Facile
 // à Expert) et la marche finale se creuse : ×1.05 en Facile, ×1.21 en Expert.
-export const FIXED_TEAM_DIFF = { easy: 0.618, normal: 0.816, hard: 0.934, expert: 0.99 };
+export const FIXED_TEAM_DIFF = { easy: 0.680, normal: 0.898, hard: 1.027, expert: 1.089 };   // +10% (difficulté Red)
 
 // ── Génère l'équipe du champion selon difficulté et mapIndex ─────────────────
 // L'équipe est composée de 6 pokémons partageant tous le type de l'arène
@@ -365,6 +365,14 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
 export function getArenaForMap(mapIndex, regionId = DEFAULT_REGION) {
   const list = getRegionArenas(regionId);
   return list[Math.min(mapIndex, list.length - 1)] ?? null;
+}
+
+// Comme getArenaForMap, mais renvoie le MAÎTRE de région si la map dépasse les
+// arènes (map du maître). Utilisé pour le sprite du nœud boss final (Red / Peter).
+export function getBossForMap(mapIndex, regionId = DEFAULT_REGION) {
+  const list = getRegionArenas(regionId);
+  if (mapIndex >= list.length) return REGIONS[regionId]?.master ?? null;
+  return list[mapIndex] ?? null;
 }
 
 export function getArenaById(id, regionId = DEFAULT_REGION) {

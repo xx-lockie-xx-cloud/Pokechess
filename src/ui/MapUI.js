@@ -6,7 +6,7 @@ import { RelicUI } from './RelicUI.js';
 import { MapGenerator, NODE_TYPES } from '../map/MapGenerator.js';
 import { getRunState, getRunRegion } from '../data/runState.js';
 import { TRAINER_ARCHETYPES, ALL_TRAINER_ARCHETYPES }       from '../data/trainers.js';
-import { getArenaForMap, getDestinationName } from '../data/arenas.js';
+import { getArenaForMap, getBossForMap, getDestinationName } from '../data/arenas.js';
 import { DEFAULT_REGION }           from '../data/regions.js';
 
 // ── Constantes de base (à zoom=1) ────────────────────────────────────────────
@@ -508,7 +508,7 @@ export const MapUI = {
       // La région DOIT être passée : sans elle, getArenaForMap retombe sur
       // Kanto et affiche Pierre à la place du champion de Johto.
       const rid = getRunRegion(this._registry);
-      const a = getArenaForMap(this._mapIdx, rid);
+      const a = getBossForMap(this._mapIdx, rid);
       return a?.championSprite ?? null;
     }
     if (node.type === NODE_TYPES.COMBAT && node.trainer?.archetypeId) {

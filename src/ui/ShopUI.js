@@ -4,7 +4,8 @@ import { getLuck } from '../data/luck.js';
 // ShopUI.js — Boutique (sans pokéballs, achat direct en pièces dans WildUI)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { ITEMS, pickEquippableItems }      from '../data/items.js';
+import { ITEMS, pickEquippableItems,
+         describeItem, resolveHeldItem }   from '../data/items.js';
 import { RelicEngine }                    from '../combat/RelicEngine.js';
 import { getRunState, removeCoins,
          addToInventory }                 from '../data/runState.js';
@@ -58,7 +59,7 @@ export const ShopUI = {
         <span class="card-name">${item.name}</span>
         ${rarity !== 'normal' ? `<span class="card-rarity" style="color:${RARITY_META[rarity].color}">${RARITY_META[rarity].label}</span>` : ''}
         <span class="card-types" style="text-align:center;font-size:9px;
-              color:var(--text-muted);padding:0 4px">${item.description}</span>
+              color:var(--text-muted);padding:0 4px">${describeItem(resolveHeldItem(entry))}</span>
         <span class="card-price">${item.price} 💰</span>
       `;
 

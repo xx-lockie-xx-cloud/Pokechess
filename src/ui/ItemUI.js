@@ -4,7 +4,8 @@ import { getLuck } from '../data/luck.js';
 // ItemUI.js — Remplace ItemScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { ITEMS, pickEquippableItems } from '../data/items.js';
+import { ITEMS, pickEquippableItems,
+         describeItem, resolveHeldItem } from '../data/items.js';
 import { addToInventory, getRunState } from '../data/runState.js';
 
 export const ItemUI = {
@@ -43,7 +44,7 @@ export const ItemUI = {
         <span class="card-name">${item.name}</span>
         ${item.rarity && item.rarity !== 'normal' ? `<span class="card-rarity" style="color:${RARITY_META[item.rarity].color}">${RARITY_META[item.rarity].label}</span>` : ''}
         <span class="card-types" style="text-align:center;font-size:9px;
-              color:var(--text-muted);padding:0 4px">${item.description}</span>
+              color:var(--text-muted);padding:0 4px">${describeItem(resolveHeldItem({ id: item.id, rarity: item.rarity }))}</span>
         <span class="card-price" style="color:var(--color-green)">Gratuit !</span>
       `;
 

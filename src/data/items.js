@@ -1,4 +1,42 @@
 import { scaleItemByRarity } from './rarity.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// describeItem(def) — description lisible depuis la def DÉJÀ scalée par la rareté
+// (sortie de resolveHeldItem / scaleItemByRarity). Le texte expose donc la valeur
+// réelle (ex. légendaire : +39% au lieu de +30%). Fallback sur la description
+// statique pour les effets non numériques (Poké Ball, Ceinture d'Expert...).
+// ─────────────────────────────────────────────────────────────────────────────
+const _STAT_LABEL    = { atk:'ATK', spa:'SP.ATK', def:'DEF', spd_def:'SP.DEF', hp:'PV', spd:'VIT' };
+const _WEATHER_LABEL = { sun:'Zénith', rain:'Pluie', sandstorm:'Tempête de sable', hail:'Grêle', darkness:'Nuit Noire' };
+const _pctBonus = m => Math.round((m - 1) * 100);   // statBonus / teamAura : forme 1+d
+const _pctRate  = v => Math.round(v * 100);         // taux : la valeur EST la magnitude
+
+export function describeItem(def) {
+  if (!def) return '';
+  const typeSuffix = def.typeFilter ? ` (type ${def.typeFilter})` : '';
+  if (def.statBonus && Object.keys(def.statBonus).length) {
+    const parts = Object.entries(def.statBonus).map(([s, m]) => `+${_pctBonus(m)}% ${_STAT_LABEL[s] ?? s}`);
+    return `${parts.join(' et ')}${typeSuffix}.`;
+  }
+  if (def.teamAura && Object.keys(def.teamAura).length) {
+    const parts = Object.entries(def.teamAura).map(([s, m]) => `+${_pctBonus(m)}% ${_STAT_LABEL[s] ?? s}`);
+    return `${parts.join(' et ')} à toute l'équipe.`;
+  }
+  if (typeof def.reviveRate === 'number') {
+    return `Ranime une fois par combat le porteur K.O. avec ${_pctRate(def.reviveRate)}% PV.`;
+  }
+  if (def.emergencyHeal) {
+    const { threshold, rate } = def.emergencyHeal;
+    return `Rend ${_pctRate(rate)}% des PV max en passant sous ${_pctRate(threshold)}% de PV (une fois).`;
+  }
+  if (def.setsWeather) {
+    return `Déclenche ${_WEATHER_LABEL[def.setsWeather] ?? def.setsWeather} au début du combat (${def.weatherTurns ?? 20} tours).`;
+  }
+  if (typeof def.levelBonus === 'number') {
+    return `+${def.levelBonus} niveaux au porteur tant qu'il est équipé.`;
+  }
+  return def.description ?? '';
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // items.js — Catalogue des objets achetables et équipables
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1571,7 +1571,9 @@ export class CombatEngine {
     const w = WEATHERS[this.weather.id];
 
     // Dégâts résiduels (tempête de sable, grêle) sur les deux camps
-    if (w?.dot) {
+    if (w?.dot) this.weather.dotTick = (this.weather.dotTick ?? 0) + 1;
+    // Nerf : tempête de sable / grêle infligent des dégâts un tour sur deux
+    if (w?.dot && this.weather.dotTick % 2 === 1) {
       [...this.playerUnits, ...this.enemyUnits].forEach(u => {
         if (u.hp <= 0) return;
         const rate = weatherDotRate(this.weather.id, u.types ?? []);
