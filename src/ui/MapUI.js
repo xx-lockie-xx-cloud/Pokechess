@@ -507,8 +507,10 @@ export const MapUI = {
     if (node.type === NODE_TYPES.BOSS) {
       // La région DOIT être passée : sans elle, getArenaForMap retombe sur
       // Kanto et affiche Pierre à la place du champion de Johto.
-      const rid = getRunRegion(this._registry);
-      const a = getBossForMap(this._mapIdx, rid);
+      const rid  = getRunRegion(this._registry);
+      // La seed decide du maitre a Hoenn (tire parmi le Conseil 4)
+      const seed = getRunState(this._registry)?.seed ?? this._seed ?? null;
+      const a = getBossForMap(this._mapIdx, rid, seed);
       return a?.championSprite ?? null;
     }
     if (node.type === NODE_TYPES.COMBAT && node.trainer?.archetypeId) {
