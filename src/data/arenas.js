@@ -7,7 +7,7 @@
 import { POKEMONS }    from './pokemons.js';
 import { getBSTTier }  from './runState.js';
 import { TRAINER_ARCHETYPES, TRAINER_ARCHETYPES_EXTRA, generateEnemyTeam } from './trainers.js';
-import { pickHoennMaster } from './arenaHoenn.js';
+import { pickHoennMaster, getHoennMasterTeam } from './arenaHoenn.js';
 import { getRegionArenas, isPokemonAllowed, DEFAULT_REGION,
          ARENAS_KANTO, REGIONS, GEN_RANGES } from './regions.js';
 
@@ -312,10 +312,15 @@ export function generateLeagueTeam(mapIndex = 7, difficultyMult = 1.0,
 export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
                                      rng = Math.random.bind(Math),
                                      regionId = DEFAULT_REGION, meta = null,
-                                     budgetOverride = null) {
+                                     budgetOverride = null, seed = null) {
+  // Maitre de la region : fixe (Kanto, Johto) ou tire par la seed (Hoenn).
+  const regionMaster = getRegionMaster(regionId, seed);
+  // Equipe fixe : celle de la region, ou celle du membre du Conseil 4 tire.
+  const regionFixedTeam = REGIONS[regionId]?.masterTeam
+    ?? (regionMaster?.file ? getHoennMasterTeam(regionMaster.file) : null);
   // Bonus de statut "Maître". Pour une équipe générée, la difficulté agit via
   // le budget ; pour une équipe fixe, on la réintroduit ici avec FIXED_TEAM_DIFF.
-  const hasFixedTeam = !!REGIONS[regionId]?.masterTeam;
+  const hasFixedTeam = !!regionFixedTeam;
   const mult = MASTER_MULT * (hasFixedTeam ? (FIXED_TEAM_DIFF[difficulty] ?? 1) : 1);
 
   // Pool d'archétypes : base + extra (avec un pool exploitable)
@@ -325,7 +330,7 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
 
   // Johto : le maître est FIXE (Red au Mont Argenté), pas un archétype tiré au
   // sort. Son équipe est libre en type, contrairement aux champions d'arène.
-  const master = REGIONS[regionId]?.master ?? null;
+  const master = regionMaster ?? null;
   const isFixedMaster = regionId !== DEFAULT_REGION && master;
 
   // Budget : fourni par MapGenerator (issu de DIFF_BUDGETS, donc cohérent avec
@@ -337,7 +342,7 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
 
   // Équipe FIXE si la région en déclare une (Red à Johto), sinon tirage depuis
   // le pool de l'archétype (6 unités max).
-  const fixedTeam = REGIONS[regionId]?.masterTeam ?? null;
+  const fixedTeam = regionFixedTeam;
   const rawTeam = fixedTeam
     ? fixedTeam.map(slot => {
         const base = POKEMONS.find(p => p.id === slot.id);

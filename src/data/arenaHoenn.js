@@ -79,12 +79,13 @@ export const ELITES_HOENN = [
 // Construit un objet maître complet (mêmes champs que MASTER_KANTO / MASTER_JOHTO)
 export function buildHoennMaster(elite) {
   const sprite       = `${MAP_DIR_ELITE}/${elite.file}_m.png`;
-  const spriteCombat = `${FIGHT_DIR_ELITE}/${elite.file}.png`;
+  const spriteCombat = `${FIGHT_DIR_ELITE}/${elite.file}_c.png`;
   return {
     name:  elite.name,
     title: elite.title,
     city:  'Ligue Pokémon',
     type:  elite.type,
+    file:  elite.file,          // sert à retrouver son équipe fixe
     sprite, spriteCombat,
     championSprite:       sprite,
     championSpriteCombat: spriteCombat,
@@ -112,3 +113,53 @@ export function pickHoennMaster(seed = null) {
 
 // Repli hors run (affichage du menu de sélection de région, par exemple).
 export const MASTER_HOENN = buildHoennMaster(ELITES_HOENN[ELITES_HOENN.length - 1]);
+
+// ── Équipes fixes du Conseil 4 (reprises des jeux) ──────────────────────────
+// 3 encaisseurs devant (row 0), 3 frappeurs derrière (row 1).
+export const ELITE_TEAMS_HOENN = {
+  damien: [
+    { id: 262, col: 0, row: 0 },   // Grahyèna
+    { id: 332, col: 1, row: 0 },   // Cacturne
+    { id: 275, col: 2, row: 0 },   // Tengalice
+    { id: 319, col: 0, row: 1 },   // Sharpedo
+    { id: 359, col: 1, row: 1 },   // Absol
+    { id: 261, col: 2, row: 1 },   // Medhyèna
+  ],
+  spectra: [
+    { id: 356, col: 0, row: 0 },   // Téraclope
+    { id: 354, col: 1, row: 0 },   // Branette
+    { id: 302, col: 2, row: 0 },   // Ténéfix
+    { id: 353, col: 0, row: 1 },   // Polichombr
+    { id: 355, col: 1, row: 1 },   // Skelénox
+    { id: 292, col: 2, row: 1 },   // Munja
+  ],
+  glacia: [
+    { id: 365, col: 0, row: 0 },   // Kaimorse
+    { id: 364, col: 1, row: 0 },   // Phogleur
+    { id: 362, col: 2, row: 0 },   // Oniglali
+    { id: 361, col: 0, row: 1 },   // Stalgamin
+    { id: 363, col: 1, row: 1 },   // Obalie
+    { id: 378, col: 2, row: 1 },   // Regice
+  ],
+  aragon: [
+    { id: 372, col: 0, row: 0 },   // Drackhaus
+    { id: 334, col: 1, row: 0 },   // Altaria
+    { id: 230, col: 2, row: 0 },   // Hyporoi
+    { id: 330, col: 0, row: 1 },   // Libégon
+    { id: 373, col: 1, row: 1 },   // Drattak
+    { id: 371, col: 2, row: 1 },   // Draby
+  ],
+  pierre: [
+    { id: 227, col: 0, row: 0 },   // Airmure
+    { id: 306, col: 1, row: 0 },   // Galeking
+    { id: 344, col: 2, row: 0 },   // Kaorine
+    { id: 346, col: 0, row: 1 },   // Vacilys
+    { id: 348, col: 1, row: 1 },   // Armaldo
+    { id: 376, col: 2, row: 1 },   // Métalosse
+  ],
+};
+
+// Équipe fixe du maître tiré pour la run (ou null si inconnu).
+export function getHoennMasterTeam(masterFile) {
+  return ELITE_TEAMS_HOENN[masterFile] ?? null;
+}
