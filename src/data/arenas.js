@@ -7,6 +7,7 @@
 import { POKEMONS }    from './pokemons.js';
 import { getBSTTier }  from './runState.js';
 import { TRAINER_ARCHETYPES, TRAINER_ARCHETYPES_EXTRA, generateEnemyTeam } from './trainers.js';
+import { pickHoennMaster } from './arenaHoenn.js';
 import { getRegionArenas, isPokemonAllowed, DEFAULT_REGION,
          ARENAS_KANTO, REGIONS, GEN_RANGES } from './regions.js';
 
@@ -21,6 +22,8 @@ export const ARENAS = ARENAS_KANTO;
 export const LEGENDARIES = new Set([
   144, 145, 146, 150, 151,           // Artikodin, Électhor, Sulfura, Mewtwo, Mew
   243, 244, 245, 249, 250, 251,      // Raikou, Entei, Suicune, Lugia, Ho-Oh, Celebi
+  377, 378, 379, 380, 381,           // Regirock, Regice, Registeel, Latias, Latios
+  382, 383, 384, 385, 386,           // Kyogre, Groudon, Rayquaza, Jirachi, Deoxys
 ]);
 
 // PSEUDO-légendaires : écartés par défaut (trop puissants), mais réintégrés
@@ -28,6 +31,8 @@ export const LEGENDARIES = new Set([
 export const PSEUDO_LEGENDARIES = new Set([
   147, 148, 149,                     // Minidraco, Draco, Dracolosse
   246, 247, 248,                     // Embrylex, Ymphect, Tyranocif
+  371, 372, 373,                     // Draby, Drackhaus, Drattak
+  374, 375, 376,                     // Terhal, Metang, Metalosse
 ]);
 
 const MIN_ARENA_POOL = 4;
@@ -146,11 +151,30 @@ export function generateArenaTeam(arena, mapIndex = 0, budget = 800, maxUnits = 
       })
     : [];
 
-  for (let i = 0; i < maxUnits && spent < budget; i++) {
+  // Pokémon phare : toujours présent dans l'équipe du champion (arena.aceId).
+  // Il est place en premier et son BST est deduit du budget. Il ignore les
+  // filtres de pool (pseudo-legendaires notamment) puisqu'il est impose.
+  let aceTaken = false;
+  if (arena.aceId) {
+    const ace = POKEMONS.find(p => p.id === arena.aceId);
+    if (ace && cells[0]) {
+      const aceStats = {};
+      Object.entries(ace.stats ?? {}).forEach(([k, v]) => {
+        aceStats[k] = Math.round(v * ARENA_MULT);
+      });
+      team.push({ ...ace, stats: aceStats, col: cells[0].col, row: cells[0].row,
+                  attributes: [], _champion: true, _ace: true });
+      counts[ace.id] = (counts[ace.id] ?? 0) + 1;
+      spent += pokemonBST(ace);
+      aceTaken = true;
+    }
+  }
+
+  for (let i = team.length; i < maxUnits && spent < budget; i++) {
     const remaining = budget - spent;
     // Premier tirage : puise dans le pool de la génération signature si elle
     // offre un choix abordable, sinon retombe sur le pool complet.
-    const useSignature = i === 0 && signaturePool.length > 0;
+    const useSignature = i === 0 && !aceTaken && signaturePool.length > 0;
     let   basePool     = useSignature ? signaturePool : pool;
 
     // Plafond de doublons : au maximum MAX_SAME exemplaires d'un même Pokémon.
@@ -369,10 +393,17 @@ export function getArenaForMap(mapIndex, regionId = DEFAULT_REGION) {
 
 // Comme getArenaForMap, mais renvoie le MAÎTRE de région si la map dépasse les
 // arènes (map du maître). Utilisé pour le sprite du nœud boss final (Red / Peter).
-export function getBossForMap(mapIndex, regionId = DEFAULT_REGION) {
+export function getBossForMap(mapIndex, regionId = DEFAULT_REGION, seed = null) {
   const list = getRegionArenas(regionId);
-  if (mapIndex >= list.length) return REGIONS[regionId]?.master ?? null;
+  if (mapIndex >= list.length) return getRegionMaster(regionId, seed);
   return list[mapIndex] ?? null;
+}
+
+// Maître de la région. Hoenn tire le sien parmi le Conseil 4 a partir de la seed
+// de la run : meme seed, meme maitre pendant toute la partie.
+export function getRegionMaster(regionId = DEFAULT_REGION, seed = null) {
+  if (REGIONS[regionId]?.randomMaster) return pickHoennMaster(seed);
+  return REGIONS[regionId]?.master ?? null;
 }
 
 export function getArenaById(id, regionId = DEFAULT_REGION) {
