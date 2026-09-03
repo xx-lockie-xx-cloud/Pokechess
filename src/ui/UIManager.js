@@ -904,6 +904,7 @@ class UIManagerClass {
     const seen    = meta.seenPokemon   ?? [];
     const caught  = meta.caughtPokemon ?? [];
     const gen2Ok  = isRegionUnlocked('johto', meta);
+    const gen3Ok  = isRegionUnlocked('hoenn', meta);
 
     // Temps de jeu cumulé
     const ptMs = stats.playtimeMs ?? 0;
@@ -921,6 +922,7 @@ class UIManagerClass {
         ['🏆 Ligues vaincues',    stats.leaguesBeaten ?? 0],
         ['🌸 à Kanto',            byRegion('kanto')],
         ...(gen2Ok ? [['🌊 à Johto', byRegion('johto')]] : []),
+        ...(gen3Ok ? [['🌋 à Hoenn', byRegion('hoenn')]] : []),
         ['📍 en Facile',          stats.leaguesByDiff?.easy    ?? 0],
         ['⚔️ en Normal',          stats.leaguesByDiff?.normal  ?? 0],
         ['🔥 en Difficile',       stats.leaguesByDiff?.hard    ?? 0],
@@ -939,6 +941,10 @@ class UIManagerClass {
       ...(gen2Ok ? [['Pokédex Johto', [
         ['📖 Vus',                `${inRange(seen, 152, 251)} / 100`],
         ['🎒 Capturés',           `${inRange(caught, 152, 251)} / 100`],
+      ]]] : []),
+      ...(gen3Ok ? [['Pokédex Hoenn', [
+        ['📖 Vus',                `${inRange(seen, 252, 386)} / 135`],
+        ['🎒 Capturés',           `${inRange(caught, 252, 386)} / 135`],
       ]]] : []),
       ['Progression', [
         ['⭐ Pokémon niveau 100', maxLevelCount],
