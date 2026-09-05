@@ -2908,9 +2908,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     align-items: start;
   }
 
+  /* Le libelle "Terrain" n'avait aucun placement : il etait auto-place par la
+     grille et se retrouvait hors de vue. On le fixe au-dessus du terrain. */
+  .prep-section:first-child > .section-label {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0;
+  }
+
   #prep-field {
     grid-column: 1;
-    grid-row: 1 / 3;
+    grid-row: 2;
     /* Terrain en 3×2 avec slots plus petits */
     grid-template-columns: repeat(3, var(--slot-size));
     grid-template-rows:    repeat(2, var(--slot-size));
@@ -5610,6 +5618,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 /* Description dynamique de l'objet d'inventaire sélectionné (PrepUI) */
 .inventory-desc {
+  /* Inseree dans la grille .inventory-list : sans cela elle heriterait d'une
+     colonne de 36px et le texte s'afficherait en un mot par ligne. */
+  grid-column: 1 / -1;
   width: 100%; margin-top: 6px; padding: 8px 10px; box-sizing: border-box;
   background: rgba(255,255,255,0.03);
   border: 1px solid var(--border-default); border-radius: var(--radius-sm);
