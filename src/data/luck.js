@@ -1,11 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // luck.js — Source unique de la stat de Chance.
-// Lue depuis la méta (pokechess_meta.luck). Alimentée plus tard par l'arbre méta ;
-// modifiable en debug via window.setLuck(n). Échelle voulue basse (0 à ~10).
+// Somme de la base (pokechess_meta.luck, debug) et des nœuds Fortune de
+// l'arbre transversal. Utilisée par rollRarity, le casino et le drop de rune.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { SaveManager } from '../SaveManager.js';
+import { SaveManager }   from '../SaveManager.js';
+import { getMetaEffects } from './metaTree.js';
 
 export function getLuck() {
-  return Math.max(0, SaveManager.loadMeta()?.luck ?? 0);
+  const meta = SaveManager.loadMeta() ?? {};
+  const base = Math.max(0, meta.luck ?? 0);
+  return base + getMetaEffects(meta).luck;
 }

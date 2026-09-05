@@ -5608,3 +5608,61 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .inventory-desc-title { font-size: 12px; }
 .inventory-desc-text  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .inventory-desc-hint  { font-size: 10px; color: var(--color-gold); margin-top: 4px; }
+
+/* ── Arbre transversal du Destin ──────────────────────────────────────────── */
+.meta-tree-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.62); backdrop-filter: blur(2px);
+}
+.meta-tree-overlay.hidden { display: none; }
+.meta-tree-panel {
+  width: min(600px, 94vw); max-height: 88vh; display: flex; flex-direction: column;
+  background: var(--bg-panel); border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg); overflow: hidden;
+}
+.meta-tree-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-bottom: 1px solid var(--border-default);
+}
+.meta-tree-title { font-weight: 800; font-size: 16px; }
+.meta-tree-body  { padding: 12px; overflow-y: auto; }
+
+.meta-tree-locked  { text-align: center; color: var(--text-muted); padding: 26px 14px; line-height: 1.6; }
+.meta-tree-lock-icon { font-size: 34px; margin-bottom: 8px; }
+.meta-progress {
+  height: 8px; margin: 12px auto 6px; max-width: 320px;
+  background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden;
+}
+.meta-progress-fill { height: 100%; background: var(--color-gold); }
+.meta-tree-progress-text { font-size: 12px; }
+
+.meta-tree-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+}
+.meta-points { font-weight: 800; color: var(--color-gold); }
+.meta-total  { font-size: 11px; color: var(--text-muted); }
+.meta-summary {
+  font-size: 12px; color: var(--text-muted); margin-bottom: 12px;
+  padding: 8px 10px; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-default); border-radius: var(--radius-sm);
+}
+.meta-branch { margin-bottom: 14px; }
+.meta-branch-head { font-size: 14px; margin-bottom: 6px; }
+.meta-branch-desc { font-size: 11px; color: var(--text-muted); margin-left: 6px; }
+
+.meta-node {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; margin-bottom: 6px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-default); border-radius: var(--radius-md);
+}
+.meta-node.unlocked { border-color: var(--color-green, #48bb78); }
+.meta-node.locked   { opacity: 0.5; }
+.meta-node.poor     { opacity: 0.75; }
+.meta-node.keystone { border-color: var(--color-gold); background: rgba(255,215,0,0.05); }
+.meta-node-name { font-weight: 700; font-size: 13px; }
+.meta-node-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.meta-node-action button { font-size: 12px; padding: 5px 10px; white-space: nowrap; }
+.meta-node-done { font-size: 12px; color: var(--color-green, #48bb78); font-weight: 700; }
+.meta-node-need { font-size: 11px; color: var(--text-muted); white-space: nowrap; }

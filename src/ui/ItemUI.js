@@ -1,5 +1,6 @@
 import { rollRarity, RARITY_META } from '../data/rarity.js';
 import { getLuck } from '../data/luck.js';
+import { getMetaEffects } from '../data/metaTree.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // ItemUI.js — Remplace ItemScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23,7 +24,8 @@ export const ItemUI = {
 
     // 3 objets équipables, tirage pondéré selon les types de l'équipe
     const bank = getRunState(this._registry)?.playerBank ?? [];
-    this._offered = pickEquippableItems(3, bank).map(it => ({ ...it, rarity: rollRarity(getLuck()) }));
+    const nChoices = 3 + getMetaEffects(window.SaveManager?.loadMeta()).itemChoices;
+    this._offered = pickEquippableItems(nChoices, bank).map(it => ({ ...it, rarity: rollRarity(getLuck()) }));
 
     this._render();
     this._bindButtons();

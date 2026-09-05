@@ -1422,10 +1422,13 @@ export class CombatEngine {
       return;
     }
 
-    // Esquive probabiliste (_evasion posé par ON_SETUP evasion)
-    if (target._evasion && Math.random() < target._evasion) {
+    // Esquive probabiliste (_evasion posé par ON_SETUP evasion).
+    // L'esquive de l'arbre transversal s'ajoute, cote joueur uniquement.
+    const metaEva = (target.side === 'player' ? (this._metaEffects?.evasion ?? 0) : 0);
+    const evaTotal = (target._evasion ?? 0) + metaEva;
+    if (evaTotal > 0 && Math.random() < evaTotal) {
       this.log.push({ type:'passive_trigger', effect:'evasion',
-        label:`💨 ${target.name} esquive ! (${Math.round(target._evasion*100)}%)`,
+        label:`💨 ${target.name} esquive ! (${Math.round(evaTotal*100)}%)`,
         targetId:target.uid, targetName:target.name, targetSide:target.side });
       return;
     }
@@ -1784,7 +1787,22 @@ export class CombatEngine {
     }
 
     damage = damage * 1.1 * typeMult * random * bonusMult * firstHitMult * rampMult;
-    if (isCrit || isCritPassive) damage *= 1.5;
+
+    // Coup critique global (arbre transversal). _metaEffects est pose au setup ;
+    // absent, tout vaut 0 et le comportement reste celui d'avant.
+    const me = this._metaEffects;
+    let isCritMeta = false;
+    if (me) {
+      if (me.firstHitCrit && !this._metaFirstCritUsed) {
+        isCritMeta = true;
+        this._metaFirstCritUsed = true;          // une seule fois par combat
+      } else if (me.critChance > 0 && Math.random() < me.critChance) {
+        isCritMeta = true;
+      }
+    }
+    if (isCrit || isCritPassive || isCritMeta) {
+      damage *= 1.5 + (me?.critMult ?? 0);
+    }
 
     return Math.max(1, Math.round(damage));
   }

@@ -5,6 +5,7 @@
 import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
 import { RuneManager }                         from '../combat/RuneManager.js';
 import { getLuck }                             from '../data/luck.js';
+import { getMetaEffects }                      from '../data/metaTree.js';
 import { TYPE_COLORS } from '../data/pokemons.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
@@ -706,6 +707,7 @@ export const CombatUI = {
       withLevels(playerForEngine), withLevels(enemyForEngine, true),
       playerSynergies, enemySynergies
     );
+    engine._metaEffects   = getMetaEffects(meta);   // crit global, arbre transversal
     engine._playerTalents = activeTalentEffects;
     engine._enemyTalents  = [];
     engine.relicId        = relicId;

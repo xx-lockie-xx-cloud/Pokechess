@@ -33,7 +33,9 @@ export function initRun(registry, starterPokemon) {
 
   // Préserve relic, difficulty, seed, anomalyTypes définis avant le starter
   const prev = registry.get('runState') ?? {};
-  const startCoins = prev?.relic?.id === 'contrat_maudit' ? 13 : 5;
+  // Milestone Bourse (arbre transversal) : pieces de depart supplementaires.
+  const startCoins = (prev?.relic?.id === 'contrat_maudit' ? 13 : 5)
+    + (window.__metaStartCoins ?? 0);
 
   registry.set('runState', {
     currentMap:    0,
@@ -125,7 +127,14 @@ export function getInventory(registry) {
 // ── Coins ──────────────────────────────────────────────────────────────────
 export function addCoins(registry, amount) {
   const state = getRunState(registry);
-  setRunState(registry, { coins: (state.coins ?? 0) + amount });
+  // Noeud Cupidite (arbre transversal) : applique ici, donc toutes les sources
+  // de pieces en beneficient sans modification supplementaire.
+  let gain = amount;
+  if (amount > 0) {
+    const mult = window.__metaCoinMult ?? 0;
+    if (mult > 0) gain = Math.round(amount * (1 + mult));
+  }
+  setRunState(registry, { coins: (state.coins ?? 0) + gain });
 }
 export function removeCoins(registry, amount) {
   const state = getRunState(registry);

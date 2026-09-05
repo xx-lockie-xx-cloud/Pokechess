@@ -8,6 +8,12 @@ console.log('[game.js] module chargé');
 import { UIManager }   from './ui/UIManager.js';
 import { SaveManager } from './SaveManager.js';
 import { RuneManager } from './combat/RuneManager.js';
+import { getMetaEffects } from './data/metaTree.js';
+// Multiplicateur de pieces (noeud Cupidite), relu par addCoins.
+// Publie ici pour eviter un import circulaire depuis runState.
+const __mfx = getMetaEffects(SaveManager.loadMeta());
+window.__metaCoinMult  = __mfx.coinMult;
+window.__metaStartCoins = __mfx.startCoins;
 
 window.UIManager   = UIManager;
 window.SaveManager = SaveManager;
