@@ -28,6 +28,8 @@ import { TutorialUI }      from './TutorialUI.js';
 import { TalentTreeUI }      from './TalentTreeUI.js';
 import { RuneAssignUI }      from './RuneAssignUI.js';
 import { MetaTreeUI }        from './MetaTreeUI.js';
+import { SettingsUI }        from './SettingsUI.js';
+import { LadderUI }          from './LadderUI.js';
 import { AchievementsUI }      from './AchievementsUI.js';
 import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
@@ -117,6 +119,8 @@ class UIManagerClass {
     document.getElementById('btn-talent-tree')?.addEventListener('click', () => TalentTreeUI.open());
     document.getElementById('btn-runes')?.addEventListener('click', () => RuneAssignUI.open());
     document.getElementById('btn-meta-tree')?.addEventListener('click', () => MetaTreeUI.open());
+    document.getElementById('btn-settings')?.addEventListener('click', () => SettingsUI.open());
+    document.getElementById('btn-ladder')?.addEventListener('click', () => LadderUI.open());
     document.getElementById('btn-achievements')?.addEventListener('click', () => AchievementsUI.open());
     document.getElementById('btn-stats')?.addEventListener('click', () => this._showStats());
     document.getElementById('btn-relics-library')?.addEventListener('click', () => RelicsLibraryUI.open());
@@ -950,6 +954,7 @@ class UIManagerClass {
       ]]] : []),
       ['Progression', [
         ['⭐ Pokémon niveau 100', maxLevelCount],
+        ['🎒 Pokémon capturés',  stats.pokemonCaptured ?? 0],
         ['💎 Reliques utilisées', relicsUsedCount],
         ['🏆 Succès débloqués',   `${Object.keys(meta.achievements ?? {}).length}${totalAch ? ' / ' + totalAch : ''}`],
         ['⏱ Temps de jeu',       playtime],

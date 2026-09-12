@@ -1505,8 +1505,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_ACTION: [{ type:'ramp_stat', stat:'atk', rate:0.08, max:0.40 }] } },
   },
   222: {
-    35: { id:'regeneration_222', name:'Régénération', desc:'Soigne 10% PV / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_self_periodic', rate:0.10 }] } },
+    35: { id:'regeneration_222', name:'Régénération', desc:'Soigne 8% PV / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_self_periodic', rate:0.08 }] } },
     70: { id:'recif_222', name:'Récif', desc:'+25% DEF aux alliés Eau',
       hooks:{ ON_SETUP: [{ type:'aura_type_boost', pkType:'Eau', stat:'def', mult:1.25 }] } },
   },
@@ -1762,7 +1762,7 @@ export const POKEMON_PASSIVES = {
     35: { id:'vitesse_pure_264', name:'Vitesse Pure', desc:'+25% VIT',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spd', mult:1.25 }] } },
     70: { id:'assaut_eclair_264', name:'Assaut Éclair', desc:'25% de frapper deux fois',
-      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.6, chance:0.25 }] } },
+      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.5, chance:0.25 }] } },
   },
   265: {
     35: { id:'carapace_265', name:'Carapace', desc:'+12% DEF',
@@ -1899,8 +1899,8 @@ export const POKEMON_PASSIVES = {
   287: {
     35: { id:'cool_287', name:'Cool', desc:'Soigne 5% PV à chaque action',
       hooks:{ ON_ACTION: [{ type:'heal_self', rate:0.05 }] } },
-    70: { id:'sieste_287', name:'Sieste', desc:'Soigne 25% PV / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_self_periodic', rate:0.25 }] } },
+    70: { id:'sieste_287', name:'Sieste', desc:'Soigne 12% PV / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_self_periodic', rate:0.12 }] } },
   },
   288: {
     35: { id:'insomnia_288', name:'Insomnia', desc:'Immunisé au sommeil',
@@ -1927,8 +1927,8 @@ export const POKEMON_PASSIVES = {
       hooks:{ ON_SETUP: [{ type:'stack_per_ally', stat:'spd', rate:0.08, allyType:'Insecte' }] } },
   },
   292: {
-    35: { id:'garde_mystik_292', name:'Garde Mystik', desc:'50% d\'esquive',
-      hooks:{ ON_SETUP: [{ type:'evasion', chance:0.5 }] } },
+    35: { id:'garde_mystik_292', name:'Garde Mystik', desc:'30% d\'esquive',
+      hooks:{ ON_SETUP: [{ type:'evasion', chance:0.3 }] } },
     70: { id:'corps_vide_292', name:'Corps Vide', desc:'Immunisé au type Normal',
       hooks:{ ON_SETUP: [{ type:'type_immunity', damageType:'Normal' }] } },
   },
@@ -2013,8 +2013,8 @@ export const POKEMON_PASSIVES = {
   306: {
     35: { id:'forteresse_306', name:'Forteresse', desc:'+25% DEF et bouclier',
       hooks:{ ON_SETUP: [{ type:'shield' }] } },
-    70: { id:'colere_de_fer_306', name:'Colère de Fer', desc:'+6% ATK à chaque coup reçu (max 36%)',
-      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.06, max:0.36 }] } },
+    70: { id:'colere_de_fer_306', name:'Colère de Fer', desc:'+5% ATK à chaque coup reçu (max 36%)',
+      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.05, max:0.36 }] } },
   },
   307: {
     35: { id:'meditation_307', name:'Méditation', desc:'+15% ATK',
@@ -2085,8 +2085,8 @@ export const POKEMON_PASSIVES = {
   318: {
     35: { id:'brutalite_318', name:'Brutalité', desc:'+18% ATK',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'atk', mult:1.18 }] } },
-    70: { id:'frenesie_318', name:'Frénésie', desc:'+6% ATK à chaque coup reçu (max 36%)',
-      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.06, max:0.36 }] } },
+    70: { id:'frenesie_318', name:'Frénésie', desc:'+5% ATK à chaque coup reçu (max 36%)',
+      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.05, max:0.36 }] } },
   },
   319: {
     35: { id:'predateur_319', name:'Prédateur', desc:'+28% ATK',
@@ -2230,7 +2230,7 @@ export const POKEMON_PASSIVES = {
     35: { id:'hyper_cutter_342', name:'Hyper Cutter', desc:'+25% ATK',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'atk', mult:1.25 }] } },
     70: { id:'broyeur_342', name:'Broyeur', desc:'25% de frapper une seconde fois',
-      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.55, chance:0.25 }] } },
+      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.5, chance:0.25 }] } },
   },
   343: {
     35: { id:'levitation_343', name:'Lévitation', desc:'Immunisé au type Sol',
@@ -2253,8 +2253,8 @@ export const POKEMON_PASSIVES = {
   346: {
     35: { id:'tentacules_346', name:'Tentacules', desc:'+22% ATK',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'atk', mult:1.22 }] } },
-    70: { id:'regeneration_346', name:'Régénération', desc:'Soigne 25% PV / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_self_periodic', rate:0.25 }] } },
+    70: { id:'regeneration_346', name:'Régénération', desc:'Soigne 12% PV / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_self_periodic', rate:0.12 }] } },
   },
   347: {
     35: { id:'carapace_fossile_347', name:'Carapace Fossile', desc:'+15% DEF',
@@ -2325,20 +2325,20 @@ export const POKEMON_PASSIVES = {
   358: {
     35: { id:'levitation_358', name:'Lévitation', desc:'Immunisé au type Sol',
       hooks:{ ON_SETUP: [{ type:'type_immunity', damageType:'Sol' }] } },
-    70: { id:'echo_guerisseur_358', name:'Écho Guérisseur', desc:'Soigne 6% PV à tous les alliés / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.06 }] } },
+    70: { id:'echo_guerisseur_358', name:'Écho Guérisseur', desc:'Soigne 5% PV à tous les alliés / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.05 }] } },
   },
   359: {
     35: { id:'pression_359', name:'Pression', desc:'-20% ATK aux ennemis',
       hooks:{ ON_SETUP: [{ type:'intimidate', stats:['atk'], mult:0.8 }] } },
-    70: { id:'coup_critique_359', name:'Coup Critique', desc:'30% de frapper une seconde fois',
-      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.6, chance:0.3 }] } },
+    70: { id:'coup_critique_359', name:'Coup Critique', desc:'25% de frapper une seconde fois',
+      hooks:{ ON_ATTACK: [{ type:'bonus_hit', mult:0.5, chance:0.25 }] } },
   },
   360: {
     35: { id:'echec_360', name:'Échec', desc:'Riposte 30% des dégâts reçus',
       hooks:{ ON_RECEIVE: [{ type:'counter', rate:0.3 }] } },
-    70: { id:'patience_360', name:'Patience', desc:'+8% ATK à chaque coup reçu (max 40%)',
-      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.08, max:0.4 }] } },
+    70: { id:'patience_360', name:'Patience', desc:'+5% ATK à chaque coup reçu (max 40%)',
+      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.05, max:0.4 }] } },
   },
   361: {
     35: { id:'corps_gel_361', name:'Corps Gel', desc:'20% de gel sur l\'attaquant',
@@ -2385,8 +2385,8 @@ export const POKEMON_PASSIVES = {
   368: {
     35: { id:'ecailles_roses_368', name:'Écailles Roses', desc:'+30% DEF spé',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'spd_def', mult:1.3 }] } },
-    70: { id:'chant_des_abysses_368', name:'Chant des Abysses', desc:'Soigne 6% PV à tous les alliés / 8 actions',
-      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.06 }] } },
+    70: { id:'chant_des_abysses_368', name:'Chant des Abysses', desc:'Soigne 5% PV à tous les alliés / 8 actions',
+      hooks:{ ON_PERIODIC: [{ type:'heal_all', rate:0.05 }] } },
   },
   369: {
     35: { id:'fossile_vivant_369', name:'Fossile Vivant', desc:'+25% DEF',
@@ -2403,8 +2403,8 @@ export const POKEMON_PASSIVES = {
   371: {
     35: { id:'muscle_371', name:'Muscle', desc:'+15% ATK',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'atk', mult:1.15 }] } },
-    70: { id:'rage_371', name:'Rage', desc:'+6% ATK à chaque coup reçu (max 30%)',
-      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.06, max:0.3 }] } },
+    70: { id:'rage_371', name:'Rage', desc:'+5% ATK à chaque coup reçu (max 30%)',
+      hooks:{ ON_RECEIVE: [{ type:'rage', stat:'atk', rate:0.05, max:0.3 }] } },
   },
   372: {
     35: { id:'carapace_372', name:'Carapace', desc:'+20% DEF',
@@ -2470,13 +2470,13 @@ export const POKEMON_PASSIVES = {
     35: { id:'maitre_des_mers_382', name:'Maître des Mers', desc:'Déclenche la Pluie au début du combat',
       hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'rain' }] } },
     70: { id:'deluge_primordial_382', name:'Déluge Primordial', desc:'+30% stats sous Pluie',
-      hooks:{ ON_SETUP: [{ type:'weather_boost', mult:1.3 }] } },
+      hooks:{ ON_SETUP: [{ type:'weather_boost', mult:1.25 }] } },
   },
   383: {
     35: { id:'maitre_des_terres_383', name:'Maître des Terres', desc:'Déclenche le Zénith au début du combat',
       hooks:{ ON_SETUP: [{ type:'weather_setter', weather:'sun' }] } },
     70: { id:'terre_primordiale_383', name:'Terre Primordiale', desc:'+30% stats sous Zénith',
-      hooks:{ ON_SETUP: [{ type:'weather_boost', mult:1.3 }] } },
+      hooks:{ ON_SETUP: [{ type:'weather_boost', mult:1.25 }] } },
   },
   384: {
     35: { id:'air_lock_384', name:'Air Lock', desc:'Immunisé au type Sol',
@@ -2494,7 +2494,7 @@ export const POKEMON_PASSIVES = {
     35: { id:'forme_attaque_386', name:'Forme Attaque', desc:'+35% ATK',
       hooks:{ ON_SETUP: [{ type:'stat_boost', stat:'atk', mult:1.35 }] } },
     70: { id:'mutation_386', name:'Mutation', desc:'+25% de la meilleure stat',
-      hooks:{ ON_SETUP: [{ type:'boost_highest_stat', mult:1.25 }] } },
+      hooks:{ ON_SETUP: [{ type:'boost_highest_stat', mult:1.20 }] } },
   },
 };
 
