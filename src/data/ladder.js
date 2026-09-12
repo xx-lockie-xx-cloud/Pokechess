@@ -30,6 +30,14 @@ export const LADDER_METRICS = [
   { key: 'max_level_count', label: 'Niveau 100',  emoji: '⭐' },
   { key: 'achievements',    label: 'Succès',      emoji: '🎖' },
   { key: 'dex_caught',      label: 'Pokédex',     emoji: '📖' },
+  { key: 'dex_caught_gen1', label: 'Dex Kanto',   emoji: '🌸' },
+  { key: 'dex_caught_gen2', label: 'Dex Johto',   emoji: '🌊' },
+  { key: 'dex_caught_gen3', label: 'Dex Hoenn',   emoji: '🌋' },
+  { key: 'leagues_kanto',   label: 'Ligues Kanto', emoji: '🌸' },
+  { key: 'leagues_johto',   label: 'Ligues Johto', emoji: '🌊' },
+  { key: 'leagues_hoenn',   label: 'Ligues Hoenn', emoji: '🌋' },
+  { key: 'leagues_expert',  label: 'Ligues Expert', emoji: '💀' },
+  { key: 'leagues_hard',    label: 'Ligues Difficile', emoji: '🔥' },
   { key: 'playtime_ms',     label: 'Temps de jeu', emoji: '⏱',
     fmt: v => {
       const min = Math.round((v ?? 0) / 60000);
