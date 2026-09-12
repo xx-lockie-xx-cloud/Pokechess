@@ -922,18 +922,34 @@ class UIManagerClass {
       const lb = stats.leaguesByRegion?.[region] ?? {};
       return Object.values(lb).reduce((a, b) => a + b, 0);
     };
+    // Ligues d'une region a une difficulte precise
+    const byRegionDiff = (region, diff) => stats.leaguesByRegion?.[region]?.[diff] ?? 0;
+    const REGION_ROWS = [
+      ['🌸', 'kanto', 'Kanto'],
+      ['🌊', 'johto', 'Johto'],
+      ['🌋', 'hoenn', 'Hoenn'],
+    ];
 
     const sections = [
       ['Ligue', [
         ['🏆 Ligues vaincues',    stats.leaguesBeaten ?? 0],
-        ['🌸 à Kanto',            byRegion('kanto')],
-        ...(gen2Ok ? [['🌊 à Johto', byRegion('johto')]] : []),
-        ...(gen3Ok ? [['🌋 à Hoenn', byRegion('hoenn')]] : []),
         ['📍 en Facile',          stats.leaguesByDiff?.easy    ?? 0],
         ['⚔️ en Normal',          stats.leaguesByDiff?.normal  ?? 0],
         ['🔥 en Difficile',       stats.leaguesByDiff?.hard    ?? 0],
         ['💀 en Expert',          stats.leaguesByDiff?.expert  ?? 0],
       ]],
+      // Detail region x difficulte : la donnee existe deja dans
+      // leaguesByRegion[region][difficulte], elle n'etait pas affichee.
+      ...REGION_ROWS.filter(([, id]) => id === 'kanto' || (id === 'johto' && gen2Ok)
+                                        || (id === 'hoenn' && gen3Ok))
+        .map(([emoji, id, name]) => [`Ligues ${name}`, [
+          ['🏆 Total',        byRegion(id)],
+          ['📍 en Facile',    byRegionDiff(id, 'easy')],
+          ['⚔️ en Normal',    byRegionDiff(id, 'normal')],
+          ['🔥 en Difficile', byRegionDiff(id, 'hard')],
+          ['💀 en Expert',    byRegionDiff(id, 'expert')],
+          ['🏅 Badges',       stats.badgesByRegion?.[id] ?? 0],
+        ]]),
       ['Combats', [
         ['🏅 Badges obtenus',     stats.badges      ?? 0],
         ['✅ Combats gagnés',     stats.totalWins   ?? 0],
