@@ -84,6 +84,9 @@ export function buildLadderPayload() {
   const wins  = stats.totalWins ?? 0;
   const total = wins + (stats.totalLosses ?? 0);
   const inRange = (list, a, b) => (list ?? []).filter(id => id >= a && id <= b).length;
+  // leaguesByRegion[region][difficulte] : on somme les difficultes d'une region
+  const byRegion = (r) =>
+    Object.values(stats.leaguesByRegion?.[r] ?? {}).reduce((a, b) => a + b, 0);
 
   return {
     trainer_id:    getTrainerId(),
@@ -103,10 +106,23 @@ export function buildLadderPayload() {
     total_runs:      meta.totalRuns ?? 0,
     completed_runs:  meta.completedRuns ?? 0,
     best_map:        meta.bestMap ?? 0,
-    dex_seen:        (meta.seenPokemon ?? []).length,
-    dex_caught:      (meta.caughtPokemon ?? []).length,
-    dex_seen_gen1:   inRange(meta.seenPokemon, 1, 151),
-    dex_seen_gen2:   inRange(meta.seenPokemon, 152, 251),
-    dex_seen_gen3:   inRange(meta.seenPokemon, 252, 386),
+    dex_seen:         (meta.seenPokemon ?? []).length,
+    dex_caught:       (meta.caughtPokemon ?? []).length,
+    dex_seen_gen1:    inRange(meta.seenPokemon, 1, 151),
+    dex_seen_gen2:    inRange(meta.seenPokemon, 152, 251),
+    dex_seen_gen3:    inRange(meta.seenPokemon, 252, 386),
+    dex_caught_gen1:  inRange(meta.caughtPokemon, 1, 151),
+    dex_caught_gen2:  inRange(meta.caughtPokemon, 152, 251),
+    dex_caught_gen3:  inRange(meta.caughtPokemon, 252, 386),
+
+    // Ligues par region (toutes difficultes confondues)
+    leagues_kanto:    byRegion('kanto'),
+    leagues_johto:    byRegion('johto'),
+    leagues_hoenn:    byRegion('hoenn'),
+    // Ligues par difficulte (toutes regions confondues)
+    leagues_easy:     stats.leaguesByDiff?.easy   ?? 0,
+    leagues_normal:   stats.leaguesByDiff?.normal ?? 0,
+    leagues_hard:     stats.leaguesByDiff?.hard   ?? 0,
+    leagues_expert:   stats.leaguesByDiff?.expert ?? 0,
   };
 }
