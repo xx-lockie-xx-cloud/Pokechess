@@ -7,6 +7,7 @@
 import { POKEMONS }    from './pokemons.js';
 import { getBSTTier }  from './runState.js';
 import { TRAINER_ARCHETYPES, TRAINER_ARCHETYPES_EXTRA, generateEnemyTeam } from './trainers.js';
+import { pickHoennMaster, getHoennMasterTeam } from './arenaHoenn.js';
 import { getRegionArenas, isPokemonAllowed, DEFAULT_REGION,
          ARENAS_KANTO, REGIONS, GEN_RANGES } from './regions.js';
 
@@ -21,6 +22,8 @@ export const ARENAS = ARENAS_KANTO;
 export const LEGENDARIES = new Set([
   144, 145, 146, 150, 151,           // Artikodin, Électhor, Sulfura, Mewtwo, Mew
   243, 244, 245, 249, 250, 251,      // Raikou, Entei, Suicune, Lugia, Ho-Oh, Celebi
+  377, 378, 379, 380, 381,           // Regirock, Regice, Registeel, Latias, Latios
+  382, 383, 384, 385, 386,           // Kyogre, Groudon, Rayquaza, Jirachi, Deoxys
 ]);
 
 // PSEUDO-légendaires : écartés par défaut (trop puissants), mais réintégrés
@@ -28,6 +31,8 @@ export const LEGENDARIES = new Set([
 export const PSEUDO_LEGENDARIES = new Set([
   147, 148, 149,                     // Minidraco, Draco, Dracolosse
   246, 247, 248,                     // Embrylex, Ymphect, Tyranocif
+  371, 372, 373,                     // Draby, Drackhaus, Drattak
+  374, 375, 376,                     // Terhal, Metang, Metalosse
 ]);
 
 const MIN_ARENA_POOL = 4;
@@ -52,7 +57,7 @@ export const MASTER_MULT = 1.2;   // maître de la Ligue
 // sur six emplacements toujours remplis : sans correction, elle dépassait
 // largement le reste du jeu. La progression reste croissante (×2.46 de Facile
 // à Expert) et la marche finale se creuse : ×1.05 en Facile, ×1.21 en Expert.
-export const FIXED_TEAM_DIFF = { easy: 0.618, normal: 0.816, hard: 0.934, expert: 0.99 };
+export const FIXED_TEAM_DIFF = { easy: 0.680, normal: 0.898, hard: 1.027, expert: 1.089 };   // +10% (difficulté Red)
 
 // ── Génère l'équipe du champion selon difficulté et mapIndex ─────────────────
 // L'équipe est composée de 6 pokémons partageant tous le type de l'arène
@@ -146,11 +151,30 @@ export function generateArenaTeam(arena, mapIndex = 0, budget = 800, maxUnits = 
       })
     : [];
 
-  for (let i = 0; i < maxUnits && spent < budget; i++) {
+  // Pokémon phare : toujours présent dans l'équipe du champion (arena.aceId).
+  // Il est place en premier et son BST est deduit du budget. Il ignore les
+  // filtres de pool (pseudo-legendaires notamment) puisqu'il est impose.
+  let aceTaken = false;
+  if (arena.aceId) {
+    const ace = POKEMONS.find(p => p.id === arena.aceId);
+    if (ace && cells[0]) {
+      const aceStats = {};
+      Object.entries(ace.stats ?? {}).forEach(([k, v]) => {
+        aceStats[k] = Math.round(v * ARENA_MULT);
+      });
+      team.push({ ...ace, stats: aceStats, col: cells[0].col, row: cells[0].row,
+                  attributes: [], _champion: true, _ace: true });
+      counts[ace.id] = (counts[ace.id] ?? 0) + 1;
+      spent += pokemonBST(ace);
+      aceTaken = true;
+    }
+  }
+
+  for (let i = team.length; i < maxUnits && spent < budget; i++) {
     const remaining = budget - spent;
     // Premier tirage : puise dans le pool de la génération signature si elle
     // offre un choix abordable, sinon retombe sur le pool complet.
-    const useSignature = i === 0 && signaturePool.length > 0;
+    const useSignature = i === 0 && !aceTaken && signaturePool.length > 0;
     let   basePool     = useSignature ? signaturePool : pool;
 
     // Plafond de doublons : au maximum MAX_SAME exemplaires d'un même Pokémon.
@@ -288,10 +312,15 @@ export function generateLeagueTeam(mapIndex = 7, difficultyMult = 1.0,
 export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
                                      rng = Math.random.bind(Math),
                                      regionId = DEFAULT_REGION, meta = null,
-                                     budgetOverride = null) {
+                                     budgetOverride = null, seed = null) {
+  // Maitre de la region : fixe (Kanto, Johto) ou tire par la seed (Hoenn).
+  const regionMaster = getRegionMaster(regionId, seed);
+  // Equipe fixe : celle de la region, ou celle du membre du Conseil 4 tire.
+  const regionFixedTeam = REGIONS[regionId]?.masterTeam
+    ?? (regionMaster?.file ? getHoennMasterTeam(regionMaster.file) : null);
   // Bonus de statut "Maître". Pour une équipe générée, la difficulté agit via
   // le budget ; pour une équipe fixe, on la réintroduit ici avec FIXED_TEAM_DIFF.
-  const hasFixedTeam = !!REGIONS[regionId]?.masterTeam;
+  const hasFixedTeam = !!regionFixedTeam;
   const mult = MASTER_MULT * (hasFixedTeam ? (FIXED_TEAM_DIFF[difficulty] ?? 1) : 1);
 
   // Pool d'archétypes : base + extra (avec un pool exploitable)
@@ -301,7 +330,7 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
 
   // Johto : le maître est FIXE (Red au Mont Argenté), pas un archétype tiré au
   // sort. Son équipe est libre en type, contrairement aux champions d'arène.
-  const master = REGIONS[regionId]?.master ?? null;
+  const master = regionMaster ?? null;
   const isFixedMaster = regionId !== DEFAULT_REGION && master;
 
   // Budget : fourni par MapGenerator (issu de DIFF_BUDGETS, donc cohérent avec
@@ -313,7 +342,7 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
 
   // Équipe FIXE si la région en déclare une (Red à Johto), sinon tirage depuis
   // le pool de l'archétype (6 unités max).
-  const fixedTeam = REGIONS[regionId]?.masterTeam ?? null;
+  const fixedTeam = regionFixedTeam;
   const rawTeam = fixedTeam
     ? fixedTeam.map(slot => {
         const base = POKEMONS.find(p => p.id === slot.id);
@@ -365,6 +394,21 @@ export function generateLeagueMaster(mapIndex = 8, difficulty = 'normal',
 export function getArenaForMap(mapIndex, regionId = DEFAULT_REGION) {
   const list = getRegionArenas(regionId);
   return list[Math.min(mapIndex, list.length - 1)] ?? null;
+}
+
+// Comme getArenaForMap, mais renvoie le MAÎTRE de région si la map dépasse les
+// arènes (map du maître). Utilisé pour le sprite du nœud boss final (Red / Peter).
+export function getBossForMap(mapIndex, regionId = DEFAULT_REGION, seed = null) {
+  const list = getRegionArenas(regionId);
+  if (mapIndex >= list.length) return getRegionMaster(regionId, seed);
+  return list[mapIndex] ?? null;
+}
+
+// Maître de la région. Hoenn tire le sien parmi le Conseil 4 a partir de la seed
+// de la run : meme seed, meme maitre pendant toute la partie.
+export function getRegionMaster(regionId = DEFAULT_REGION, seed = null) {
+  if (REGIONS[regionId]?.randomMaster) return pickHoennMaster(seed);
+  return REGIONS[regionId]?.master ?? null;
 }
 
 export function getArenaById(id, regionId = DEFAULT_REGION) {

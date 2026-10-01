@@ -205,8 +205,10 @@ export class MapGenerator {
             // Map 8+ = Ligue Pokémon → MAÎTRE : archétype aléatoire en version Maître
             // Même budget que les champions (DIFF_BUDGETS) : le maître se
             // distingue par MASTER_MULT, pas par un budget qui ignore la difficulté.
+            // this._seed (seed maitre de l'epopee) decide du maitre a Hoenn :
+            // il reste le meme toute la run, contrairement au rng derive par map.
             const master = generateLeagueMaster(mapIndex, difficulty, rng, regionId, meta,
-                                                bossBudget);
+                                                bossBudget, this._seed);
             bossTeam   = master.team;
             bossName   = master.name;
             bossSprite = master.spriteCombat;

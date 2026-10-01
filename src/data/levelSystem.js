@@ -671,6 +671,14 @@ export const TALENT_TREES = {
     { id:'normal_3', name:'Adaptabilité', cost:3, desc:'Normal : immunisé aux malus de stats + 2% stats / coup reçu',
       effect:{ kind:'type_resilience', type:'Normal', ragePerHit:0.02, max:0.40 } },
   ],
+  Ténèbres: [
+    { id:'tenebres_1', name:'Coup Bas', cost:1, desc:'+10% ATK pokémons Ténèbres',
+      effect:{ kind:'type_stat', type:'Ténèbres', stat:'atk', mult:1.10 } },
+    { id:'tenebres_2', name:'Faille', cost:2, desc:'-15% DEF tous ennemis (Ténèbres)',
+      effect:{ kind:'type_start_debuff', type:'Ténèbres', stat:'def', mult:0.85 } },
+    { id:'tenebres_3', name:'Traîtrise', cost:3, desc:'Pokémons Ténèbres ignorent les résistances',
+      effect:{ kind:'type_ignore_resistance', type:'Ténèbres' } },
+  ],
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────

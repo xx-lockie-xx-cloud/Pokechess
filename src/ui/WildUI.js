@@ -1,3 +1,5 @@
+import { rollRarity } from '../data/rarity.js';
+import { getLuck } from '../data/luck.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // WildUI.js
 // Gère l'écran HTML de rencontre sauvage.
@@ -488,7 +490,7 @@ export const WildUI = {
     let bonusItem = null;
     if (RelicEngine.givesItemOnCatch(getRunState(this._registry)?.relic?.id)) {
       bonusItem = this._typedItemFor(this._selected);
-      if (bonusItem) addToInventory(this._registry, bonusItem.id);
+      if (bonusItem) addToInventory(this._registry, { id: bonusItem.id, rarity: rollRarity(getLuck()) });
     }
 
     // Statistiques : enregistre la (les) capture(s)

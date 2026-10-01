@@ -1,8 +1,12 @@
+import { rollRarity, RARITY_META } from '../data/rarity.js';
+import { getLuck } from '../data/luck.js';
+import { getMetaEffects } from '../data/metaTree.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // ItemUI.js — Remplace ItemScene.js (Phaser)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { ITEMS, pickEquippableItems } from '../data/items.js';
+import { ITEMS, pickEquippableItems,
+         describeItem, resolveHeldItem } from '../data/items.js';
 import { addToInventory, getRunState } from '../data/runState.js';
 
 export const ItemUI = {
@@ -20,7 +24,8 @@ export const ItemUI = {
 
     // 3 objets équipables, tirage pondéré selon les types de l'équipe
     const bank = getRunState(this._registry)?.playerBank ?? [];
-    this._offered = pickEquippableItems(3, bank);
+    const nChoices = 3 + getMetaEffects(window.SaveManager?.loadMeta()).itemChoices;
+    this._offered = pickEquippableItems(nChoices, bank).map(it => ({ ...it, rarity: rollRarity(getLuck()) }));
 
     this._render();
     this._bindButtons();
@@ -33,14 +38,15 @@ export const ItemUI = {
 
     this._offered.forEach(item => {
       const card = document.createElement('div');
-      card.className = 'poke-card';
+      card.className = `poke-card${item.rarity && item.rarity !== 'normal' ? ' rarity-' + item.rarity : ''}`;
       card.dataset.itemId = item.id;
 
       card.innerHTML = `
         <span style="font-size:36px;margin-bottom:6px">${item.emoji}</span>
         <span class="card-name">${item.name}</span>
+        ${item.rarity && item.rarity !== 'normal' ? `<span class="card-rarity" style="color:${RARITY_META[item.rarity].color}">${RARITY_META[item.rarity].label}</span>` : ''}
         <span class="card-types" style="text-align:center;font-size:9px;
-              color:var(--text-muted);padding:0 4px">${item.description}</span>
+              color:var(--text-muted);padding:0 4px">${describeItem(resolveHeldItem({ id: item.id, rarity: item.rarity }))}</span>
         <span class="card-price" style="color:var(--color-green)">Gratuit !</span>
       `;
 
@@ -68,7 +74,7 @@ export const ItemUI = {
       newBtn.disabled = true;
       newBtn.addEventListener('click', () => {
         if (!this._selected) return;
-        addToInventory(this._registry, this._selected.id);
+        addToInventory(this._registry, { id: this._selected.id, rarity: this._selected.rarity });
         if (this._onDone) this._onDone(this._data);
       });
     }

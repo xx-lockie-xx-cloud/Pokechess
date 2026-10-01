@@ -22,6 +22,7 @@ import { ITEMS, pickEquippableItems }   from '../data/items.js';
 import { getRunState, setRunState, addToBank, addCoins, removeCoins,
          addToInventory, getBSTTier, getRunRegion }        from '../data/runState.js';
 import { isPokemonAllowed }             from '../data/regions.js';
+import { getLuck }                     from '../data/luck.js';
 
 export const CASINO_COST      = 3;
 export const PITY_THRESHOLD   = 3;
@@ -57,14 +58,15 @@ export const CasinoUI = {
   _draw() {
     const state = getRunState(this._registry) ?? {};
     const fails = state.casinoFails ?? 0;
+    const luck  = getLuck();
 
     // Pitié : le tirage suivant ne peut pas être une perte sèche
     if (fails >= PITY_THRESHOLD) {
       setRunState(this._registry, { casinoFails: 0 });
-      return Math.random() < 0.15 ? 'jackpot' : 'item';
+      return Math.random() < Math.min(0.30, 0.15 + luck * 0.01) ? 'jackpot' : 'item';
     }
 
-    const r = Math.random();
+    const r = Math.max(0, Math.random() - Math.min(0.05, luck * 0.005));
     const outcome = ODDS.find(o => r < o.upTo)?.id ?? 'loss';
     // Seules les pertes SÈCHES alimentent la pitié : un remboursement n'est pas
     // une perte. Compter les remboursements portait le retour à 97%, au-dessus

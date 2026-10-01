@@ -11,9 +11,12 @@
 
 import { ARENAS_KANTO, MASTER_KANTO } from './arenaKanto.js';
 import { ARENAS_JOHTO, MASTER_JOHTO, RED_TEAM } from './arenaJohto.js';
+import { ARENAS_HOENN, MASTER_HOENN, ELITES_HOENN,
+         pickHoennMaster, buildHoennMaster } from './arenaHoenn.js';
 
 // Ré-export pour que les consommateurs n'aient qu'un point d'entrée
 export { ARENAS_KANTO, ARENAS_JOHTO, MASTER_KANTO, MASTER_JOHTO, RED_TEAM };
+export { ARENAS_HOENN, MASTER_HOENN, ELITES_HOENN, pickHoennMaster, buildHoennMaster };
 
 
 // ── Régions ──────────────────────────────────────────────────────────────────
@@ -53,6 +56,25 @@ export const REGIONS = {
     // Débloqué en terminant Kanto en Normal ou plus difficile
     unlockedBy:    { region: 'kanto', minDifficulty: 'normal' },
     unlockHint:    'Terminez la Ligue de Kanto en Normal ou plus',
+  },
+  hoenn: {
+    id:            'hoenn',
+    name:          'Hoenn',
+    emoji:         '🌋',
+    image:         'assets/regions/hoenn.png',
+    subtitle:      'Terre, mer et ciel',
+    arenas:        ARENAS_HOENN,
+    difficulties:  ['normal', 'hard', 'expert'],   // pas de mode Facile
+    gens:          [1, 2, 3],
+    signatureGen:  3,                   // 1er Pokémon de chaque champion garanti gen 3
+    // Starters de Hoenn : Arcko, Poussifeu, Gobou, plus Tarsal (emblème régional)
+    starterIds:    [252, 255, 258, 280],
+    master:        MASTER_HOENN,        // repli : le maître réel est tiré par pickHoennMaster()
+    masterPool:    ELITES_HOENN,        // le maître est tiré au hasard parmi la Ligue
+    randomMaster:  true,
+    // Débloqué en terminant Johto en Normal ou plus difficile
+    unlockedBy:    { region: 'johto', minDifficulty: 'normal' },
+    unlockHint:    'Terminez la Ligue de Johto en Normal ou plus',
   },
 };
 
@@ -124,14 +146,14 @@ export function getRegionDifficulties(regionId, meta) {
 // Ligue de Kanto terminée en Normal ou plus, elle est disponible dans toutes
 // les régions, Kanto compris.
 export function getAllowedGens(regionId, meta) {
-  const gen2Unlocked = isRegionUnlocked('johto', meta);
   const base = new Set(getRegion(regionId).gens);
-  if (gen2Unlocked) base.add(2);
+  if (isRegionUnlocked('johto', meta)) base.add(2);
+  if (isRegionUnlocked('hoenn', meta)) base.add(3);
   return [...base].sort((a, b) => a - b);
 }
 
 // Bornes d'ID du Pokédex correspondant aux générations autorisées
-export const GEN_RANGES = { 1: [1, 151], 2: [152, 251] };
+export const GEN_RANGES = { 1: [1, 151], 2: [152, 251], 3: [252, 386] };
 
 export function getAllowedPokemonIds(regionId, meta) {
   const gens = getAllowedGens(regionId, meta);

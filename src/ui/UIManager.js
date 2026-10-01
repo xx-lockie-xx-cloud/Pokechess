@@ -26,6 +26,10 @@ import { CombatUI }       from './CombatUI.js';
 import { ArenaVictoryUI } from './ArenaVictoryUI.js';
 import { TutorialUI }      from './TutorialUI.js';
 import { TalentTreeUI }      from './TalentTreeUI.js';
+import { RuneAssignUI }      from './RuneAssignUI.js';
+import { MetaTreeUI }        from './MetaTreeUI.js';
+import { SettingsUI }        from './SettingsUI.js';
+import { LadderUI }          from './LadderUI.js';
 import { AchievementsUI }      from './AchievementsUI.js';
 import { RelicsLibraryUI }    from './RelicsLibraryUI.js';
 import { RelicUI }           from './RelicUI.js';
@@ -113,6 +117,10 @@ class UIManagerClass {
     RelicUI.init();
     RelicsLibraryUI.init();
     document.getElementById('btn-talent-tree')?.addEventListener('click', () => TalentTreeUI.open());
+    document.getElementById('btn-runes')?.addEventListener('click', () => RuneAssignUI.open());
+    document.getElementById('btn-meta-tree')?.addEventListener('click', () => MetaTreeUI.open());
+    document.getElementById('btn-settings')?.addEventListener('click', () => SettingsUI.open());
+    document.getElementById('btn-ladder')?.addEventListener('click', () => LadderUI.open());
     document.getElementById('btn-achievements')?.addEventListener('click', () => AchievementsUI.open());
     document.getElementById('btn-stats')?.addEventListener('click', () => this._showStats());
     document.getElementById('btn-relics-library')?.addEventListener('click', () => RelicsLibraryUI.open());
@@ -902,6 +910,7 @@ class UIManagerClass {
     const seen    = meta.seenPokemon   ?? [];
     const caught  = meta.caughtPokemon ?? [];
     const gen2Ok  = isRegionUnlocked('johto', meta);
+    const gen3Ok  = isRegionUnlocked('hoenn', meta);
 
     // Temps de jeu cumulé
     const ptMs = stats.playtimeMs ?? 0;
@@ -913,17 +922,34 @@ class UIManagerClass {
       const lb = stats.leaguesByRegion?.[region] ?? {};
       return Object.values(lb).reduce((a, b) => a + b, 0);
     };
+    // Ligues d'une region a une difficulte precise
+    const byRegionDiff = (region, diff) => stats.leaguesByRegion?.[region]?.[diff] ?? 0;
+    const REGION_ROWS = [
+      ['🌸', 'kanto', 'Kanto'],
+      ['🌊', 'johto', 'Johto'],
+      ['🌋', 'hoenn', 'Hoenn'],
+    ];
 
     const sections = [
       ['Ligue', [
         ['🏆 Ligues vaincues',    stats.leaguesBeaten ?? 0],
-        ['🌸 à Kanto',            byRegion('kanto')],
-        ...(gen2Ok ? [['🌊 à Johto', byRegion('johto')]] : []),
         ['📍 en Facile',          stats.leaguesByDiff?.easy    ?? 0],
         ['⚔️ en Normal',          stats.leaguesByDiff?.normal  ?? 0],
         ['🔥 en Difficile',       stats.leaguesByDiff?.hard    ?? 0],
         ['💀 en Expert',          stats.leaguesByDiff?.expert  ?? 0],
       ]],
+      // Detail region x difficulte : la donnee existe deja dans
+      // leaguesByRegion[region][difficulte], elle n'etait pas affichee.
+      ...REGION_ROWS.filter(([, id]) => id === 'kanto' || (id === 'johto' && gen2Ok)
+                                        || (id === 'hoenn' && gen3Ok))
+        .map(([emoji, id, name]) => [`Ligues ${name}`, [
+          ['🏆 Total',        byRegion(id)],
+          ['📍 en Facile',    byRegionDiff(id, 'easy')],
+          ['⚔️ en Normal',    byRegionDiff(id, 'normal')],
+          ['🔥 en Difficile', byRegionDiff(id, 'hard')],
+          ['💀 en Expert',    byRegionDiff(id, 'expert')],
+          ['🏅 Badges',       stats.badgesByRegion?.[id] ?? 0],
+        ]]),
       ['Combats', [
         ['🏅 Badges obtenus',     stats.badges      ?? 0],
         ['✅ Combats gagnés',     stats.totalWins   ?? 0],
@@ -938,8 +964,13 @@ class UIManagerClass {
         ['📖 Vus',                `${inRange(seen, 152, 251)} / 100`],
         ['🎒 Capturés',           `${inRange(caught, 152, 251)} / 100`],
       ]]] : []),
+      ...(gen3Ok ? [['Pokédex Hoenn', [
+        ['📖 Vus',                `${inRange(seen, 252, 386)} / 135`],
+        ['🎒 Capturés',           `${inRange(caught, 252, 386)} / 135`],
+      ]]] : []),
       ['Progression', [
         ['⭐ Pokémon niveau 100', maxLevelCount],
+        ['🎒 Pokémon capturés',  stats.pokemonCaptured ?? 0],
         ['💎 Reliques utilisées', relicsUsedCount],
         ['🏆 Succès débloqués',   `${Object.keys(meta.achievements ?? {}).length}${totalAch ? ' / ' + totalAch : ''}`],
         ['⏱ Temps de jeu',       playtime],

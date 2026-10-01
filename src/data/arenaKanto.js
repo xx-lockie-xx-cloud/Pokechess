@@ -60,6 +60,8 @@ export const MASTER_KANTO = {
   name:         'Peter',
   title:        'Maître de la Ligue',
   city:         'Plateau Indigo',
-  sprite:       'assets/trainers/map/champions/kanto/peter.png',
-  spriteCombat: 'assets/trainers/combat/champions/kanto/peter_c.png',
+  sprite:               'assets/trainers/map/champions/kanto/peter.png',
+  spriteCombat:         'assets/trainers/combat/champions/kanto/peter_c.png',
+  championSprite:       'assets/trainers/map/champions/kanto/peter.png',
+  championSpriteCombat: 'assets/trainers/combat/champions/kanto/peter_c.png',
 };

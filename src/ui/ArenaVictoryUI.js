@@ -8,6 +8,7 @@ import { getRunState, setRunState, tryUnlockSlot, getRunRegion } from '../data/r
 import { RelicEngine } from '../combat/RelicEngine.js';
 import { RELICS } from '../data/relics.js';
 import { ACHIEVEMENTS } from '../data/levelSystem.js';
+import { RuneObtentionUI } from './RuneObtentionUI.js';
 
 export const ArenaVictoryUI = {
   _data:     null,
@@ -57,6 +58,13 @@ export const ArenaVictoryUI = {
     const leagueId = 'league_' + mapIndex;
     if (!(rs.badgesEarned ?? []).includes(leagueId)) {
       setRunState(this._registry, { badgesEarned: [...(rs.badgesEarned ?? []), leagueId] });
+    }
+
+    // Révélation de la rune obtenue (drop posé par CombatUI à la victoire de ligue)
+    const _pendingRune = rs.pendingRuneReveal ?? null;
+    if (_pendingRune) {
+      setRunState(this._registry, { pendingRuneReveal: null });   // idempotent
+      setTimeout(() => RuneObtentionUI.show(_pendingRune), 700);
     }
 
     const masterName   = this._data.trainerName  ?? 'Maître';

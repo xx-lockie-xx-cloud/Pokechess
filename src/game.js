@@ -7,6 +7,47 @@ console.log('[game.js] module chargé');
 
 import { UIManager }   from './ui/UIManager.js';
 import { SaveManager } from './SaveManager.js';
+import { RuneManager } from './combat/RuneManager.js';
+import { getMetaEffects } from './data/metaTree.js';
+import { maybePromptTrainerName } from './ui/SettingsUI.js';
+// Multiplicateur de pieces (noeud Cupidite), relu par addCoins.
+// Publie ici pour eviter un import circulaire depuis runState.
+const __mfx = getMetaEffects(SaveManager.loadMeta());
+window.__metaCoinMult  = __mfx.coinMult;
+window.__metaStartCoins = __mfx.startCoins;
+
+// ── Temps de jeu ────────────────────────────────────────────────────────────
+// playtimeMs etait lu (ecran de victoire, statistiques) mais jamais ecrit.
+// On accumule le temps passe onglet VISIBLE, avec un garde-fou contre les
+// longues absences (veille de l'appareil, onglet fige) qui gonfleraient le total.
+let __ptLast = Date.now();
+const PT_MAX_STEP = 120000;   // au-dela de 2 min sans battement, on ignore l'ecart
+
+function __flushPlaytime() {
+  const now   = Date.now();
+  const delta = now - __ptLast;
+  __ptLast = now;
+  if (document.hidden) return;                    // onglet en arriere-plan
+  if (delta <= 0 || delta > PT_MAX_STEP) return;  // ecart aberrant
+  try {
+    const meta  = SaveManager.loadMeta();
+    const stats = SaveManager.getRunStats(meta);
+    stats.playtimeMs = (stats.playtimeMs ?? 0) + delta;
+    meta.runStats = stats;
+    SaveManager.saveMeta(meta);
+  } catch (e) { /* jamais bloquer le jeu pour une stat */ }
+}
+
+setInterval(__flushPlaytime, 30000);
+
+// Publication periodique du score au classement (upsert : une ligne par joueur).
+// L'intervalle mini est gere dans ladder.js, cet appel est donc sans risque.
+import('./data/ladder.js').then(({ publishScore }) => {
+  setInterval(() => publishScore(), 180000);
+  window.addEventListener('beforeunload', () => publishScore({ force: true }));
+}).catch(() => { /* classement indisponible : le jeu continue */ });
+document.addEventListener('visibilitychange', __flushPlaytime);
+window.addEventListener('beforeunload', __flushPlaytime);
 
 window.UIManager   = UIManager;
 window.SaveManager = SaveManager;
@@ -15,6 +56,27 @@ window.SaveManager = SaveManager;
 //   window.previewLeagueVictory()            → écran normal (difficulté courante)
 //   window.previewLeagueVictory('expert')    → force l'écran d'honneur Expert
 //   window.previewLeagueVictory('expert', true) → rejoue l'écran Expert (reset du flag)
+// Debug runes : window.giveRune('vampire', 'legendaire', 0)
+// Octroie une rune au pool et l'assigne au i-ieme pokemon de terrain.
+window.giveRune = (type = null, rarity = 'legendaire', idx = 0) => {
+  const registry = window.__registry;
+  if (!registry) { console.warn('Lance le jeu d\'abord.'); return; }
+  const diffByRarity = { normal:'easy', rare:'normal', epique:'hard', legendaire:'expert' };
+  const rune  = RuneManager.grantRune(diffByRarity[rarity] ?? 'expert', type);
+  const units = (registry.get('playerUnits') ?? []).filter(Boolean);
+  const u = units[idx];
+  if (!u) { console.warn('Aucun pokemon de terrain a l\'index', idx); return; }
+  RuneManager.assign(u.id, rune.uid);
+  console.info(`[rune] ${rune.type} (${rune.rarity}) assignee a ${u.name ?? u.id}`);
+  return rune;
+};
+
+// Debug chance : window.setLuck(5)
+window.setLuck = (n = 0) => {
+  const m = SaveManager.loadMeta(); m.luck = Math.max(0, +n || 0); SaveManager.saveMeta(m);
+  console.info('[luck] chance =', m.luck); return m.luck;
+};
+
 window.previewLeagueVictory = (difficulty = null, replay = true) => {
   const registry = window.__registry;
   if (!registry) { console.warn('Registre indisponible — lance le jeu d\'abord.'); return; }
@@ -124,4 +186,8 @@ document.addEventListener('DOMContentLoaded', () => {
   })();
 
   UIManager.init(registry);
+
+  // Appel unique au nom de dresseur (nouveaux joueurs ET parties existantes).
+  // Differe apres l'init pour ne pas masquer le menu pendant son montage.
+  setTimeout(() => { try { maybePromptTrainerName(); } catch (e) {} }, 600);
 });

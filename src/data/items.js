@@ -1,3 +1,42 @@
+import { scaleItemByRarity } from './rarity.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// describeItem(def) — description lisible depuis la def DÉJÀ scalée par la rareté
+// (sortie de resolveHeldItem / scaleItemByRarity). Le texte expose donc la valeur
+// réelle (ex. légendaire : +39% au lieu de +30%). Fallback sur la description
+// statique pour les effets non numériques (Poké Ball, Ceinture d'Expert...).
+// ─────────────────────────────────────────────────────────────────────────────
+const _STAT_LABEL    = { atk:'ATK', spa:'SP.ATK', def:'DEF', spd_def:'SP.DEF', hp:'PV', spd:'VIT' };
+const _WEATHER_LABEL = { sun:'Zénith', rain:'Pluie', sandstorm:'Tempête de sable', hail:'Grêle', darkness:'Nuit Noire' };
+const _pctBonus = m => Math.round((m - 1) * 100);   // statBonus / teamAura : forme 1+d
+const _pctRate  = v => Math.round(v * 100);         // taux : la valeur EST la magnitude
+
+export function describeItem(def) {
+  if (!def) return '';
+  const typeSuffix = def.typeFilter ? ` (type ${def.typeFilter})` : '';
+  if (def.statBonus && Object.keys(def.statBonus).length) {
+    const parts = Object.entries(def.statBonus).map(([s, m]) => `+${_pctBonus(m)}% ${_STAT_LABEL[s] ?? s}`);
+    return `${parts.join(' et ')}${typeSuffix}.`;
+  }
+  if (def.teamAura && Object.keys(def.teamAura).length) {
+    const parts = Object.entries(def.teamAura).map(([s, m]) => `+${_pctBonus(m)}% ${_STAT_LABEL[s] ?? s}`);
+    return `${parts.join(' et ')} à toute l'équipe.`;
+  }
+  if (typeof def.reviveRate === 'number') {
+    return `Ranime une fois par combat le porteur K.O. avec ${_pctRate(def.reviveRate)}% PV.`;
+  }
+  if (def.emergencyHeal) {
+    const { threshold, rate } = def.emergencyHeal;
+    return `Rend ${_pctRate(rate)}% des PV max en passant sous ${_pctRate(threshold)}% de PV (une fois).`;
+  }
+  if (def.setsWeather) {
+    return `Déclenche ${_WEATHER_LABEL[def.setsWeather] ?? def.setsWeather} au début du combat (${def.weatherTurns ?? 20} tours).`;
+  }
+  if (typeof def.levelBonus === 'number') {
+    return `+${def.levelBonus} niveaux au porteur tant qu'il est équipé.`;
+  }
+  return def.description ?? '';
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // items.js — Catalogue des objets achetables et équipables
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14,7 +53,12 @@
 export function resolveHeldItem(heldItem) {
   if (!heldItem) return null;
   const id = typeof heldItem === 'string' ? heldItem : heldItem.id;
-  return ITEMS[id] ?? heldItem;
+  const def = ITEMS[id];
+  if (!def) return heldItem;
+  // La rareté est portée par l'instance equipee ({ id, rarity }). Absente
+  // (ancienne save, id en chaine) : on retombe sur 'normal', def inchangee.
+  const rarity = (typeof heldItem === 'object' && heldItem.rarity) ? heldItem.rarity : 'normal';
+  return scaleItemByRarity(def, rarity);
 }
 
 export function getEffectiveStats(unit, meta = null) {
@@ -165,32 +209,37 @@ export const ITEMS = {
   roche_chaude: {
     id: 'roche_chaude', name: 'Roche Chaude', emoji: '☀️', price: 6,
     type: 'equippable',
-    description: 'Déclenche Zénith au début du combat (10 tours).',
+    description: 'Déclenche Zénith au début du combat (20 tours de base).',
     setsWeather: 'sun',
+    weatherTurns: 20,
   },
   roche_humide: {
     id: 'roche_humide', name: 'Roche Humide', emoji: '💧', price: 6,
     type: 'equippable',
-    description: 'Déclenche Pluie au début du combat (10 tours).',
+    description: 'Déclenche Pluie au début du combat (20 tours de base).',
     setsWeather: 'rain',
+    weatherTurns: 20,
   },
   roche_lisse: {
     id: 'roche_lisse', name: 'Roche Lisse', emoji: '🌪️', price: 6,
     type: 'equippable',
-    description: 'Déclenche Tempête de sable au début du combat (10 tours).',
+    description: 'Déclenche Tempête de sable au début du combat (20 tours de base).',
     setsWeather: 'sandstorm',
+    weatherTurns: 20,
   },
   roche_glace: {
     id: 'roche_glace', name: 'Roche Glace', emoji: '🧊', price: 6,
     type: 'equippable',
-    description: 'Déclenche Grêle au début du combat (10 tours).',
+    description: 'Déclenche Grêle au début du combat (20 tours de base).',
     setsWeather: 'hail',
+    weatherTurns: 20,
   },
   roche_obscure: {
     id: 'roche_obscure', name: 'Roche Obscure', emoji: '🌑', price: 6,
     type: 'equippable',
-    description: 'Déclenche Nuit Noire au début du combat (10 tours).',
+    description: 'Déclenche Nuit Noire au début du combat (20 tours de base).',
     setsWeather: 'darkness',
+    weatherTurns: 20,
   },
 
   // ── Objets typés complémentaires (uniformisation des 18 types) ──────────

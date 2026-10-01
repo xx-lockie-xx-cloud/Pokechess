@@ -3,6 +3,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { CombatEngine, STAT_EMOJIS }           from '../combat/CombatEngine.js';
+import { RuneManager }                         from '../combat/RuneManager.js';
+import { getLuck }                             from '../data/luck.js';
+import { getMetaEffects }                      from '../data/metaTree.js';
 import { TYPE_COLORS } from '../data/pokemons.js';
 import { getMove }                             from '../data/moves.js';
 import { getLevelColor, getLevelBadgeHTML }     from '../data/levelSystem.js';
@@ -657,6 +660,8 @@ export const CombatUI = {
         ...u,
         attributes: u.attributes ?? [],
         stats,
+        // Rune assignée (résolue + scalée), lue par le moteur au setup
+        rune: RuneManager.getAssignedRune(u.id),
         // Drapeaux transmis au moteur (bouclier, immunité, résurrection, rage)
         _blessFlags: blFlags,
       };
@@ -702,6 +707,7 @@ export const CombatUI = {
       withLevels(playerForEngine), withLevels(enemyForEngine, true),
       playerSynergies, enemySynergies
     );
+    engine._metaEffects   = getMetaEffects(meta);   // crit global, arbre transversal
     engine._playerTalents = activeTalentEffects;
     engine._enemyTalents  = [];
     engine.relicId        = relicId;
@@ -817,11 +823,14 @@ export const CombatUI = {
       const beatenIdx = this._data.mapIndex ?? rs.currentMap ?? 0;
       const nextIdx   = beatenIdx + 1;
       const isLeague  = beatenIdx >= 8;
+      // Drop de rune : 1 par région complétée (ligue vaincue), rareté selon difficulté
+      const _grantedRune = isLeague ? RuneManager.grantRune(rs.difficulty ?? 'easy', null, getLuck()) : null;
       this._registry.set('runState', {
         ...rs,
         currentMap:   nextIdx,
         mapVisited:   [], mapAvailable: [], lastNodeCol: 0,
         infiniteMode: isLeague ? true : rs.infiniteMode,
+        pendingRuneReveal: _grantedRune,   // révélé par l'écran de ligue
       });
       }
     }

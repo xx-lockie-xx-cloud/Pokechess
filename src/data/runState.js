@@ -33,7 +33,9 @@ export function initRun(registry, starterPokemon) {
 
   // Préserve relic, difficulty, seed, anomalyTypes définis avant le starter
   const prev = registry.get('runState') ?? {};
-  const startCoins = prev?.relic?.id === 'contrat_maudit' ? 13 : 5;
+  // Milestone Bourse (arbre transversal) : pieces de depart supplementaires.
+  const startCoins = (prev?.relic?.id === 'contrat_maudit' ? 13 : 5)
+    + (window.__metaStartCoins ?? 0);
 
   registry.set('runState', {
     currentMap:    0,
@@ -89,29 +91,50 @@ export function tryUnlockSlot(registry, arenaNumber) {
 // ── PokéBalls supprimées — achat direct en pièces (voir WildUI) ───────────
 
 // ── Inventaire ─────────────────────────────────────────────────────────────
-export function addToInventory(registry, itemId) {
+// Une entree d'inventaire est une instance { id, rarity }. Les anciennes
+// sauvegardes peuvent contenir des ids en chaine : normalises en normal.
+function _normalizeEntry(entry) {
+  if (typeof entry === 'string') return { id: entry, rarity: 'normal' };
+  return { id: entry.id, rarity: entry.rarity ?? 'normal' };
+}
+export function addToInventory(registry, entry) {
   const state = getRunState(registry);
   const inv   = [...(state.inventory ?? [])];
-  inv.push(itemId);
+  inv.push(_normalizeEntry(entry));
   setRunState(registry, { inventory: inv });
 }
-export function removeFromInventory(registry, itemId) {
-  const state = getRunState(registry);
-  const inv   = [...(state.inventory ?? [])];
-  const idx   = inv.indexOf(itemId);
+// Retire UNE copie correspondant a l'id (et a la rarete si precisee).
+export function removeFromInventory(registry, id, rarity = null) {
+  const state  = getRunState(registry);
+  const inv    = [...(state.inventory ?? [])];
+  const wantId = typeof id === 'string' ? id : id?.id;
+  const idx = inv.findIndex(e => {
+    const ei = typeof e === 'string' ? e : e.id;
+    if (ei !== wantId) return false;
+    if (rarity == null) return true;
+    const er = typeof e === 'string' ? 'normal' : (e.rarity ?? 'normal');
+    return er === rarity;
+  });
   if (idx === -1) return false;
   inv.splice(idx, 1);
   setRunState(registry, { inventory: inv });
   return true;
 }
 export function getInventory(registry) {
-  return getRunState(registry).inventory ?? [];
+  return (getRunState(registry).inventory ?? []).map(_normalizeEntry);
 }
 
 // ── Coins ──────────────────────────────────────────────────────────────────
 export function addCoins(registry, amount) {
   const state = getRunState(registry);
-  setRunState(registry, { coins: (state.coins ?? 0) + amount });
+  // Noeud Cupidite (arbre transversal) : applique ici, donc toutes les sources
+  // de pieces en beneficient sans modification supplementaire.
+  let gain = amount;
+  if (amount > 0) {
+    const mult = window.__metaCoinMult ?? 0;
+    if (mult > 0) gain = Math.round(amount * (1 + mult));
+  }
+  setRunState(registry, { coins: (state.coins ?? 0) + gain });
 }
 export function removeCoins(registry, amount) {
   const state = getRunState(registry);
